@@ -600,7 +600,9 @@ nothing. The accepted patch is written to `agent-<job-id>.patch` (or
 `--skill code.tests --fix <path>` asks for tests instead: they must fail
 on the commit and pass with your fix, which only the checkers see. A check
 whose commands already fail on your commit, before any work is applied,
-refunds you without faulting the builder.
+refunds you without faulting the builder. A failed task costs you nothing and
+its builder its model spend, so after five failed tasks in a day the
+coordinator takes your next one a day after the first of them.
 
 `fix` runs a two-step order for a bug. One agent writes tests that
 reproduce it: the `--accept` commands pass on the commit and fail once the

@@ -34,6 +34,8 @@ pub const MAX_BUNDLE_B64_BYTES: usize = 3 * 1024 * 1024;
 pub const MAX_STORED_BUNDLE_BYTES: u64 = 64 * 1024 * 1024;
 /// The header naming the buyer who signed a bundle upload.
 pub const BUNDLE_UPLOADER_HEADER: &str = "x-compute-buyer";
+/// The header naming the operator who signed a bundle fetch.
+pub const BUNDLE_READER_HEADER: &str = "x-compute-operator";
 
 /// Where a stored bundle is put and fetched, relative to the coordinator.
 pub fn bundle_path(sha256: &str) -> String {

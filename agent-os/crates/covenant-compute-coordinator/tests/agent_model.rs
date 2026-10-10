@@ -45,6 +45,7 @@ struct Rig {
     payout: Arc<MockPayout>,
     url: String,
     http: reqwest::Client,
+    _bundles: tempfile::TempDir,
 }
 
 async fn rig() -> Rig {
@@ -81,7 +82,14 @@ async fn rig_full(
     let audit: Arc<dyn AuditLog> = Arc::new(InMemoryAuditLog::new());
     let reputation = Arc::new(AuditReputationSource::new(audit.clone()));
     let payout = Arc::new(MockPayout::new());
+    let bundles = tempfile::tempdir().unwrap();
+    let store = covenant_compute_coordinator::bundles::BundleStore::open(
+        bundles.path().to_path_buf(),
+        1 << 20,
+    )
+    .unwrap();
     let config = CoordinatorConfig {
+        bundles: Some(Arc::new(store)),
         long_poll_timeout: Duration::from_secs(1),
         default_funding_source: FundingSource::Organic,
         subsidy_policy: Some(SubsidyPolicy::new(10_000, 1_000_000).unwrap()),
@@ -116,6 +124,7 @@ async fn rig_full(
         payout,
         url,
         http: reqwest::Client::new(),
+        _bundles: bundles,
     }
 }
 
@@ -1912,11 +1921,73 @@ async fn a_large_repository_is_stored_by_digest_for_a_signed_buyer() {
     let stored = put(true, path.clone(), bytes.clone()).await.unwrap();
     assert_eq!(stored.status(), reqwest::StatusCode::CREATED);
     let fetched = http.get(format!("{url}{path}")).send().await.unwrap();
-    assert_eq!(fetched.bytes().await.unwrap().to_vec(), bytes);
+    assert_eq!(fetched.status(), reqwest::StatusCode::UNAUTHORIZED);
 
     let other = covenant_compute_protocol::bundle_path(&"0".repeat(64));
     let mismatched = put(true, other, bytes).await.unwrap();
     assert_eq!(mismatched.status(), reqwest::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn a_stored_repository_opens_only_to_the_seat_given_it() {
+    let rig = rig().await;
+    let a = register(&rig, "seat-a@agent", 1);
+    let b = register(&rig, "seat-b@agent", 2);
+    let bytes = b"PACK of a private repository".to_vec();
+    let sha = sha256_hex(&bytes);
+    rig.state
+        .config()
+        .bundles
+        .as_ref()
+        .unwrap()
+        .put(&sha, &bytes)
+        .unwrap();
+    let mut stored = spec();
+    stored.repo = RepoSource::Stored {
+        bundle_sha256: sha.clone(),
+        bytes: bytes.len() as u64,
+        commit: COMMIT.into(),
+    };
+    let task_id = post_task_with(&rig, stored).await;
+    let builder = rig.state.jobs().get(task_id).unwrap().operator_pubkey_b58;
+    let (seat, other) = if builder == a.agent_id().pubkey_base58() {
+        (&a, &b)
+    } else {
+        (&b, &a)
+    };
+
+    let path = covenant_compute_protocol::bundle_path(&sha);
+    let fetch = |reader: Option<&LocalIdentity>| {
+        let mut req = rig.http.get(format!("{}{path}", rig.url));
+        if let Some(reader) = reader {
+            let signed_at = epoch_ms();
+            req = req
+                .header(
+                    covenant_compute_protocol::BUNDLE_READER_HEADER,
+                    reader.agent_id().pubkey_base58(),
+                )
+                .header(
+                    covenant_compute_protocol::READ_SIGNED_AT_HEADER,
+                    signed_at.to_string(),
+                )
+                .header(
+                    covenant_compute_protocol::READ_SIGNATURE_HEADER,
+                    covenant_compute_protocol::sign_read(reader, &path, signed_at).unwrap(),
+                );
+        }
+        req.send()
+    };
+    assert_eq!(
+        fetch(None).await.unwrap().status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        fetch(Some(other)).await.unwrap().status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    let given = fetch(Some(seat)).await.unwrap();
+    assert_eq!(given.status(), reqwest::StatusCode::OK);
+    assert_eq!(given.bytes().await.unwrap().to_vec(), bytes);
 }
 
 #[tokio::test]

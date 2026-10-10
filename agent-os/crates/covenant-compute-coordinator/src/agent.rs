@@ -29,7 +29,7 @@ use covenant_compute_protocol::{
     visible_commands, AgentCheckSpec, AgentCheckVerdict, AgentPatch, AgentRework, AgentSkill,
     AgentTaskOutput, AgentTaskSpec, CapabilityRequirement, CommandOutcome, EscrowError,
     EscrowStatus, FederationEscrow, FundingSource, JobEnvelopePayload, JobKind, JobOffer,
-    RefundReason, ResultSettlement, SignedJobEnvelope, SignedWorkReceipt,
+    RefundReason, RepoSource, ResultSettlement, SignedJobEnvelope, SignedWorkReceipt,
     LEAST_AGENT_OFFER_MICRO_USDC, MAX_REWORK_FEEDBACK_BYTES, MIN_BUILD_BUDGET_MICRO_USD,
 };
 use covenant_identity::LocalIdentity;
@@ -596,6 +596,32 @@ pub fn failed_too_often(
     }
     failed.sort_unstable();
     Some(failed[failed.len() - limit] + DAY_MS)
+}
+
+/// Whether `operator` holds a task or check, not yet run, whose repository
+/// is the stored bundle `sha256`. Only that seat may fetch it, so a private
+/// repository reaches the seats working on it and no one else.
+pub fn holds_bundle(state: &CoordinatorState, operator: &str, sha256: &str) -> bool {
+    state
+        .jobs()
+        .by_operator(operator)
+        .into_iter()
+        .filter(|(_, r)| matches!(r.phase, JobPhase::Offered | JobPhase::Accepted))
+        .filter_map(|(_, r)| stored_bundle(&r))
+        .any(|named| named.eq_ignore_ascii_case(sha256))
+}
+
+fn stored_bundle(record: &JobRecord) -> Option<String> {
+    let input = &record.envelope.payload.input;
+    let repo = match record.envelope.payload.kind {
+        JobKind::AgentTask => parse_agent_task(input).ok()?.repo,
+        JobKind::AgentCheck => parse_agent_check(input).ok()?.repo,
+        _ => return None,
+    };
+    match repo {
+        RepoSource::Stored { bundle_sha256, .. } => Some(bundle_sha256),
+        _ => None,
+    }
 }
 
 /// What admitting a fix decided: the reproduction it builds on, the seat

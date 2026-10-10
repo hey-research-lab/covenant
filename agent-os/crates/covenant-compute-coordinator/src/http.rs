@@ -717,12 +717,33 @@ async fn put_bundle(
     Ok(StatusCode::CREATED)
 }
 
-/// A stored bundle's bytes. Its digest is the only name it has, and a task
-/// is the only place that name travels.
+/// A stored bundle's bytes, for the seat holding a task or check that names
+/// it. The seat signs the fetch as a buyer signs a read; a digest alone opens
+/// nothing.
 async fn get_bundle(
     State(state): State<CoordinatorState>,
     Path(sha256): Path<String>,
+    headers: HeaderMap,
 ) -> Result<AxumResponse, ApiError> {
+    let operator = headers
+        .get(covenant_compute_protocol::BUNDLE_READER_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            ApiError::Unauthorized(format!(
+                "missing {} header",
+                covenant_compute_protocol::BUNDLE_READER_HEADER
+            ))
+        })?;
+    verify_signed_read(
+        &headers,
+        operator,
+        &covenant_compute_protocol::bundle_path(&sha256),
+    )?;
+    if !crate::agent::holds_bundle(&state, operator, &sha256) {
+        return Err(ApiError::NotFound(format!(
+            "none of your open tasks names bundle {sha256}"
+        )));
+    }
     let path = state
         .config()
         .bundles

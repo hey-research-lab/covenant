@@ -11348,8 +11348,8 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
             // 404; an enabled vault would 401 an unsigned read. Never 2xx.
             (format!("/vault/{hp}/secrets"), false),
             (format!("/vault/{hp}/secret/{hp}"), false),
-            // Bundles: none is stored unless agent work runs, and a
-            // garbage digest never names one.
+            // Bundles: a fetch opens only to a signed seat holding a task
+            // that names the bundle, so an unsigned one is a 401.
             (format!("/federation/bundles/{hp}"), false),
         ] {
             assert_wire_answer(

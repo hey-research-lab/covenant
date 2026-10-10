@@ -1036,21 +1036,40 @@ impl AgentExecutor {
         bytes: u64,
         until: Instant,
     ) -> Result<Vec<u8>, ExecutorError> {
+        let path = covenant_compute_protocol::bundle_path(sha256);
         let url = format!(
-            "{}{}",
-            self.config.coordinator_url.trim_end_matches('/'),
-            covenant_compute_protocol::bundle_path(sha256)
+            "{}{path}",
+            self.config.coordinator_url.trim_end_matches('/')
         );
         let failed = |e: String| ExecutorError::Failed(format!("fetch the stored repository: {e}"));
+        let signed_at_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let signature =
+            covenant_compute_protocol::sign_read(&self.config.voter, &path, signed_at_ms)
+                .map_err(|e| failed(e.to_string()))?;
         let left = until.saturating_duration_since(Instant::now());
         let resp = reqwest::Client::new()
             .get(&url)
+            .header(
+                covenant_compute_protocol::BUNDLE_READER_HEADER,
+                self.config.voter.agent_id().pubkey_base58(),
+            )
+            .header(
+                covenant_compute_protocol::READ_SIGNED_AT_HEADER,
+                signed_at_ms.to_string(),
+            )
+            .header(covenant_compute_protocol::READ_SIGNATURE_HEADER, signature)
             .timeout(left.min(Duration::from_secs(300)))
             .send()
             .await
             .map_err(|e| failed(e.to_string()))?;
         if !resp.status().is_success() {
-            return Err(failed(format!("the coordinator answered {}", resp.status())));
+            return Err(failed(format!(
+                "the coordinator answered {}",
+                resp.status()
+            )));
         }
         let body = resp.bytes().await.map_err(|e| failed(e.to_string()))?;
         if body.len() as u64 != bytes || sha256_hex(&body) != sha256 {

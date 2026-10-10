@@ -638,8 +638,6 @@ pub fn apply_patch(repo: &Path, patch: &[u8]) -> Result<(), BuyerError> {
     Ok(())
 }
 
-/// Bundles a local repository's history up to HEAD, so the agent works
-/// from the exact commit without the repository needing to be public.
 /// A local repository as a task's source: its snapshot inline when it fits
 /// a job, otherwise named by digest, with the bytes to store first.
 pub fn local_bundle(

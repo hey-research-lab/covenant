@@ -1991,6 +1991,22 @@ async fn a_stored_repository_opens_only_to_the_seat_given_it() {
 }
 
 #[tokio::test]
+async fn a_task_naming_a_repository_never_stored_is_refused() {
+    let rig = rig().await;
+    register(&rig, "seat-a@agent", 1);
+    let mut stored = spec();
+    stored.repo = RepoSource::Stored {
+        bundle_sha256: sha256_hex(b"never stored"),
+        bytes: 12,
+        commit: COMMIT.into(),
+    };
+    let buyer = LocalIdentity::generate("buyer@agent");
+    let (_, status, body) = post_as(&rig, &buyer, stored, 1_200_000).await;
+    assert_eq!(status, reqwest::StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.contains("does not hold"), "{body}");
+}
+
+#[tokio::test]
 async fn a_buyer_whose_tasks_keep_failing_waits_a_day() {
     let rig = rig_limiting_failures(1).await;
     let buyer = LocalIdentity::generate("buyer@agent");

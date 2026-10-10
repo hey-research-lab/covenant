@@ -1083,6 +1083,12 @@ async fn submit_job(
                 policy.max_failed_per_day, after_ms
             )));
         }
+        if let Some(sha256) = crate::agent::missing_bundle(&state, &envelope.payload.input) {
+            return Err(ApiError::BadRequest(format!(
+                "the task names stored repository {sha256}, which this coordinator does not \
+                 hold; store it first, and post within two days of storing it"
+            )));
+        }
     }
 
     let job_id = envelope.payload.job_id;

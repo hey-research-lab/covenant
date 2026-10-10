@@ -607,13 +607,24 @@ pub fn holds_bundle(state: &CoordinatorState, operator: &str, sha256: &str) -> b
         .by_operator(operator)
         .into_iter()
         .filter(|(_, r)| matches!(r.phase, JobPhase::Offered | JobPhase::Accepted))
-        .filter_map(|(_, r)| stored_bundle(&r))
+        .filter_map(|(_, r)| stored_bundle(r.envelope.payload.kind, &r.envelope.payload.input))
         .any(|named| named.eq_ignore_ascii_case(sha256))
 }
 
-fn stored_bundle(record: &JobRecord) -> Option<String> {
-    let input = &record.envelope.payload.input;
-    let repo = match record.envelope.payload.kind {
+/// The stored bundle an agent task names that this coordinator does not
+/// hold. A seat given that task could only fail it.
+pub fn missing_bundle(state: &CoordinatorState, input: &[Content]) -> Option<String> {
+    let named = stored_bundle(JobKind::AgentTask, input)?;
+    let held = state
+        .config()
+        .bundles
+        .as_ref()
+        .is_some_and(|store| store.path(&named).is_some());
+    (!held).then_some(named)
+}
+
+fn stored_bundle(kind: JobKind, input: &[Content]) -> Option<String> {
+    let repo = match kind {
         JobKind::AgentTask => parse_agent_task(input).ok()?.repo,
         JobKind::AgentCheck => parse_agent_check(input).ok()?.repo,
         _ => return None,

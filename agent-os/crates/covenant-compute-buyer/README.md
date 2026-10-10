@@ -570,9 +570,13 @@ different key already held for a label needs `--force`. The vault is
 available only against a coordinator that serves it.
 
 `agent` hires a coding agent for one task in a git repository. `--repo`
-is a local repository, sent as its committed history (commit what the
-agent should see and keep secrets out), or a public https URL with
-`--commit`. Each `--accept <cmd>` is a command the work must pass, run
+is a local repository, sent as a snapshot of the commit's files without
+its history (commit what the agent should see and keep secrets out), or a
+public https URL with `--commit`. A snapshot too large to travel inside
+the task, up to 64 MB packed, is stored with the coordinator for two days.
+Besides the coordinator, only the operators who build and check the task
+receive your code: a stored snapshot opens only to their signed requests,
+and public receipts carry hashes, never code. Each `--accept <cmd>` is a command the work must pass, run
 from the repository root with no network. `--setup <cmd>` installs what
 those commands need first, with the package registries reachable (PyPI,
 npm, crates.io and the Go module proxy) and nothing else. Give neither
@@ -600,9 +604,10 @@ nothing. The accepted patch is written to `agent-<job-id>.patch` (or
 `--skill code.tests --fix <path>` asks for tests instead: they must fail
 on the commit and pass with your fix, which only the checkers see. A check
 whose commands already fail on your commit, before any work is applied,
-refunds you without faulting the builder. A failed task costs you nothing and
-its builder its model spend, so after five failed tasks in a day the
-coordinator takes your next one a day after the first of them.
+refunds you without faulting the builder. A failed task costs you nothing,
+but its build still cost the operator, so after five failed tasks in 24
+hours the coordinator takes no new task from you until the oldest of them
+is a day old.
 
 `fix` runs a two-step order for a bug. One agent writes tests that
 reproduce it: the `--accept` commands pass on the commit and fail once the

@@ -771,6 +771,11 @@ async fn main() -> anyhow::Result<()> {
                     "must be a u64 (micro-USDC)",
                 )?,
                 max_reworks: env_parse("COVENANT_COMPUTE_AGENT_MAX_REWORKS", 1, "must be a u32")?,
+                max_failed_per_day: env_parse(
+                    "COVENANT_COMPUTE_AGENT_MAX_FAILED_PER_DAY",
+                    5,
+                    "must be a u32",
+                )?,
             };
             tracing::info!(
                 buyers = ?policy.buyers,

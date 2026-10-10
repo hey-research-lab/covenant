@@ -56,15 +56,19 @@ async fn rig_with(accept_timeout_ms: u64) -> Rig {
 }
 
 async fn rig_sampling(accept_timeout_ms: u64, pass_sample_bps: u32) -> Rig {
-    rig_full(accept_timeout_ms, pass_sample_bps, None, 0).await
+    rig_full(accept_timeout_ms, pass_sample_bps, None, 0, 0).await
 }
 
 async fn rig_rounds(rounds: Arc<NoopVoteRounds>) -> Rig {
-    rig_full(120_000, 0, Some(rounds), 0).await
+    rig_full(120_000, 0, Some(rounds), 0, 0).await
 }
 
 async fn rig_reworking() -> Rig {
-    rig_full(120_000, 0, None, 1).await
+    rig_full(120_000, 0, None, 1, 0).await
+}
+
+async fn rig_limiting_failures(max_failed_per_day: u32) -> Rig {
+    rig_full(120_000, 0, None, 0, max_failed_per_day).await
 }
 
 async fn rig_full(
@@ -72,6 +76,7 @@ async fn rig_full(
     pass_sample_bps: u32,
     rounds: Option<Arc<NoopVoteRounds>>,
     max_reworks: u32,
+    max_failed_per_day: u32,
 ) -> Rig {
     let audit: Arc<dyn AuditLog> = Arc::new(InMemoryAuditLog::new());
     let reputation = Arc::new(AuditReputationSource::new(audit.clone()));
@@ -85,6 +90,7 @@ async fn rig_full(
             check_price_micro_usdc: 1_000,
             max_check_attempts: 5,
             max_reworks,
+            max_failed_per_day,
             check_accept_timeout_ms: accept_timeout_ms,
             confirm_failures: true,
             pass_sample_bps,
@@ -533,6 +539,7 @@ async fn agent_work_is_closed_to_unlisted_buyers_and_checks_cannot_be_bought() {
                 check_price_micro_usdc: 1_000,
                 max_check_attempts: 5,
                 max_reworks: 0,
+                max_failed_per_day: 0,
                 check_accept_timeout_ms: 120_000,
                 confirm_failures: true,
                 pass_sample_bps: 0,
@@ -1910,4 +1917,47 @@ async fn a_large_repository_is_stored_by_digest_for_a_signed_buyer() {
     let other = covenant_compute_protocol::bundle_path(&"0".repeat(64));
     let mismatched = put(true, other, bytes).await.unwrap();
     assert_eq!(mismatched.status(), reqwest::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn a_buyer_whose_tasks_keep_failing_waits_a_day() {
+    let rig = rig_limiting_failures(1).await;
+    let buyer = LocalIdentity::generate("buyer@agent");
+    let a = register(&rig, "seat-a@agent", 1);
+    let b = register(&rig, "seat-b@agent", 2);
+    let c = register(&rig, "seat-c@agent", 3);
+    let seats = [&a, &b, &c];
+
+    let (task_id, status, body) = post_as(&rig, &buyer, spec(), 1_200_000).await;
+    assert_eq!(status, reqwest::StatusCode::ACCEPTED, "{body}");
+    let builder = rig.state.jobs().get(task_id).unwrap().operator_pubkey_b58;
+    submit(
+        &rig,
+        task_id,
+        by_key(&seats, &builder),
+        agent_task_output(patch_spending(10_000)).unwrap(),
+    )
+    .await;
+    answer_checks(
+        &rig,
+        task_id,
+        &seats,
+        1,
+        2,
+        &verdict(task_id, &patch().patch_sha256, 1),
+    )
+    .await;
+    assert_eq!(settled(&rig, task_id).await, JobPhase::Refunded);
+
+    let (_, status, body) = post_as(&rig, &buyer, spec(), 1_200_000).await;
+    assert_eq!(status, reqwest::StatusCode::TOO_MANY_REQUESTS, "{body}");
+    assert!(body.contains("post again after"), "{body}");
+
+    let other = LocalIdentity::generate("other@agent");
+    let (_, status, body) = post_as(&rig, &other, spec(), 1_200_000).await;
+    assert_eq!(
+        status,
+        reqwest::StatusCode::ACCEPTED,
+        "another buyer is unaffected: {body}"
+    );
 }

@@ -1049,6 +1049,21 @@ async fn submit_job(
         }
     }
 
+    if let (JobKind::AgentTask, Some(policy)) =
+        (envelope.payload.kind, state.config().agent.as_ref())
+    {
+        let buyer_key = envelope.payload.buyer.pubkey_base58();
+        if let Some(after_ms) =
+            crate::agent::failed_too_often(&state, &buyer_key, policy, crate::epoch_ms())
+        {
+            return Err(ApiError::TooManyRequests(format!(
+                "{} of your agent tasks failed in the last day, the most this network takes; \
+                 post again after {} (epoch ms)",
+                policy.max_failed_per_day, after_ms
+            )));
+        }
+    }
+
     let job_id = envelope.payload.job_id;
     let amount = envelope.payload.price_micro_usdc;
 

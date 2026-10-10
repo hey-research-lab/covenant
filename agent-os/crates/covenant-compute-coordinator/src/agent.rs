@@ -84,6 +84,10 @@ pub struct AgentPolicy {
     /// How many times a task whose check failed goes back to its builder,
     /// told what failed, before the buyer is refunded.
     pub max_reworks: u32,
+    /// How many of a buyer's agent tasks may fail in a day before their next
+    /// waits: a failure is free to its buyer and costs the seats their model
+    /// spend. 0 sets no limit.
+    pub max_failed_per_day: u32,
 }
 
 impl AgentPolicy {
@@ -551,6 +555,47 @@ async fn settle_once(state: &CoordinatorState, task_id: Uuid) {
     if let Some(TaskOrder::Fix { reproduction, .. }) = &task.order {
         follow_fix(state, *reproduction).await;
     }
+}
+
+const DAY_MS: u64 = 24 * 60 * 60 * 1000;
+
+/// When `buyer` may post agent work again, if their failed tasks of the last
+/// day have reached the policy's limit: once the oldest of those counted ages
+/// out. Only a failure that cost the seats a build counts: work that ran and
+/// did not pass, or a commit that was broken before the work began.
+pub fn failed_too_often(
+    state: &CoordinatorState,
+    buyer: &str,
+    policy: &AgentPolicy,
+    now_ms: u64,
+) -> Option<u64> {
+    let limit = policy.max_failed_per_day as usize;
+    if limit == 0 {
+        return None;
+    }
+    let mut failed: Vec<u64> = state
+        .jobs()
+        .by_buyer(buyer)
+        .into_iter()
+        .filter(|(_, r)| r.envelope.payload.kind == JobKind::AgentTask)
+        .filter(|(_, r)| {
+            matches!(
+                r.refund_reason,
+                Some(
+                    RefundReason::CheckFailed
+                        | RefundReason::ExecutionFailed
+                        | RefundReason::BaselineFailed
+                )
+            )
+        })
+        .filter_map(|(_, r)| r.concluded_at_ms)
+        .filter(|at| now_ms.saturating_sub(*at) < DAY_MS)
+        .collect();
+    if failed.len() < limit {
+        return None;
+    }
+    failed.sort_unstable();
+    Some(failed[failed.len() - limit] + DAY_MS)
 }
 
 /// What admitting a fix decided: the reproduction it builds on, the seat
@@ -1308,6 +1353,7 @@ mod pricing_tests {
             check_price_micro_usdc: 5_000,
             max_check_attempts: 5,
             max_reworks: 0,
+            max_failed_per_day: 0,
             check_accept_timeout_ms: 120_000,
             confirm_failures: true,
             pass_sample_bps: 0,

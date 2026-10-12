@@ -139,6 +139,15 @@ GET  /x402/er/enclave/<validator>      a live TDX verification of a MagicBlock e
         </li>
       </ul>
 
+      <p>
+        A second x402 seller is live on Base mainnet. It answers{" "}
+        <code>POST /x402/attest</code> with an x402 v2 <code>402</code> priced
+        in Base USDC and settled over EIP-3009, so an agent holding only Base
+        USDC can buy a Covenant-signed attestation without a gas token or{" "}
+        <code>$CVNT</code>. See <Link href="/multichain">multi-chain</Link> for
+        the Base address sheet and the token boundary.
+      </p>
+
       <h2>Related</h2>
       <ul>
         <li>

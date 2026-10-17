@@ -518,8 +518,8 @@ pub async fn run(req: KaniRequest<'_>) -> Result<KaniRun, ExecutorError> {
         .iter()
         .find(|p| p.matches(req.image, req.spec))
         .ok_or_else(|| fail("no admitted resource profile matches this proof".into()))?;
-    validate_capacity(profile, &host_capacity().map_err(&fail)?).map_err(&fail)?;
-    let image_id = inspect_image(req.runtime, req.image).await.map_err(&fail)?;
+    validate_capacity(profile, &host_capacity().map_err(fail)?).map_err(fail)?;
+    let image_id = inspect_image(req.runtime, req.image).await.map_err(fail)?;
     let request = tempfile::Builder::new()
         .prefix("kani-request-")
         .tempdir_in(req.work_dir)
@@ -582,7 +582,7 @@ pub async fn run(req: KaniRequest<'_>) -> Result<KaniRun, ExecutorError> {
     remove(req.runtime, req.name).await;
     let (stdout, stdout_overflow) = stdout.await.map_err(|e| fail(e.to_string()))?;
     let (stderr, stderr_overflow) = stderr.await.map_err(|e| fail(e.to_string()))?;
-    let state = state.map_err(&fail)?;
+    let state = state.map_err(fail)?;
     let oom = state
         .get("OOMKilled")
         .and_then(Value::as_bool)
@@ -600,7 +600,7 @@ pub async fn run(req: KaniRequest<'_>) -> Result<KaniRun, ExecutorError> {
     }
     let packet: Value = serde_json::from_slice(&stdout).unwrap_or(Value::Null);
     let mut artifacts = if packet.get("artifacts").is_some() {
-        capture_artifacts(&packet).map_err(&fail)?
+        capture_artifacts(&packet).map_err(fail)?
     } else {
         BTreeMap::new()
     };
@@ -660,7 +660,7 @@ pub async fn run(req: KaniRequest<'_>) -> Result<KaniRun, ExecutorError> {
             serde_json::to_vec(&report).map_err(|e| fail(e.to_string()))?,
         );
     } else {
-        validate_report_artifacts(&report, &artifacts).map_err(&fail)?;
+        validate_report_artifacts(&report, &artifacts).map_err(fail)?;
         let control: Value = serde_json::from_slice(&control_stdout)
             .map_err(|e| fail(format!("runner stdout is not a JSON report: {e}")))?;
         if control != report {
@@ -673,7 +673,7 @@ pub async fn run(req: KaniRequest<'_>) -> Result<KaniRun, ExecutorError> {
         }
     }
     let (artifacts_gzip_b64, artifacts_sha256, raw_bytes) =
-        pack_artifacts(&artifacts).map_err(&fail)?;
+        pack_artifacts(&artifacts).map_err(fail)?;
     let evidence = json!({
         "schema":"covenant.kani.execution.v1", "plan":req.spec.plan, "image":req.image,
         "memory_mib":req.spec.memory_mib, "cpus":req.spec.cpus, "scratch_mib":req.spec.scratch_mib,

@@ -4094,6 +4094,8 @@ mod tests {
             axum::routing::post(move || {
                 let remaining = remaining.clone();
                 async move {
+                    // try_update is unavailable on the Rust 1.90 image build toolchain.
+                    #[allow(deprecated)]
                     if remaining
                         .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
                         .is_ok()

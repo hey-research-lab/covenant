@@ -43,6 +43,7 @@ pub mod http;
 pub mod jobs;
 pub mod journal;
 pub mod matcher;
+pub mod observer;
 pub mod onchain_meter;
 pub mod payout;
 pub mod prices;

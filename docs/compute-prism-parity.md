@@ -11,7 +11,7 @@ Provider market sampling is read-only and cannot create rentals or move funds.
 
 | # | Earliest upstream change | Local implementation | Local validation | Production evidence |
 |---|---|---|---|---|
-| 1 | Aug 12 [GPU prices](https://github.com/prismnetwork-tech/prism/pull/142) | Durable hourly provider samples, provisioning quotes, bound settled rates, public page/API | 1,395 affected-crate tests + 280 protocol tests; local provider/restart rehearsal; renderer and docs checks | Promotion pending; see release evidence below |
+| 1 | Aug 12 [GPU prices](https://github.com/prismnetwork-tech/prism/pull/142) | Durable hourly provider samples, provisioning quotes, bound settled rates, public page/API | 1,395 affected-crate tests + 280 protocol tests; local provider/restart rehearsal; renderer and docs checks | Live 2026-10-17; public image pulls, provider samples and restart acceptance verified |
 | 2 | Aug 13 [observer](https://github.com/prismnetwork-tech/prism/pull/160), [status](https://github.com/prismnetwork-tech/prism/pull/164) | Not included in this release | Separate parity branch | Not activated here |
 | 3 | Aug 14 [workspaces](https://github.com/prismnetwork-tech/prism/pull/179) | Not included in this release | Separate parity branch | Not activated here |
 | 4 | Aug 14 [canary](https://github.com/prismnetwork-tech/prism/pull/180) | Not included in this release | Separate parity branch | Not activated here |
@@ -99,24 +99,47 @@ Local validation on 2026-10-17:
 - Identity, delayed payout, journal replay, unknown-network periods, source store
   corruption, interrupted writes and HTTP opt-in/privacy/range checks pass.
 
-Production promotion is pending. The current public coordinator is
-`https://compute-api.opencovenant.org`. Preserve the coordinator and broker
-persistent `/data` disks and identities. Before promotion, zero jobs were offered/accepted,
-six operators were live and journal health was good.
+Production acceptance completed on 2026-10-17 at 20:11 UTC (22:11 CEST):
 
-Publish immutable coordinator/node images from the reviewed deployment commit.
-The existing private image names remain available to Render. Identical new public
-mirror packages `covenant/compute-coordinator-public` and
-`covenant/compute-node-public` allow anonymous pulls without changing visibility
-of historical private packages. Then
-verify registry pulls, deploy the accepting coordinator before the metadata-emitting
-broker, and enable price history. Scoped price proofs require the verified mainnet/USDC binding;
-keep the broader public-proof-feed setting unchanged. Verify `/health` names the exact build revision, provider
-sampling becomes available, existing books/identity/capacity recover, and run:
+- [GPU price history](https://compute-api.opencovenant.org/prices) and
+  [source JSON](https://compute-api.opencovenant.org/prices/history) are live.
+- [PR #314](https://github.com/open-covenant/covenant/pull/314) merged as
+  `6b6b74093362181e110513b91c3d6e9aa305c897`. The coordinator and L40S broker
+  both run images from that revision. `/health` reports the exact revision.
+- [Image workflow](https://github.com/open-covenant/covenant/actions/runs/39061576004)
+  succeeded for both images. Anonymous GHCR manifest/config reads and all 15
+  image-layer HEAD requests passed. OCI labels identify the same source revision
+  and Linux/amd64 platform; mirror digests equal the deployed image digests.
+- The new `compute-coordinator-public` and `compute-node-public` mirrors are
+  public. Historical deployment packages retain their previous private visibility.
+- The first durable provider sweep recorded 52 quotes across all eight tracked
+  GPU models. The page/API reported available, fresh and persistence-healthy data.
+- The coordinator identity remains
+  `3Z27s9cCPNWYg7y86PhGwHpEMV4crrY5vAwTwzQNbjjh`. Its non-null settlement
+  binding verifies Solana mainnet genesis and native USDC. The existing broader
+  receipt feed still returns 404; nonexistent scoped price proofs return 404.
+- A controlled production restart recovered the exact same eight price points,
+  52 observations, sampling timestamp and persisted settlement identity. No
+  duplicate sweep occurred. A brief restart outage was observed and recovered.
+- Final checks found a healthy journal, all six registered operators live and
+  the L40S lease operator matchable. The 66 completed, three failed and two
+  refunded jobs were unchanged; there were no active jobs during promotion.
+- Settled price samples remain zero. No paid rental or transaction was generated
+  for this release. New qualifying leases will contribute their actual settled
+  rates; neither old price history nor a funded production settlement test is
+  claimed.
+
+| Image mirror | Immutable tag | Verified digest |
+|---|---|---|
+| `ghcr.io/open-covenant/covenant/compute-coordinator-public` | `6b6b74093362181e110513b91c3d6e9aa305c897` | `sha256:36ccdca1f002acc81b65ceecba81522b74d9b3c8381f6d0ed3c7816fd25b9b4a` |
+| `ghcr.io/open-covenant/covenant/compute-node-public` | `6b6b74093362181e110513b91c3d6e9aa305c897` | `sha256:cc130b3956a72d69dba7c75666816c9b9824062f65a734880b35d9dc81e5e381` |
+
+The read-only release acceptance command passed after the restart:
 
 ```sh
 node agent-os/scripts/accept-price-history-release.mjs \
-  https://compute-api.opencovenant.org <40-character-image-revision> \
+  https://compute-api.opencovenant.org \
+  6b6b74093362181e110513b91c3d6e9aa305c897 \
   3Z27s9cCPNWYg7y86PhGwHpEMV4crrY5vAwTwzQNbjjh
 ```
 

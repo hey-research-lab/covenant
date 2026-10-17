@@ -44,6 +44,7 @@ pub mod journal;
 pub mod matcher;
 pub mod onchain_meter;
 pub mod payout;
+pub mod prices;
 pub mod recover;
 pub mod redundancy;
 pub mod registry;

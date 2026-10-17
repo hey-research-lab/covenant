@@ -24,6 +24,7 @@ mod fees;
 mod generation;
 mod lease;
 mod lease_close;
+pub mod price_history;
 mod logprobs;
 mod merkle;
 mod payout;

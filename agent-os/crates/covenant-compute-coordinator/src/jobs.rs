@@ -485,6 +485,11 @@ impl JobBook {
         Ok(())
     }
 
+    /// Minimal public price projection; no buyer identity, prompt or endpoint escapes.
+    pub fn price_observations(&self, mint: Option<&str>) -> Vec<crate::prices::PriceObservation> {
+        self.jobs.lock().iter().flat_map(|(id, row)| crate::prices::observations(*id, row, mint)).collect()
+    }
+
     pub fn get(&self, job_id: Uuid) -> Option<JobRecord> {
         self.jobs.lock().get(&job_id).cloned()
     }
@@ -861,8 +866,9 @@ impl JobBook {
     pub fn set_lease_access(
         &self,
         job_id: Uuid,
-        access: covenant_compute_protocol::LeaseAccess,
+        mut access: covenant_compute_protocol::LeaseAccess,
     ) -> Result<bool, JobError> {
+        if let Some(source) = &mut access.source_price { source.observed_at_ms = crate::epoch_ms(); }
         self.update_if(
             job_id,
             |r| r.lease_access.is_none(),
@@ -1689,6 +1695,35 @@ mod tests {
     }
 
     #[test]
+    fn source_price_replays_without_inventing_settlement_or_duplicate_samples() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("journal.jsonl");
+        let id = Uuid::new_v4();
+        let mut row = lease_record(id, LeaseTerms { max_duration_secs: 60, rate_micro_usdc_per_sec: 1, client_public_key: None }, Some(5_000));
+        row.phase = JobPhase::Accepted;
+        let access = covenant_compute_protocol::LeaseAccess {
+            job_id: id, endpoint: "ssh root@example.invalid".into(), ready_at_ms: 100, note: None,
+            source_price: Some(covenant_compute_protocol::price_history::SourcePrice {
+                version: 1, provider: "fixture".into(), gpu_model: "A100".into(), gpu_count: 1,
+                instance_micro_usd_per_hour: 500_000, observed_at_ms: 1,
+            }),
+        };
+        {
+            let book = JobBook::restore(HashMap::new(), Arc::new(Journal::open(&path).unwrap()));
+            book.insert(id, row).unwrap();
+            assert!(book.set_lease_access(id, access.clone()).unwrap());
+            assert!(!book.set_lease_access(id, access).unwrap());
+        }
+        let restored = Journal::load(&path).unwrap();
+        let book = JobBook::restore(restored.jobs, Arc::new(Journal::open(&path).unwrap()));
+        let rows = book.price_observations(Some("mint"));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].currency, "USD");
+        assert!(rows[0].at_ms > 1); // coordinator observation time, not operator backdating
+        assert!(rows[0].proof_path.is_none());
+    }
+
+    #[test]
     fn a_concluded_lease_stops_serving_its_access_grant() {
         let terms = LeaseTerms {
             max_duration_secs: 600,
@@ -1696,6 +1731,7 @@ mod tests {
             client_public_key: None,
         };
         let access = covenant_compute_protocol::LeaseAccess {
+            source_price: None,
             job_id: Uuid::nil(),
             endpoint: "ssh root@203.0.113.9 -p 22".into(),
             ready_at_ms: 0,

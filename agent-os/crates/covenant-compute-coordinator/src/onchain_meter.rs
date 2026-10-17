@@ -1705,6 +1705,7 @@ mod tests {
             metered_elapsed_ms: None,
             close_requested_at_ms,
             lease_access: endpoint.map(|endpoint| LeaseAccess {
+                source_price: None,
                 job_id,
                 endpoint: endpoint.into(),
                 ready_at_ms: issued_at_ms,

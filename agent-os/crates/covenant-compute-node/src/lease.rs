@@ -120,6 +120,7 @@ impl StubSessionBackend {
 impl SessionBackend for StubSessionBackend {
     async fn open(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
         Ok(LeaseAccess {
+            source_price: None,
             job_id: job.job_id,
             endpoint: self.endpoint.clone(),
             ready_at_ms: std::time::SystemTime::now()
@@ -373,6 +374,7 @@ mod tests {
     impl SessionBackend for UnpublishableGrantBackend {
         async fn open(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
             Ok(LeaseAccess {
+                source_price: None,
                 job_id: job.job_id,
                 endpoint: String::new(),
                 ready_at_ms: 0,
@@ -444,6 +446,7 @@ mod tests {
     impl SessionBackend for RunningBackend {
         async fn open(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
             Ok(LeaseAccess {
+                source_price: None,
                 job_id: job.job_id,
                 endpoint: "ssh renter@203.0.113.7 -p 2222".into(),
                 ready_at_ms: 0,

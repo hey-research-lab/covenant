@@ -116,6 +116,7 @@ const MAX_INLINE_BODY_BYTES: usize = 8 * 1024 * 1024;
 pub fn router(state: CoordinatorState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/prices/history", get(crate::prices::history))
         .route("/metrics", get(metrics))
         .route("/federation/operators/register", post(register))
         .route("/federation/operators/heartbeat", post(heartbeat))

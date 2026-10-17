@@ -178,6 +178,13 @@ profile, price or deadline is rejected before it executes.
 
 ## Typed Kani checks
 
+Upgraded generic checkers advertise both each configured check image and its
+`native-empty-v1:<sha256-of-image-reference>` capability. The latter permits
+direct checks of source with no patch, which older checkers cannot execute.
+It requires an exact capability match; `any` and image-only advertisements
+do not qualify. Explicit model overrides must include the derived capability
+to opt in. Nonempty patch checks continue to use the ordinary image route.
+
 Typed Kani acceptance is an opt-in extension of `agent_check`. Configure
 `COVENANT_COMPUTE_KANI_PROFILES` as a JSON array of
 `{"image":"registry/image@sha256:<digest>","memory_mib":12288,"cpus":4,"scratch_mib":1024}`.

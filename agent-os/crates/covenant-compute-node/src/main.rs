@@ -106,7 +106,7 @@ fn agent_kind_models(
         },
         KindModels {
             kind: JobKind::AgentCheck,
-            models: agent_check_images()
+            models: agent_check_models()
                 .into_iter()
                 .chain(kani_profiles.iter().map(|p| p.label()))
                 .collect(),
@@ -115,6 +115,16 @@ fn agent_kind_models(
     .into_iter()
     .filter(|set| job_kinds.contains(&set.kind))
     .collect()
+}
+
+fn agent_check_models() -> Vec<String> {
+    agent_check_images()
+        .into_iter()
+        .flat_map(|image| {
+            let empty = covenant_compute_protocol::native_empty_check_model(&image);
+            [image, empty]
+        })
+        .collect()
 }
 
 fn agent_builder_models(kani_author: bool) -> Vec<String> {
@@ -679,7 +689,7 @@ async fn resolve_models_served(executor_kind: &str) -> anyhow::Result<Vec<String
             let mut models = vec![covenant_compute_protocol::AgentRuntime::ClaudeCode
                 .label()
                 .to_string()];
-            models.extend(agent_check_images());
+            models.extend(agent_check_models());
             Ok(models)
         }
         // A swarm node serves one thing, the IMD swarm, under the label a
@@ -3560,6 +3570,18 @@ mod tests {
         assert_eq!(sets[0].kind, JobKind::AgentCheck);
         assert!(sets[0].models.contains(&profile.label()));
         assert!(!sets[0].models.contains(&"claude-code:kani-v1".into()));
+    }
+
+    #[test]
+    fn native_empty_check_advertising_preserves_ordinary_image_routes() {
+        let sets = agent_kind_models("agent", &[], false, &[JobKind::AgentCheck]);
+        assert_eq!(sets.len(), 1);
+        for image in agent_check_images() {
+            assert!(sets[0].models.contains(&image));
+            assert!(sets[0]
+                .models
+                .contains(&covenant_compute_protocol::native_empty_check_model(&image)));
+        }
     }
 
     #[test]

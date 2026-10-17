@@ -607,6 +607,16 @@ pub struct AgentCheckSpec {
 }
 
 impl AgentCheckSpec {
+    /// Empty verification orders need a checker that can execute the pinned
+    /// tree without applying a patch. Older generic checkers reject them.
+    pub fn checker_model(&self) -> String {
+        if self.acceptance.kani.is_none() && self.patch_b64.is_empty() {
+            native_empty_check_model(&self.acceptance.image)
+        } else {
+            self.acceptance.checker_model()
+        }
+    }
+
     pub fn validate(&self) -> Result<(), ProtocolError> {
         self.repo.validate()?;
         self.acceptance.validate()?;
@@ -658,6 +668,16 @@ impl AgentCheckSpec {
             )),
         }
     }
+}
+
+pub const NATIVE_EMPTY_CHECK_MODEL_PREFIX: &str = "native-empty-v1:";
+
+/// An explicit capability for checking an unchanged tree in this exact image.
+pub fn native_empty_check_model(image: &str) -> String {
+    format!(
+        "{NATIVE_EMPTY_CHECK_MODEL_PREFIX}{}",
+        sha256_hex(image.as_bytes())
+    )
 }
 
 /// One acceptance command as the checker ran it.

@@ -673,6 +673,12 @@ The signed receipt pays for checker execution, including a failed property.
 A failed acceptance prints its signed result and exits nonzero. `verify`
 continues to mean verification of an on-chain payout.
 
+A generic check without a patch requires the exact
+`native-empty-v1:<sha256-of-image-reference>` capability shown in its preview.
+Legacy image-only or `any` workers cannot accept that order. Checks with a
+nonempty patch retain the ordinary image capability; Kani checks retain their
+separate versioned capability.
+
 A Kani order supplies a structured plan rather than a shell acceptance
 command. For example, save the following as `route-plan.json`, replacing
 the harness and cover description with the exact names in your source:

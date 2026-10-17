@@ -22,7 +22,7 @@ use base64::Engine as _;
 
 use covenant_a2a::{A2ADuplicateSafety, A2AIdempotency, A2ATaskStatus};
 use covenant_compute_protocol::{
-    canonical_model, chat_input, coordinator_reason, generation_input, output_hash_hex,
+    chat_input, coordinator_reason, generation_input, model_matches, output_hash_hex,
     parse_speech_input, payout_transaction_rpc_request, speech_input, tools_input,
     transcription_input, verify_payout_transaction, CancelRequest, CapabilityRequirement,
     ChatMessage, DisputeRequest, GenerationParams, JobEnvelopePayload, LeaseCloseRequest,
@@ -2275,8 +2275,9 @@ pub async fn capacity_filtered(
 /// at which the request first finds supply. `None` when nothing matchable
 /// serves it, which a caller reads as "no operator to buy from right
 /// now". A `None` model matches any operator of that kind; a named model
-/// matches operators serving it or a generic `"any"` node, the same
-/// widening the matcher applies. `gpu_class`/`min_vram_gb` narrow to rows
+/// matches operators serving it or, unless it requires an explicit execution
+/// capability, a generic `"any"` node, just as the matcher does.
+/// `gpu_class`/`min_vram_gb` narrow to rows
 /// whose supply could satisfy the hardware ask, and `min_reputation_bps`
 /// narrows to the pool a reputation-floored job would actually match, so
 /// the ask it returns is one that job would truly pay. This is the right
@@ -2301,14 +2302,13 @@ pub async fn cheapest_matching_ask(
     min_reputation_bps: Option<u32>,
 ) -> Result<Option<u64>, BuyerError> {
     let view = capacity_filtered(http, config, min_reputation_bps).await?;
-    let want = model.map(canonical_model);
     Ok(view
         .entries
         .iter()
         .filter(|e| e.kind == kind)
-        .filter(|e| match want {
+        .filter(|e| match model {
             None => true,
-            Some(m) => e.model == "any" || canonical_model(&e.model) == m,
+            Some(m) => model_matches(&e.model, m),
         })
         .filter(|e| gpu_class.is_none_or(|c| e.gpu_classes.iter().any(|g| g == c)))
         .filter(|e| min_vram_gb.is_none_or(|v| e.max_vram_gb >= v))
@@ -4270,6 +4270,76 @@ mod tests {
         assert_eq!(ask(None, Some(80)).await.unwrap(), Some(5_000));
         // An ask nothing serves is a clean None, before any dispatch.
         assert_eq!(ask(Some("a100"), None).await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn native_empty_check_quote_does_not_buy_legacy_wildcard_supply() {
+        let model = covenant_compute_protocol::native_empty_check_model("python:3.12-slim");
+        let view = CapacityView {
+            registered_operators: 1,
+            matchable_operators: 1,
+            liveness_window_ms: 45_000,
+            min_score_bps: 0,
+            min_bond_micro_usdc: 0,
+            entries: vec![CapacityEntry {
+                kind: JobKind::AgentCheck,
+                model: "any".into(),
+                operators: 1,
+                min_ask_micro_usdc: 1000,
+                max_ask_micro_usdc: 1000,
+                min_ask_unit: covenant_compute_protocol::PriceUnit::PerJob,
+                max_vram_gb: 0,
+                gpu_classes: vec!["cpu".into()],
+                tee_capable: false,
+            }],
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let router = axum::Router::new().route(
+                "/federation/capacity",
+                axum::routing::get(move || {
+                    let view = view.clone();
+                    async move { axum::Json(view) }
+                }),
+            );
+            axum::serve(listener, router).await.unwrap();
+        });
+        let config = BuyerConfig {
+            coordinator_url: format!("http://{addr}"),
+            poll_interval: Duration::from_millis(10),
+            referral_code: None,
+            rpc_url: None,
+        };
+        let http = http_client();
+        assert_eq!(
+            cheapest_matching_ask(
+                &http,
+                &config,
+                JobKind::AgentCheck,
+                Some(&model),
+                None,
+                None,
+                None
+            )
+            .await
+            .unwrap(),
+            None
+        );
+        assert_eq!(
+            cheapest_matching_ask(
+                &http,
+                &config,
+                JobKind::AgentCheck,
+                Some("python:3.12-slim"),
+                None,
+                None,
+                None
+            )
+            .await
+            .unwrap(),
+            Some(1000)
+        );
     }
 
     #[test]

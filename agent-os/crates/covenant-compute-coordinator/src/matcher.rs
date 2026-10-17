@@ -578,6 +578,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn native_empty_checks_never_match_legacy_ordinary_or_any_workers() {
+        let registry = OperatorRegistry::new();
+        let image = "covenant-compute-check:rust";
+        let model = covenant_compute_protocol::native_empty_check_model(image);
+        let add = |display: &str, models: Vec<String>, ask| {
+            let identity = LocalIdentity::generate(display);
+            let profile = CapabilityProfile {
+                operator: identity.agent_id(),
+                hardware: HardwareClass::CpuOnly,
+                vram_gb: 0,
+                models_served: models,
+                job_kinds: vec![JobKind::AgentCheck],
+                price: PriceAsk {
+                    unit: PriceUnit::PerJob,
+                    micro_usdc: ask,
+                },
+                tee_capable: false,
+                kind_prices: Vec::new(),
+                kind_models: Vec::new(),
+            };
+            registry
+                .register(
+                    &RegisterRequest::sign(profile, payout_for(display), &identity).unwrap(),
+                    0,
+                    None,
+                    false,
+                )
+                .unwrap();
+            identity.agent_id().pubkey_base58()
+        };
+        add("legacy@local", vec![image.into()], 1);
+        add("wildcard@local", vec!["any".into()], 1);
+        let req = CapabilityRequirement {
+            kind: JobKind::AgentCheck,
+            model_id: Some(model.clone()),
+            ..requirement()
+        };
+        assert!(select(
+            &registry,
+            &NoReputation,
+            &req,
+            100,
+            0,
+            Duration::from_secs(45),
+            0
+        )
+        .await
+        .is_none());
+        let upgraded = add("upgraded@local", vec![image.into(), model], 100);
+        assert_eq!(
+            select(
+                &registry,
+                &NoReputation,
+                &req,
+                100,
+                0,
+                Duration::from_secs(45),
+                0
+            )
+            .await,
+            Some(upgraded)
+        );
+    }
+
+    #[tokio::test]
     async fn an_operator_without_the_stake_wins_nothing_even_when_cheapest() {
         let registry = OperatorRegistry::new();
         let cheap = register(&registry, "cheap-unstaked@local", 100);

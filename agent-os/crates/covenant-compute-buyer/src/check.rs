@@ -56,11 +56,12 @@ fn request(
         hidden: task.hidden.clone(),
         reproduction: None,
     };
+    let model = spec.checker_model();
     let input = agent_check_input(spec).map_err(|e| BuyerError::Protocol(e.to_string()))?;
     Ok(JobRequest {
         kind: JobKind::AgentCheck,
         input: vec![input],
-        model: Some(task.spec.acceptance.checker_model()),
+        model: Some(model),
         gpu_class: None,
         min_vram_gb: None,
         min_reputation_bps: None,
@@ -76,12 +77,12 @@ pub fn check_preview(
     deadline_ms: u64,
 ) -> Result<serde_json::Value, BuyerError> {
     // Validate the same payload without signing, uploading or reserving it.
-    request(task, patch, Uuid::nil(), price, deadline_ms)?;
+    let validated = request(task, patch, Uuid::nil(), price, deadline_ms)?;
     Ok(
         serde_json::json!({"dry_run":true,"spends_nothing":true,"kind":"agent_check",
         "commit":task.spec.repo.commit(),"patch_sha256":sha256_hex(patch),
         "price_micro_usdc":price,"deadline_ms":deadline_ms,
-        "checker_model":task.spec.acceptance.checker_model(),"acceptance":task.spec.acceptance,
+        "checker_model":validated.model,"acceptance":task.spec.acceptance,
         "payment_basis":"checker execution, including a reported failed property",
         "stored_bundle_bytes":task.bundle.as_ref().map_or(0,Vec::len)}),
     )
@@ -171,9 +172,22 @@ mod tests {
         let id = Uuid::new_v4();
         let r = request(&task, b"", id, 100000, 360000).unwrap();
         let spec = covenant_compute_protocol::parse_agent_check(&r.input).unwrap();
+        let expected = covenant_compute_protocol::native_empty_check_model("python:3.12-slim");
+        assert_eq!(r.model.as_deref(), Some(expected.as_str()));
+        assert_eq!(
+            check_preview(&task, b"", 100000, 360000).unwrap()["checker_model"],
+            expected
+        );
         assert_eq!(spec.task_job_id, id);
         assert_eq!(spec.patch_sha256, sha256_hex(b""));
         assert!(spec.patch_b64.is_empty());
+        assert_eq!(
+            request(&task, b"diff", id, 100000, 360000)
+                .unwrap()
+                .model
+                .as_deref(),
+            Some("python:3.12-slim")
+        );
         assert!(request(&task, b"", id, 100000, 359999).is_err());
     }
 }

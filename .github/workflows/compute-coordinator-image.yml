@@ -19,6 +19,8 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/open-covenant/covenant/compute-coordinator
   NODE_IMAGE_NAME: ghcr.io/open-covenant/covenant/compute-node
+  PUBLIC_IMAGE_NAME: ghcr.io/open-covenant/covenant/compute-coordinator-public
+  PUBLIC_NODE_IMAGE_NAME: ghcr.io/open-covenant/covenant/compute-node-public
 
 permissions:
   contents: read
@@ -57,6 +59,7 @@ jobs:
         with:
           context: .
           file: deploy/Dockerfile.compute-coordinator
+          build-args: COVENANT_BUILD_REVISION=${{ github.sha }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/open-covenant/covenant
@@ -65,7 +68,9 @@ jobs:
           pull: true
           push: true
           sbom: false
-          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.PUBLIC_IMAGE_NAME }}:${{ github.sha }}
 
       - name: record digest
         env:
@@ -75,6 +80,7 @@ jobs:
           set -euo pipefail
           echo "${IMAGE_NAME}:${COMMIT}" >> "$GITHUB_STEP_SUMMARY"
           echo "${IMAGE_NAME}@${IMAGE_DIGEST}" >> "$GITHUB_STEP_SUMMARY"
+          echo "${PUBLIC_IMAGE_NAME}@${IMAGE_DIGEST}" >> "$GITHUB_STEP_SUMMARY"
 
   node:
     if: github.repository == 'open-covenant/covenant' && github.ref == 'refs/heads/deploy/compute-coordinator'
@@ -117,7 +123,9 @@ jobs:
           pull: true
           push: true
           sbom: false
-          tags: ${{ env.NODE_IMAGE_NAME }}:${{ github.sha }}
+          tags: |
+            ${{ env.NODE_IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.PUBLIC_NODE_IMAGE_NAME }}:${{ github.sha }}
 
       - name: record digest
         env:
@@ -127,3 +135,4 @@ jobs:
           set -euo pipefail
           echo "${NODE_IMAGE_NAME}:${COMMIT}" >> "$GITHUB_STEP_SUMMARY"
           echo "${NODE_IMAGE_NAME}@${IMAGE_DIGEST}" >> "$GITHUB_STEP_SUMMARY"
+          echo "${PUBLIC_NODE_IMAGE_NAME}@${IMAGE_DIGEST}" >> "$GITHUB_STEP_SUMMARY"

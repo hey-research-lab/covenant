@@ -29,15 +29,37 @@ const authorized=(header,token)=>{
 };
 async function readRequest(req,limit){let size=0,parts=[];for await(const chunk of req){size+=chunk.length;if(size>limit)throw new Refusal('request_too_large',413);parts.push(chunk);}try{return JSON.parse(Buffer.concat(parts).toString('utf8'));}catch{throw new Refusal('invalid_json',400);}}
 async function readResponse(response,limit){let size=0,parts=[];if(!response.body)throw new Refusal('provider_invalid_response');for await(const chunk of response.body){size+=chunk.length;if(size>limit){await response.body.cancel().catch(()=>{});throw new Refusal('provider_response_too_large');}parts.push(chunk);}return Buffer.concat(parts).toString('utf8');}
-function parseResponse(raw,c){
- if(raw.includes(c.token))throw new Refusal('provider_invalid_response');
- let value;try{value=JSON.parse(raw);}catch{throw new Refusal('provider_invalid_response');}
- if(!safeObject(value)||value.error||value.model!==c.model||typeof value.id!=='string'||!Array.isArray(value.choices)||value.choices.length!==1)throw new Refusal('provider_invalid_response');
- const choice=value.choices[0],usage=value.usage;
- if(!safeObject(choice)||!safeObject(choice.message)||typeof choice.message.content!=='string'||!choice.message.content.length||choice.message.tool_calls||choice.message.function_call||!['stop','length'].includes(choice.finish_reason))throw new Refusal('provider_invalid_response');
+function parseResponse(raw,c,diagnostics){
+ diagnostics.response_sha256=crypto.createHash('sha256').update(raw).digest('hex');
+ diagnostics.response_bytes=Buffer.byteLength(raw);
+ if(raw.includes(c.token)||raw.includes(c.bearer))throw new Refusal('provider_response_contains_secret');
+ let value;try{value=JSON.parse(raw);}catch{throw new Refusal('provider_response_invalid_json');}
+ if(!safeObject(value))throw new Refusal('provider_response_not_object');
+ // JSON escaping must not bypass secret detection after the operator decodes content.
+ const inspect=[value];while(inspect.length){const part=inspect.pop();if(typeof part==='string'&&(part.includes(c.token)||part.includes(c.bearer)))throw new Refusal('provider_response_contains_secret');if(part&&typeof part==='object')for(const item of Object.values(part))inspect.push(item);}
+
+ if(typeof value.model==='string'){
+  diagnostics.observed_model_sha256=crypto.createHash('sha256').update(value.model).digest('hex');
+  diagnostics.model_matches=value.model===c.model;
+ }
+ if(Array.isArray(value.choices))diagnostics.choice_count=value.choices.length;
+ const choice=value.choices?.[0],usage=value.usage;
+ if(safeObject(choice)){
+  diagnostics.finish_reason=['stop','length','tool_calls','function_call','content_filter'].includes(choice.finish_reason)?choice.finish_reason:'other';
+  diagnostics.content_kind=typeof choice.message?.content==='string'?'string':Array.isArray(choice.message?.content)?'array':choice.message?.content===null?'null':'other';
+ }
+ if(safeObject(usage))for(const field of ['prompt_tokens','completion_tokens','total_tokens'])if(Number.isSafeInteger(usage[field])&&usage[field]>=0)diagnostics[field]=usage[field];
+ if(value.error)throw new Refusal('provider_response_error');
+ if(value.model!==c.model)throw new Refusal('provider_response_model_mismatch');
+ if(typeof value.id!=='string'||!value.id.length)throw new Refusal('provider_response_id_missing');
+ if(!Array.isArray(value.choices)||value.choices.length!==1)throw new Refusal('provider_response_choice_count');
+ if(!safeObject(choice)||!safeObject(choice.message))throw new Refusal('provider_response_choice_shape');
+ if(typeof choice.message.content!=='string'||!choice.message.content.length)throw new Refusal('provider_response_content_missing');
+ if(choice.message.tool_calls||choice.message.function_call)throw new Refusal('provider_response_tools_unsupported');
+ if(!['stop','length'].includes(choice.finish_reason))throw new Refusal('provider_response_finish_reason');
  if(!safeObject(usage)||!Number.isSafeInteger(usage.prompt_tokens)||usage.prompt_tokens<1||!Number.isSafeInteger(usage.completion_tokens)||usage.completion_tokens<1)throw new Refusal('provider_usage_missing');
  if(usage.total_tokens!==undefined&&usage.total_tokens!==usage.prompt_tokens+usage.completion_tokens)throw new Refusal('provider_usage_invalid');
- // Successful provider bytes are passed through; errors/headers never expose the tokenized URL.
+ // Only successful, validated response bytes are retained. Diagnostic fields never contain strings from the provider.
  return {inputTokens:usage.prompt_tokens,outputTokens:usage.completion_tokens,response:raw};
 }
 function send(res,status,body,headers={}){res.writeHead(status,{'content-type':'application/json','cache-control':'no-store',...headers});res.end(typeof body==='string'?body:JSON.stringify(body));}
@@ -54,7 +76,7 @@ export function createProvider(config,{testFetch,clock=Date.now}={}){
   return {ready,status:ready?'ready':'blocked'};
  };
  const server=http.createServer(async(req,res)=>{
-  let reservedId;
+  let reservedId,diagnostics={};
   try{
    if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress))throw new Refusal('loopback_required',403);
    const url=new URL(req.url,'http://127.0.0.1');
@@ -78,14 +100,15 @@ export function createProvider(config,{testFetch,clock=Date.now}={}){
     const response=await fetcher(`https://api.usepod.ai/proxy/${encodeURIComponent(config.token)}/v1/chat/completions`,{
      method:'POST',redirect:'error',headers:{'content-type':'application/json','User-Agent':'Covenant-x402/0.1','X-Pod-Max-Price-Input':String(config.inputPrice),'X-Pod-Max-Price-Output':String(config.outputPrice)},
      body:serialized,signal:controller.signal});
+    diagnostics.http_status=response.status;
     if(!response.ok){await response.body?.cancel().catch(()=>{});throw new Refusal('provider_rejected_or_unknown');}
-    completion=parseResponse(await readResponse(response,Math.min(8_388_608,config.maxOutputTokens*256+65_536)),config);
+    completion=parseResponse(await readResponse(response,Math.min(8_388_608,config.maxOutputTokens*256+65_536)),config,diagnostics);
    }finally{clearTimeout(timer);}
    ledger.complete(id,completion,clock());reservedId=undefined;
    send(res,200,completion.response,{'x-covenant-provider-replay':'false'});
   }catch(error){
    const code=error instanceof Refusal?error.code:'provider_outcome_unknown';
-   if(reservedId){try{ledger.unknown(reservedId,code);}catch{/* The persisted reservation still blocks new dispatch. */}}
+   if(reservedId){try{ledger.unknown(reservedId,code,diagnostics);}catch{/* The persisted reservation still blocks new dispatch. */}}
    if(!res.headersSent&&!res.destroyed)send(res,error instanceof Refusal?error.status:503,{error:{type:'covenant_provider_error',code,message:code}});
    else res.destroy();
   }
@@ -93,7 +116,7 @@ export function createProvider(config,{testFetch,clock=Date.now}={}){
  server.requestTimeout=15_000;server.headersTimeout=10_000;server.keepAliveTimeout=5_000;server.maxHeadersCount=30;
  return {server,ledger,listen:()=>new Promise((resolve,reject)=>{server.once('error',reject);server.listen(config.port,'127.0.0.1',()=>resolve(server.address()));}),close:()=>new Promise(resolve=>server.close(()=>{ledger?.close();resolve();}))};
 }
-if(import.meta.url===pathToFileURL(process.argv[1]).href){
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  process.umask(0o077);
  try{const config=configFromEnv(),app=createProvider(config);await app.listen();process.stdout.write(`Inference provider ${config.enabled?'enabled':'disabled'} on loopback:${config.port}\n`);let stopping=false;for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{if(stopping)return;stopping=true;await app.close();process.exit(0);});}
  catch{process.stderr.write('Inference provider startup refused: invalid policy or unavailable durable state.\n');process.exitCode=1;}

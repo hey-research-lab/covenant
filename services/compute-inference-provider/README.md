@@ -8,7 +8,7 @@ third-party runtime dependencies and is disabled by default.
 The upstream token is placed in UsePod's required URL path internally. The Rust
 operator receives only a local URL and a separate local bearer secret. The bridge
 never logs upstream URLs, headers, payloads, credentials or exception messages.
-Provider errors return fixed codes. Successful OpenAI response bytes are retained
+Provider errors return fixed reason codes. A private diagnostic row records only HTTP status, response SHA-256 and byte length, model hash/match, choice count, fixed finish/content categories and integer usage. Invalid response bodies and provider-supplied strings are never retained in diagnostics. Successful OpenAI response bytes are retained
 and returned intact after validation; a response containing the upstream secret
 is refused. Redirects are refused.
 
@@ -85,10 +85,37 @@ such a caller must not retry a response lost after dispatch without reconciliati
 A timeout, error response, incomplete usage, excessive usage, process interruption,
 or uncertain financial outcome retains the whole reservation and blocks all further
 paid calls. There is no automatic retry and no automatic age-based release. Preserve
-the database and reconcile against provider evidence before an audited repair; do
-not delete the journal or retry with a fresh idempotency key. No HTTP endpoint can
+the database and reconcile against provider evidence; do not delete the journal or
+retry the failed job with a fresh idempotency key. No HTTP endpoint can
 release reservations or reset the budget. Changing the upstream token while retaining
 the same journal is refused because the journal is bound to its hashed identity.
+
+## Audited terminal loss
+
+An operator may explicitly abandon an **unknown** outcome at its full reserved cost.
+This does not claim a refund or a known actual debit. The original call stays unknown
+and its full reservation stays in **both lifetime and daily accounting forever**.
+An additive, immutable loss record removes only the global concurrency blockade.
+The failed idempotency key can never dispatch again or return a fabricated response;
+distinct new work is allowed only within the remaining configured ceilings.
+In-flight and completed calls cannot use this operation. Repeating the exact same
+audit is idempotent; changing the audit or financial fields is refused.
+
+Save a private audit report identifying the failed request, observed provider evidence,
+reason for abandonment and full-reservation loss decision. Use its SHA-256 as the audit
+reference. Run locally with the service's existing environment and persistent journal:
+
+```sh
+node services/compute-inference-provider/reconcile.mjs --inspect key:FAILED_REQUEST_ID
+node services/compute-inference-provider/reconcile.mjs --abandon-full-reservation \
+  --id key:FAILED_REQUEST_ID --request-sha256 EXACT_REQUEST_SHA256 \
+  --reserved-micro-usdc EXACT_FULL_RESERVATION --audit-sha256 AUDIT_REPORT_SHA256
+```
+
+The inspect command excludes response bodies and secrets. Reconciliation checks the
+exact stored request digest and reservation under `BEGIN IMMEDIATE`, persists the audit
+before allowing subsequent work, and performs no network request. There is no HTTP
+reconciliation endpoint, automatic abandonment, refund, budget reset or retry.
 
 ## Run and test
 

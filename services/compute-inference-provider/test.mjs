@@ -54,3 +54,74 @@ test('local health/catalog remove capacity when budget is insufficient or outcom
 test('a nonempty result with zero usage cannot release the reserved budget',async t=>{const a=await appFor(t,configuration(temp(t)),async()=>Response.json(completion({usage:{prompt_tokens:0,completion_tokens:0,total_tokens:0}})));assert.equal((await post(a.base)).status,503);assert.equal(a.ledger.totals().lifetime,2040);assert.equal(a.ledger.totals().unresolved,1);});
 
  test('fresh concurrent processes serialize initialization and a single spending reservation',async t=>{const config=configuration(temp(t)),moduleUrl=new URL('./ledger.mjs',import.meta.url).href;const outputs=await Promise.all(Array.from({length:4},(_,i)=>new Promise((resolve,reject)=>{const code=`import {Ledger} from ${JSON.stringify(moduleUrl)};const l=new Ledger(${JSON.stringify(config)});try{l.reserve('process-${i}','digest-${i}',20);process.stdout.write('reserved');}catch(e){process.stdout.write(e.code??'unexpected');}finally{l.close();}`;const child=spawn(process.execPath,['--input-type=module','-e',code],{stdio:['ignore','pipe','pipe']});let out='',err='';child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);child.on('close',status=>status===0?resolve(out):reject(new Error(`child failed: ${err}`)));})));assert.equal(outputs.filter(x=>x==='reserved').length,1);assert.equal(outputs.filter(x=>x==='provider_busy_or_unresolved').length,3);});
+
+test('audited terminal loss retains both full budgets forever, blocks its key and permits only bounded new work',t=>{
+ const config=configuration(temp(t),{lifetimeBudget:4100,dailyBudget:4100}),digest='a'.repeat(64),auditReference=`sha256:${'b'.repeat(64)}`;
+ let ledger=new Ledger(config);ledger.reserve('key:failed',digest,20,1000);ledger.unknown('key:failed','provider_response_model_mismatch');
+ const loss={id:'key:failed',requestDigest:digest,reservedMicroUsdc:2040,auditReference};
+ assert.throws(()=>ledger.abandonUnknown({...loss,auditReference:'freeform secret or unaudited'}),/invalid_loss_reconciliation/);
+ assert.throws(()=>ledger.abandonUnknown({...loss,requestDigest:'c'.repeat(64)}),/loss_reconciliation_mismatch/);
+ assert.throws(()=>ledger.abandonUnknown({...loss,reservedMicroUsdc:20}),/loss_reconciliation_mismatch/);
+ assert.equal(ledger.totals(1001).unresolved,1);
+ assert.deepEqual(ledger.abandonUnknown(loss,2000),{state:'abandoned_full_loss',accounted_micro_usdc:2040,audit_reference:auditReference});
+ assert.equal(ledger.abandonUnknown(loss,2001).accounted_micro_usdc,2040);
+ assert.throws(()=>ledger.abandonUnknown({...loss,auditReference:`sha256:${'c'.repeat(64)}`}),/loss_reconciliation_conflict/);
+ assert.throws(()=>ledger.db.prepare('DELETE FROM abandoned_losses').run(),/immutable/);
+ ledger.close();ledger=new Ledger(config);t.after(()=>ledger.close());
+ assert.deepEqual({...ledger.totals(900000000)},{lifetime:2040,daily:2040,unresolved:0});
+ assert.throws(()=>ledger.reserve('key:failed',digest,20,900000000),/provider_request_abandoned/);
+ assert.throws(()=>ledger.reserve('key:failed','different',20,900000000),/idempotency_conflict/);
+ ledger.reserve('key:new','new',20,900000000);ledger.complete('key:new',{inputTokens:10,outputTokens:5,response:'{}'},900000001);
+ assert.deepEqual({...ledger.totals(900000001)},{lifetime:2060,daily:2060,unresolved:0});
+ ledger.reserve('key:last','last',20,900000002);ledger.complete('key:last',{inputTokens:10,outputTokens:5,response:'{}'},900000003);
+ assert.throws(()=>ledger.reserve('key:over','over',20,900000004),/provider_budget_exhausted/);
+ assert.equal(ledger.inspect('key:failed').state,'unknown');assert.equal(ledger.inspect('key:failed').accounted,2040);
+});
+
+test('loss reconciliation cannot abandon an in-flight or completed reservation',t=>{
+ const ledger=new Ledger(configuration(temp(t)));t.after(()=>ledger.close());const digest='a'.repeat(64),loss={id:'job',requestDigest:digest,reservedMicroUsdc:2040,auditReference:`sha256:${'b'.repeat(64)}`};
+ ledger.reserve('job',digest,20);assert.throws(()=>ledger.abandonUnknown(loss),/loss_reconciliation_mismatch/);
+ ledger.complete('job',{inputTokens:10,outputTokens:5,response:'{}'});assert.throws(()=>ledger.abandonUnknown(loss),/loss_reconciliation_mismatch/);
+ assert.equal(ledger.totals().lifetime,20);
+});
+
+test('legacy calls migrate additively and uncertain records retain identical financial fields',t=>{
+ const config=configuration(temp(t)),db=new DatabaseSync(config.dbPath);
+ db.exec("CREATE TABLE calls(id TEXT PRIMARY KEY,digest TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('reserved','unknown','complete')),reserved INTEGER NOT NULL,accounted INTEGER NOT NULL,created_ms INTEGER NOT NULL,finished_ms INTEGER,input_price INTEGER NOT NULL,output_price INTEGER NOT NULL,max_input_tokens INTEGER NOT NULL,max_output_tokens INTEGER NOT NULL,input_tokens INTEGER,output_tokens INTEGER,response TEXT,error_code TEXT)");
+ db.prepare("INSERT INTO calls(id,digest,state,reserved,accounted,created_ms,input_price,output_price,max_input_tokens,max_output_tokens) VALUES(?,?,'unknown',2040,2040,1000,1000000,2000000,2000,20)").run('legacy','a'.repeat(64));
+ const before=db.prepare('SELECT * FROM calls').get();db.close();const ledger=new Ledger(config);t.after(()=>ledger.close());
+ ledger.abandonUnknown({id:'legacy',requestDigest:'a'.repeat(64),reservedMicroUsdc:2040,auditReference:`sha256:${'b'.repeat(64)}`});
+ assert.deepEqual(ledger.db.prepare('SELECT * FROM calls').get(),before);assert.equal(ledger.totals().unresolved,0);assert.equal(ledger.totals().daily,2040);
+});
+
+test('invalid provider responses persist fixed reason codes and safe diagnostics without raw bodies or secrets',async t=>{
+ for(const [name,reply,code] of [
+  ['model',completion({model:'private-unexpected-model'}),'provider_response_model_mismatch'],
+  ['content',completion({choices:[{message:{content:null},finish_reason:'stop'}]}),'provider_response_content_missing'],
+  ['finish',completion({choices:[{message:{content:'PRIVATE RESPONSE BODY'},finish_reason:'https://provider.invalid/private-error'}]}),'provider_response_finish_reason'],
+  ['missing-usage',completion({usage:undefined}),'provider_usage_missing'],
+  ['json','not json PRIVATE RESPONSE BODY','provider_response_invalid_json'],
+  ['secret',completion({id:TOKEN}),'provider_response_contains_secret'],
+  ['escaped-secret',JSON.stringify(completion({id:TOKEN})).replace(TOKEN,'\\u0070'+TOKEN.slice(1)),'provider_response_contains_secret']
+ ])await t.test(name,async t=>{
+  const raw=typeof reply==='string'?reply:JSON.stringify(reply),app=await appFor(t,configuration(temp(t)),async()=>new Response(raw,{status:200}));
+  const response=await post(app.base,request(),{'idempotency-key':'diagnostic'});assert.equal(response.status,503);assert.equal((await response.json()).error.code,code);
+  const row=app.ledger.inspect('key:diagnostic'),serialized=JSON.stringify(row);
+  assert.equal(row.error_code,code);assert.equal(row.diagnostics.http_status,200);assert.match(row.diagnostics.response_sha256,/^[a-f0-9]{64}$/);
+  assert.equal(row.diagnostics.response_bytes,Buffer.byteLength(raw));
+  for(const secret of [TOKEN,AUTH,'PRIVATE RESPONSE BODY','private-unexpected-model','https://provider.invalid'])assert.ok(!serialized.includes(secret));
+  assert.equal(app.ledger.db.prepare('SELECT response FROM calls').get().response,null);
+  assert.deepEqual({...app.ledger.totals()},{lifetime:2040,daily:2040,unresolved:1});
+ });
+});
+
+
+test('local reconciliation CLI requires exact audit fields and never changes or retries the failed call',async t=>{
+ const dir=temp(t),config=configuration(dir),ledger=new Ledger(config),digest='a'.repeat(64),audit='b'.repeat(64);
+ ledger.reserve('key:cli',digest,20);ledger.unknown('key:cli','provider_response_model_mismatch');ledger.close();
+ const run=args=>new Promise((resolve,reject)=>{const child=spawn(process.execPath,[new URL('./reconcile.mjs',import.meta.url).pathname,...args],{env:validEnv(dir),stdio:['ignore','pipe','pipe']});let stdout='',stderr='';child.stdout.on('data',x=>stdout+=x);child.stderr.on('data',x=>stderr+=x);child.on('error',reject);child.on('close',status=>resolve({status,stdout,stderr}));});
+ const inspect=await run(['--inspect','key:cli']);assert.equal(inspect.status,0);assert.equal(JSON.parse(inspect.stdout).reserved,2040);
+ const bad=await run(['--abandon-full-reservation','--id','key:cli','--request-sha256',digest,'--reserved-micro-usdc','20','--audit-sha256',audit]);assert.equal(bad.status,1);assert.ok(!bad.stderr.includes(TOKEN));
+ const good=await run(['--abandon-full-reservation','--id','key:cli','--request-sha256',digest,'--reserved-micro-usdc','2040','--audit-sha256',audit]);assert.equal(good.status,0);assert.equal(JSON.parse(good.stdout).state,'abandoned_full_loss');
+ const reopened=new Ledger(config);t.after(()=>reopened.close());assert.equal(reopened.totals().lifetime,2040);assert.equal(reopened.totals().unresolved,0);assert.throws(()=>reopened.reserve('key:cli',digest,20),/provider_request_abandoned/);
+});

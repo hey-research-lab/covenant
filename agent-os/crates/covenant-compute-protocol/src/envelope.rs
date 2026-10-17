@@ -195,7 +195,7 @@ impl JobEnvelopePayload {
                     )));
                 }
             }
-            // A check routes by the image it runs in, for the same reason.
+            // A check routes by its execution contract and image.
             JobKind::AgentCheck => {
                 let spec = crate::agent::parse_agent_check(&self.input)?;
                 if spec
@@ -231,11 +231,12 @@ impl JobEnvelopePayload {
                     ));
                 }
                 if self.capability_requirement.model_id.as_deref()
-                    != Some(spec.acceptance.checker_model().as_str())
+                    != Some(spec.checker_model().as_str())
                 {
                     return Err(ProtocolError::Invalid(format!(
-                        "an agent check in {} must require that image as its model, got {:?}",
-                        spec.acceptance.image, self.capability_requirement.model_id
+                        "an agent check must require checker model {}, got {:?}",
+                        spec.checker_model(),
+                        self.capability_requirement.model_id
                     )));
                 }
             }
@@ -336,6 +337,39 @@ mod tests {
         let buyer = LocalIdentity::generate("buyer@local");
         let signed = SignedJobEnvelope::sign(payload(&buyer), &buyer).expect("sign");
         signed.verify().expect("verify");
+    }
+
+    #[test]
+    fn native_empty_check_cannot_downgrade_to_a_legacy_model() {
+        let buyer = LocalIdentity::generate("buyer@local");
+        let mut p = payload(&buyer);
+        let image = "covenant-compute-check:rust";
+        let mut spec: crate::AgentCheckSpec = serde_json::from_value(serde_json::json!({
+            "task_job_id":p.job_id,
+            "repo":{"source":"git","url":"https://github.com/example/repo","commit":"a".repeat(40)},
+            "acceptance":{"image":image,"commands":["true"],"timeout_secs":30},
+            "patch_b64":"","patch_sha256":crate::sha256_hex(b"")
+        }))
+        .unwrap();
+        p.kind = JobKind::AgentCheck;
+        p.capability_requirement.kind = JobKind::AgentCheck;
+        p.deadline_ms = 330_000;
+        p.input = vec![crate::agent_check_input(spec.clone()).unwrap()];
+        p.capability_requirement.model_id = Some(image.into());
+        assert!(p.validate_input().is_err());
+        p.capability_requirement.model_id = Some(spec.checker_model());
+        p.validate_input().unwrap();
+
+        // Ordinary nonempty checks, including coordinator child checks, retain
+        // the pre-upgrade model and wire shape.
+        spec.patch_b64 = "ZGlmZg==".into();
+        spec.patch_sha256 = crate::sha256_hex(b"diff");
+        spec.task_job_id = Uuid::new_v4();
+        p.input = vec![crate::agent_check_input(spec.clone()).unwrap()];
+        assert!(p.validate_input().is_err());
+        p.capability_requirement.model_id = Some(image.into());
+        p.validate_input().unwrap();
+        assert!(!serde_json::to_string(&spec).unwrap().contains("kani"));
     }
 
     #[test]

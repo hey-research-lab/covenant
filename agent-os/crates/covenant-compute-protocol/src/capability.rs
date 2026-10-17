@@ -231,12 +231,11 @@ impl CapabilityProfile {
             }
         }
         if let Some(model_id) = &req.model_id {
-            if !self.models_for(req.kind).iter().any(|m| {
-                (m == "any"
-                    && !model_id.starts_with("kani-v1:")
-                    && model_id != "claude-code:kani-v1")
-                    || canonical_model(m) == canonical_model(model_id)
-            }) {
+            if !self
+                .models_for(req.kind)
+                .iter()
+                .any(|m| model_matches(m, model_id))
+            {
                 return false;
             }
         }
@@ -402,6 +401,16 @@ fn validate_label(what: &str, value: &str) -> Result<(), ProtocolError> {
 /// node must refuse.
 pub fn canonical_model(reference: &str) -> &str {
     reference.strip_suffix(":latest").unwrap_or(reference)
+}
+
+/// Match an advertised model without widening versioned execution contracts to
+/// a legacy wildcard. Native empty checks also require an exact image label.
+pub fn model_matches(served: &str, required: &str) -> bool {
+    if required.starts_with(crate::NATIVE_EMPTY_CHECK_MODEL_PREFIX) {
+        return served == required;
+    }
+    (served == "any" && !required.starts_with("kani-v1:") && required != "claude-code:kani-v1")
+        || canonical_model(served) == canonical_model(required)
 }
 
 /// One (kind, model) row of [`CapacityView`]: how much matchable supply
@@ -702,6 +711,38 @@ mod tests {
             p.models_served.push(model);
             assert!(p.satisfies(&req));
         }
+    }
+
+    #[test]
+    fn native_empty_checks_require_the_exact_upgraded_image_capability() {
+        let image = "covenant-compute-check:rust";
+        let model = crate::native_empty_check_model(image);
+        let mut p = profile();
+        p.job_kinds = vec![JobKind::AgentCheck];
+        let mut req = requirement();
+        req.kind = JobKind::AgentCheck;
+        req.model_id = Some(model.clone());
+        for legacy in [
+            "any".to_string(),
+            image.to_string(),
+            format!("{model}:latest"),
+            crate::native_empty_check_model("another:check"),
+        ] {
+            p.models_served = vec![legacy];
+            assert!(!p.satisfies(&req));
+        }
+        p.models_served.push(model.clone());
+        assert!(p.satisfies(&req));
+        p.kind_models = vec![KindModels {
+            kind: JobKind::AgentCheck,
+            models: vec!["any".into()],
+        }];
+        assert!(
+            !p.satisfies(&req),
+            "the per-kind declaration overrides the shared models"
+        );
+        p.kind_models[0].models.push(model);
+        assert!(p.satisfies(&req));
     }
 
     /// The `:latest` rule both ways: Ollama advertises `name:latest`

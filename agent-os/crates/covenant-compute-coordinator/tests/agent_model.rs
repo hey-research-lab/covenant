@@ -197,6 +197,30 @@ fn spec() -> AgentTaskSpec {
     }
 }
 
+fn set_check_models(rig: &Rig, op: &LocalIdentity, models: Vec<String>) {
+    let registered = rig
+        .state
+        .registry()
+        .record(&op.agent_id().pubkey_base58())
+        .unwrap();
+    let mut profile = registered.profile;
+    profile
+        .kind_models
+        .iter_mut()
+        .find(|m| m.kind == JobKind::AgentCheck)
+        .unwrap()
+        .models = models;
+    rig.state
+        .registry()
+        .register(
+            &RegisterRequest::sign(profile, registered.payout_address, op).unwrap(),
+            epoch_ms(),
+            None,
+            false,
+        )
+        .unwrap();
+}
+
 async fn post_task(rig: &Rig) -> Uuid {
     post_task_with(rig, spec()).await
 }
@@ -316,7 +340,7 @@ fn verification_envelope(
             capability_requirement: CapabilityRequirement {
                 gpu_class: None,
                 min_vram_gb: None,
-                model_id: Some("python:3.12-slim".into()),
+                model_id: Some(spec.checker_model()),
                 kind: JobKind::AgentCheck,
                 max_duration_secs: 120,
                 min_reputation_bps: None,
@@ -338,6 +362,14 @@ fn verification_envelope(
 async fn direct_verification_pays_for_completed_check_even_when_property_is_false() {
     let rig = rig().await;
     let checker = register(&rig, "verification@checker", 11);
+    set_check_models(
+        &rig,
+        &checker,
+        vec![
+            "python:3.12-slim".into(),
+            covenant_compute_protocol::native_empty_check_model("python:3.12-slim"),
+        ],
+    );
     let buyer = LocalIdentity::generate("verification@buyer");
     let envelope = verification_envelope(&buyer, None, 600_000);
     let id = envelope.payload.job_id;
@@ -364,6 +396,72 @@ async fn direct_verification_pays_for_completed_check_even_when_property_is_fals
         !covenant_compute_protocol::parse_agent_check_verdict(&output)
             .unwrap()
             .passed
+    );
+}
+
+#[tokio::test]
+async fn native_empty_check_refunds_without_upgraded_supply_and_rejects_downgrade_before_hold() {
+    let rig = rig().await;
+    let legacy = register(&rig, "legacy@checker", 21);
+    let wildcard = register(&rig, "any@checker", 22);
+    set_check_models(&rig, &wildcard, vec!["any".into()]);
+    let buyer = LocalIdentity::generate("native@buyer");
+    let order = verification_envelope(&buyer, None, 600_000);
+    let id = order.payload.job_id;
+    let response = rig
+        .http
+        .post(format!("{}/federation/jobs", rig.url))
+        .json(&order)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::CONFLICT);
+    let record = rig.state.jobs().get(id).unwrap();
+    assert_eq!(record.phase, JobPhase::Refunded);
+    assert!(record.operator_pubkey_b58.is_empty());
+    assert_eq!(
+        rig.state.escrow().status(id).await.unwrap(),
+        EscrowStatus::Refunded
+    );
+    assert!(rig.payout.records().is_empty());
+
+    let mut malformed = verification_envelope(&buyer, None, 600_000).payload;
+    malformed.capability_requirement.model_id = Some("python:3.12-slim".into());
+    let id = malformed.job_id;
+    let malformed = SignedJobEnvelope::sign(malformed, &buyer).unwrap();
+    let response = rig
+        .http
+        .post(format!("{}/federation/jobs", rig.url))
+        .json(&malformed)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+    assert!(rig.state.jobs().get(id).is_none());
+    assert!(rig.state.escrow().status(id).await.is_err());
+    assert!(rig.payout.records().is_empty());
+
+    set_check_models(
+        &rig,
+        &legacy,
+        vec![
+            "python:3.12-slim".into(),
+            covenant_compute_protocol::native_empty_check_model("python:3.12-slim"),
+        ],
+    );
+    let order = verification_envelope(&buyer, None, 600_000);
+    let id = order.payload.job_id;
+    let response = rig
+        .http
+        .post(format!("{}/federation/jobs", rig.url))
+        .json(&order)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    assert_eq!(
+        rig.state.jobs().get(id).unwrap().operator_pubkey_b58,
+        legacy.agent_id().pubkey_base58()
     );
 }
 

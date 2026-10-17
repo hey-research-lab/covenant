@@ -47,15 +47,15 @@ mod withdrawal;
 pub use address::validate_address_b58;
 pub use agent::{
     agent_check_input, agent_check_output, agent_task_input, agent_task_output, build_spend_cap,
-    bundle_path, check_commands, parse_agent_check, parse_agent_check_verdict, parse_agent_task,
-    parse_agent_task_output, sha256_hex, visible_commands, AcceptanceSpec, AgentCheckSpec,
-    AgentCheckVerdict, AgentPatch, AgentRework, AgentRuntime, AgentSkill, AgentTaskOutput,
-    AgentTaskSpec, CommandOutcome, HiddenChecks, HiddenFile, RepoSource, ReproductionRef,
-    AGENT_CHECK_SLACK_MS, BUNDLE_READER_HEADER, BUNDLE_UPLOADER_HEADER,
-    LEAST_AGENT_OFFER_MICRO_USDC, MAX_ACCEPTANCE_COMMANDS, MAX_ACCEPTANCE_TIMEOUT_SECS,
-    MAX_BUNDLE_B64_BYTES, MAX_HIDDEN_FILES, MAX_OUTPUT_TAIL_BYTES, MAX_PATCH_BYTES,
-    MAX_REWORK_FEEDBACK_BYTES, MAX_STORED_BUNDLE_BYTES, MAX_SUMMARY_BYTES, MAX_TASK_BYTES,
-    MIN_BUILD_BUDGET_MICRO_USD,
+    bundle_path, check_commands, native_empty_check_model, parse_agent_check,
+    parse_agent_check_verdict, parse_agent_task, parse_agent_task_output, sha256_hex,
+    visible_commands, AcceptanceSpec, AgentCheckSpec, AgentCheckVerdict, AgentPatch, AgentRework,
+    AgentRuntime, AgentSkill, AgentTaskOutput, AgentTaskSpec, CommandOutcome, HiddenChecks,
+    HiddenFile, RepoSource, ReproductionRef, AGENT_CHECK_SLACK_MS, BUNDLE_READER_HEADER,
+    BUNDLE_UPLOADER_HEADER, LEAST_AGENT_OFFER_MICRO_USDC, MAX_ACCEPTANCE_COMMANDS,
+    MAX_ACCEPTANCE_TIMEOUT_SECS, MAX_BUNDLE_B64_BYTES, MAX_HIDDEN_FILES, MAX_OUTPUT_TAIL_BYTES,
+    MAX_PATCH_BYTES, MAX_REWORK_FEEDBACK_BYTES, MAX_STORED_BUNDLE_BYTES, MAX_SUMMARY_BYTES,
+    MAX_TASK_BYTES, MIN_BUILD_BUDGET_MICRO_USD, NATIVE_EMPTY_CHECK_MODEL_PREFIX,
 };
 pub use agent_evidence::{
     AgentEvidenceBundle, AgentEvidenceMetadata, AgentEvidencePayout, AgentJobEvidence,
@@ -66,8 +66,8 @@ pub use bond::{
 };
 pub use cancel::{CancelRequest, CancelView, CANCEL_MAX_SKEW_MS};
 pub use capability::{
-    canonical_model, CapabilityProfile, CapabilityRequirement, CapacityEntry, CapacityView,
-    HardwareClass, JobKind, KindAsk, KindModels, PriceAsk, PriceUnit,
+    canonical_model, model_matches, CapabilityProfile, CapabilityRequirement, CapacityEntry,
+    CapacityView, HardwareClass, JobKind, KindAsk, KindModels, PriceAsk, PriceUnit,
 };
 pub use chat::{
     chat_input, parse_chat_input, ChatMessage, ChatRole, FunctionCall, ToolCall, ToolCallKind,

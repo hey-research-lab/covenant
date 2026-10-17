@@ -197,7 +197,9 @@ actual available memory plus 2 GiB host headroom, sufficient CPUs, and
 Do not combine profiles with an explicit `COVENANT_COMPUTE_NODE_MODELS` override.
 
 Proof execution uses read-only source and dependency mounts, no network or
-swap, and bounded scratch/evidence tmpfs. Setup is limited to
+swap, and bounded scratch/evidence tmpfs. Scratch allows execution so Cargo
+can run dependency build scripts; `/tmp` and `/evidence` retain Docker's
+default `noexec`. All three tmpfs mounts retain `nosuid,nodev`. Setup is limited to
 `cargo fetch --locked`; the resulting dependency volume is read-only during
 verification. The node invokes the pinned Python runner with a typed plan,
 checks its complete report and raw Kani export, and returns the full original

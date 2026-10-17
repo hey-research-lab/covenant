@@ -114,6 +114,19 @@ test('invalid operator receipt or displayed output never becomes a completed pur
 
 test('RPC chain mismatch refuses quote and signing',async()=>{const f=await fixture({wrongRpc:true});const c=new CovenantX402Client(f.config);try{await assert.rejects(c.purchase(input()),/rpc_network_mismatch/);assert.equal(f.counts().signatures,0);assert.equal(f.counts().quotes,0);}finally{c.close();await f.cleanup();}});
 
+test('launch message and UTF-8 JSON byte limits reject before quote, reservation, or signing',async()=>{
+  const f=await fixture();const c=new CovenantX402Client(f.config);
+  try{
+    for(const messages of [Array.from({length:33},()=>({role:'user',content:'hi'})),[{role:'user',content:'x'.repeat(4096)}],[{role:'user',content:'界'.repeat(1400)}],[{role:'user',content:'\n'.repeat(2050)}]]){
+      const request={...input(),messages};await assert.rejects(c.purchase(request));assert.equal(c.journal.get(request.requestId),undefined);
+    }
+    assert.equal(f.counts().quotes,0);assert.equal(f.counts().signatures,0);
+    const overhead=Buffer.byteLength(JSON.stringify([{role:'user',content:''}]));
+    const exact={...input(),messages:[{role:'user',content:'x'.repeat(4096-overhead)}]};
+    assert.equal((await c.purchase(exact)).status,'completed');
+  }finally{c.close();await f.cleanup();}
+});
+
 test('two clients cannot reserve same budget or claim simultaneously',()=>{
   const home=mkdtempSync(join(tmpdir(),'covenant-x402-journal-'));const file=join(home,'journal.sqlite');const a=new Journal(file,'scope',1000),b=new Journal(file,'scope',1000);
   try{const one=a.claim('one','body','digest');assert.throws(()=>b.claim('one','body','digest'),/purchase_in_progress/);a.reserve('one',one.owner,{accepts:[]},1000);const two=b.claim('two','body2','digest2');assert.throws(()=>b.reserve('two',two.owner,{accepts:[]},1),/cumulative_spend_cap_exceeded/);}

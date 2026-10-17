@@ -42,7 +42,7 @@ provider.close(walletProvider);
 
 `walletProvider` must expose AgentKit's Solana transaction-signing interface on mainnet. The demo uses `CovenantSolanaKeypairWalletProvider`, a subclass of Coinbase's `SolanaKeypairWalletProvider`. It disables only the upstream initialization analytics hook, whose unawaited HTTP error can terminate Node in AgentKit 0.10.4. All custody and signing behavior remains the original AgentKit implementation.
 
-Configure the gateway origin, receiving wallet, gateway Compute buyer and allowed operator public keys from the verified deployment. HTTPS is mandatory; an explicit `allowLocalhost` option exists only for local fixtures. A redirect is an error. The RPC genesis hash must be Solana mainnet before any quote or payment signature.
+Configure the gateway origin, receiving wallet, gateway Compute buyer and allowed operator public keys from the verified deployment. HTTPS is mandatory; an explicit `allowLocalhost` option exists only for local fixtures. A redirect is an error. The RPC genesis hash must be Solana mainnet before any quote or payment signature. Requests contain at most 32 text messages. `maxInputBytes` defaults to the launch limit of 4096 UTF-8 bytes of the normalized JSON message array, including JSON framing and escaping. A different deployed limit may be configured explicitly, up to 65536 bytes. Oversized input is refused before quoting or reserving money.
 
 ## Demo and evidence
 

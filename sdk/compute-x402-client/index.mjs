@@ -12,7 +12,7 @@ export const NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 export const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const requestSchema = z.object({
   model: z.string().min(1).max(200),
-  messages: z.array(z.object({ role: z.enum(['system', 'user', 'assistant']), content: z.string().max(64_000) }).strict()).min(1).max(64),
+  messages: z.array(z.object({ role: z.enum(['system', 'user', 'assistant']), content: z.string().min(1).max(64_000) }).strict()).min(1).max(32),
   max_tokens: z.number().int().min(1).max(8192),
   temperature: z.number().finite().min(0).max(2).multipleOf(0.01).optional(),
 }).strict();
@@ -60,7 +60,7 @@ async function bodyText(response, limit = 4 * 1024 * 1024) {
 
 export class CovenantX402Client {
   constructor({ gatewayUrl, rpcUrl, payTo, gatewayBuyer, operators, walletProvider, journalPath,
-    maxPaymentMicroUsdc, maxTotalMicroUsdc, timeoutMs = 30_000, fetchImpl = fetch, allowLocalhost = false }) {
+    maxPaymentMicroUsdc, maxTotalMicroUsdc, maxInputBytes = 4096, timeoutMs = 30_000, fetchImpl = fetch, allowLocalhost = false }) {
     const gateway = url(gatewayUrl, allowLocalhost);
     assert(gateway.pathname === '/' && !gateway.search, 'gateway_origin_required');
     this.endpoint = gateway.origin + '/v1/chat/completions'; this.rpcUrl = url(rpcUrl, allowLocalhost).href;
@@ -68,6 +68,7 @@ export class CovenantX402Client {
     assert(Array.isArray(operators) && operators.length > 0, 'trusted_operator_keys_required'); operators.forEach(address);
     this.payTo = payTo; this.gatewayBuyer = gatewayBuyer; this.operators = [...operators]; this.wallet = walletProvider;
     this.maxPayment = amount(maxPaymentMicroUsdc); this.maxTotal = amount(maxTotalMicroUsdc);
+    assert(Number.isSafeInteger(maxInputBytes) && maxInputBytes > 0 && maxInputBytes <= 65_536, 'invalid_input_byte_limit'); this.maxInputBytes = maxInputBytes;
     assert(this.maxPayment <= this.maxTotal, 'payment_cap_exceeds_total_cap');
     assert(Number.isSafeInteger(timeoutMs) && timeoutMs > 0 && timeoutMs <= 120_000, 'invalid_timeout');
     this.timeoutMs = timeoutMs; this.fetch = fetchImpl;
@@ -115,7 +116,10 @@ export class CovenantX402Client {
   }
   async purchase({ requestId, ...input }) {
     assert(typeof requestId === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(requestId), 'stable_uuid_request_id_required');
-    const request = requestSchema.parse(input); const body = stable(request); assert(Buffer.byteLength(body) <= 128_000, 'request_too_large');
+    const request = requestSchema.parse(input);
+    const messages = request.messages.map(({ role, content }) => ({ role, content }));
+    assert(Buffer.byteLength(JSON.stringify(messages)) <= this.maxInputBytes, 'input_byte_limit_exceeded');
+    const body = stable(request); assert(Buffer.byteLength(body) <= 128_000, 'request_too_large');
     const digest = sha256(body); let row = this.journal.claim(requestId, body, digest);
     if (row.result) return strictJson(row.result);
     const owner = row.owner;

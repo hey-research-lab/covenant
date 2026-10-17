@@ -35,8 +35,10 @@ await bridge.assertNetwork();
 const expectedAuth = Buffer.from(`Bearer ${secret}`);
 const server = createServer(async (req, res) => {
   const reply = (code, body) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
+  if (req.method === 'GET' && req.url === '/health') return reply(200, { status: 'ok', service: 'covenant-x402-verifier', network: config.network });
   const auth = Buffer.from(req.headers.authorization ?? '');
   if (auth.length !== expectedAuth.length || !timingSafeEqual(auth, expectedAuth)) return reply(401, { error: 'unauthorized' });
+  if (req.method === 'GET' && req.url === '/health') return reply(200, {status:'ready'});
   if (req.method !== 'POST' || !['/verify', '/settle'].includes(req.url)) return reply(404, { error: 'not found' });
   try {
     let size = 0; const chunks = [];

@@ -181,6 +181,12 @@ pub struct CoordinatorConfig {
     /// no buyer identity or job contents in them, is a deployment
     /// decision, so it is opt-in like the fee and the reputation floor.
     pub public_proof_feed: bool,
+    /// Publish aggregate GPU price history and its public page independently of receipts.
+    pub public_price_history: bool,
+    /// Immutable deployment binding for settled history; None hides unbound settlements.
+    pub price_history_identity: Option<crate::prices::PriceHistoryIdentity>,
+    /// Independent read-only market observations; never participates in escrow.
+    pub provider_prices: Option<Arc<crate::provider_prices::ProviderPriceStore>>,
     /// Whether to serve the client-sealed secret vault (`/vault/*`): a
     /// buyer stores ciphertext under a key the coordinator never receives,
     /// and reads it back over a signed request. `false` (the default)
@@ -239,6 +245,9 @@ impl Default for CoordinatorConfig {
             reoffer_after: Duration::from_secs(60),
             min_protocol: 0,
             public_proof_feed: false,
+            public_price_history: false,
+            price_history_identity: None,
+            provider_prices: None,
             vault_enabled: false,
             vault_max_owners: None,
             lease_meter: None,
@@ -521,6 +530,23 @@ impl CoordinatorState {
         Ok(state)
     }
 
+    pub fn verified_price_history_identity(&self) -> Option<&crate::prices::PriceHistoryIdentity> {
+        self.config()
+            .price_history_identity
+            .as_ref()
+            .filter(|binding| {
+                binding.matches_runtime(
+                    &self.escrow().coordinator_pubkey_b58(),
+                    self.payout().payout_mint_b58(),
+                    crate::epoch_ms(),
+                )
+            })
+    }
+
+    pub fn provider_prices(&self) -> Option<&Arc<crate::provider_prices::ProviderPriceStore>> {
+        self.0.config.provider_prices.as_ref()
+    }
+
     pub fn config(&self) -> &CoordinatorConfig {
         &self.0.config
     }
@@ -758,6 +784,7 @@ impl CoordinatorState {
                 tx_signature: paid.tx_signature.clone(),
                 recorded_at_ms: paid.recorded_at_ms,
             },
+            self.verified_price_history_identity(),
         ) {
             tracing::error!(%job_id, error = %e, "payout pushed but recording it failed");
         }

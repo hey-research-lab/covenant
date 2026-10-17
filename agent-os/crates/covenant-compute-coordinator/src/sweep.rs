@@ -721,6 +721,7 @@ mod tests {
             accepted_at_ms: None,
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
+            price_history_identity: None,
             lease_access: None,
             check_jobs: Vec::new(),
             checks_task: None,

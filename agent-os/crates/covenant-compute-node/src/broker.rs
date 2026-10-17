@@ -175,6 +175,17 @@ impl BrokerSessionBackend {
                         ));
                     };
                     return Ok(LeaseAccess {
+                        source_price: Some(covenant_compute_protocol::price_history::SourcePrice {
+                            version: 1,
+                            provider: "vast.ai".into(),
+                            gpu_model: launch.offer.gpu_model.clone(),
+                            gpu_count: launch.offer.gpu_count,
+                            instance_micro_usd_per_hour: launch.offer.hourly_micros,
+                            observed_at_ms: std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0),
+                        }),
                         job_id,
                         endpoint: format!("ssh -p {} root@{}", ssh.port, ssh.host),
                         ready_at_ms: std::time::SystemTime::now()

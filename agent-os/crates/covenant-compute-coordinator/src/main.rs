@@ -106,6 +106,83 @@ fn require_positive_cap(key: &str, cap: Option<usize>) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Bind public settled prices to a verified network, mint and persisted identity.
+/// A failed read only disables settled history; money recovery remains available.
+async fn price_history_identity(
+    home: &std::path::Path,
+    identity: &LocalIdentity,
+    payout: &dyn Payout,
+) -> anyhow::Result<covenant_compute_coordinator::prices::PriceHistoryIdentity> {
+    let mint = payout
+        .payout_mint_b58()
+        .context("no on-chain payout mint")?;
+    anyhow::ensure!(
+        mint == covenant_compute_coordinator::prices::SOLANA_MAINNET_USDC,
+        "settled price history supports mainnet USDC only"
+    );
+    if std::env::var("COVENANT_COMPUTE_LEASE_METER").as_deref() == Ok("sidecar") {
+        anyhow::ensure!(
+            std::env::var("COVENANT_COMPUTE_LEASE_MINT").as_deref() == Ok(mint),
+            "lease and payout mint must match for settled price history"
+        );
+    }
+    let payout_rpc = std::env::var("COVENANT_X402_RPC_URL")
+        .context("payout RPC is required to verify the history network")?;
+    let mut urls = vec![payout_rpc];
+    if let Ok(lease_rpc) = std::env::var("COVENANT_COMPUTE_LEASE_RPC_URL") {
+        if !urls.contains(&lease_rpc) {
+            urls.push(lease_rpc);
+        }
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    for url in urls {
+        // Error text must never include a credential-bearing RPC URL.
+        let mut response = client
+            .post(url)
+            .json(&serde_json::json!({"jsonrpc":"2.0","id":1,"method":"getGenesisHash"}))
+            .send()
+            .await
+            .map_err(|_| anyhow::anyhow!("history network verification unavailable"))?;
+        anyhow::ensure!(
+            response.status().is_success(),
+            "history network verification refused"
+        );
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|_| anyhow::anyhow!("history network verification response interrupted"))?
+        {
+            anyhow::ensure!(
+                bytes.len() + chunk.len() <= 65_536,
+                "history network verification response too large"
+            );
+            bytes.extend_from_slice(&chunk);
+        }
+        let body: serde_json::Value = serde_json::from_slice(&bytes)
+            .map_err(|_| anyhow::anyhow!("invalid history network verification response"))?;
+        anyhow::ensure!(
+            body.get("result").and_then(serde_json::Value::as_str)
+                == Some(covenant_compute_coordinator::prices::SOLANA_MAINNET_GENESIS),
+            "history network does not match Solana mainnet"
+        );
+    }
+    covenant_compute_coordinator::prices::bind_identity(
+        &home.join("price-history-identity.json"),
+        &bs58::encode(identity.pubkey_bytes()).into_string(),
+        covenant_compute_coordinator::prices::SOLANA_MAINNET_GENESIS,
+        mint,
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis()
+            .try_into()?,
+    )
+    .map_err(anyhow::Error::msg)
+}
+
 /// Payout backend selection. Defaults to `MockPayout` — the existing
 /// hermetic e2e stays exactly as-is unless an operator explicitly
 /// opts in. `COVENANT_COMPUTE_PAYOUT_BACKEND=sidecar` switches to a
@@ -711,6 +788,7 @@ async fn main() -> anyhow::Result<()> {
     // a chain, it serves each settled job's operator-signed receipt and
     // the payout that honored it, so anyone can verify the network paid
     // for the work — no buyer identity or job contents, only hashes.
+    let public_price_history = env_bool("COVENANT_COMPUTE_PUBLIC_PRICE_HISTORY", false)?;
     let public_proof_feed = env_bool("COVENANT_COMPUTE_PUBLIC_PROOF_FEED", false)?;
     if public_proof_feed {
         tracing::info!("public settlement proof feed ENABLED at /proof/receipts");
@@ -826,6 +904,41 @@ async fn main() -> anyhow::Result<()> {
         None => None,
     };
 
+    let price_history_identity = if public_price_history {
+        match price_history_identity(&home, &identity, payout.as_ref()).await {
+            Ok(binding) => Some(binding),
+            Err(error) => {
+                tracing::warn!(%error, "settled price history unavailable; provider history and settlement workers remain independent");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let provider_prices = if public_price_history {
+        match covenant_compute_coordinator::provider_prices::ProviderPriceStore::open(
+            home.join("provider-price-history.json"),
+        ) {
+            Ok(store) => Some(Arc::new(store)),
+            Err(error) => {
+                tracing::warn!(%error, "provider price history unavailable; settlement workers remain independent");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let _provider_prices_task = provider_prices.as_ref().and_then(|store| {
+        match covenant_compute_coordinator::provider_prices::spawn_periodic_provider_prices(
+            Arc::clone(store),
+        ) {
+            Ok(task) => Some(task),
+            Err(error) => {
+                tracing::warn!(%error, "provider price sampler unavailable");
+                None
+            }
+        }
+    });
     let config = CoordinatorConfig {
         long_poll_timeout: Duration::from_secs(long_poll_secs.max(1)),
         lease_meter,
@@ -849,6 +962,9 @@ async fn main() -> anyhow::Result<()> {
         reoffer_after: Duration::from_secs(reoffer_secs),
         min_protocol,
         public_proof_feed,
+        public_price_history,
+        price_history_identity,
+        provider_prices,
         vault_enabled,
         vault_max_owners,
         ..CoordinatorConfig::default()

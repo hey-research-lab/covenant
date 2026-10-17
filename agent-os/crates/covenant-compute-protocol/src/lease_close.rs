@@ -124,10 +124,16 @@ pub struct LeaseAccess {
     pub ready_at_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Sampled provider quote, persisted with this lease; not a provider invoice.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_price: Option<crate::price_history::SourcePrice>,
 }
 
 impl LeaseAccess {
     pub fn validate(&self) -> Result<(), ProtocolError> {
+        if let Some(source) = &self.source_price {
+            source.validate()?;
+        }
         if self.endpoint.trim().is_empty() {
             return Err(ProtocolError::Invalid(
                 "lease access endpoint is empty".into(),
@@ -211,6 +217,7 @@ mod tests {
 
     fn access(job_id: Uuid) -> LeaseAccess {
         LeaseAccess {
+            source_price: None,
             job_id,
             endpoint: "ssh renter@203.0.113.7 -p 2222".into(),
             ready_at_ms: 1_700_000_000_000,

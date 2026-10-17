@@ -1151,6 +1151,8 @@ fn json_array_response(rx: mpsc::UnboundedReceiver<Value>) -> Response {
 /// Dispatch a paid job on a detached task so its settlement survives a client
 /// disconnect. Mirrors the OpenAI front door's `dispatch_settling`, shaped to
 /// Gemini's error body.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn dispatch_settling(
     state: Arc<OpenAiState>,
     request: JobRequest,
@@ -1178,6 +1180,8 @@ async fn dispatch_settling(
 
 /// Whether the network is serving `model` for an `inference_call`; returns the
 /// SDK-correct 404 otherwise.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn ensure_model_servable(state: &OpenAiState, model: &str) -> Result<(), Response> {
     let view = capacity(&state.http, &state.buyer)
         .await
@@ -1197,6 +1201,8 @@ async fn ensure_model_servable(state: &OpenAiState, model: &str) -> Result<(), R
 /// sorted and de-duplicated. The wildcard `any` node advertises no concrete id,
 /// so it contributes nothing; only models a `generateContent` call can name are
 /// listed.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn served_model_ids(state: &OpenAiState) -> Result<Vec<String>, Response> {
     let view = capacity(&state.http, &state.buyer)
         .await

@@ -116,6 +116,9 @@ const MAX_INLINE_BODY_BYTES: usize = 8 * 1024 * 1024;
 pub fn router(state: CoordinatorState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/prices", get(crate::prices_page::page))
+        .route("/prices/history", get(crate::prices::history))
+        .route("/prices/proofs/:job_id", get(crate::prices::scoped_proof))
         .route("/metrics", get(metrics))
         .route("/federation/operators/register", post(register))
         .route("/federation/operators/heartbeat", post(heartbeat))
@@ -254,7 +257,12 @@ async fn health(State(state): State<CoordinatorState>) -> impl IntoResponse {
 /// durable write to fail and is always ready.
 fn health_response(journal_healthy: bool) -> (StatusCode, Json<serde_json::Value>) {
     if journal_healthy {
-        (StatusCode::OK, Json(serde_json::json!({ "status": "ok" })))
+        (
+            StatusCode::OK,
+            Json(
+                serde_json::json!({ "status": "ok", "revision": option_env!("COVENANT_BUILD_REVISION").unwrap_or("development") }),
+            ),
+        )
     } else {
         (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -1244,6 +1252,7 @@ async fn submit_job(
                 accepted_at_ms: None,
                 metered_elapsed_ms: None,
                 close_requested_at_ms: None,
+                price_history_identity: None,
                 lease_access: None,
                 check_jobs: Vec::new(),
                 checks_task: None,
@@ -1308,6 +1317,7 @@ async fn submit_job(
             accepted_at_ms: None,
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
+            price_history_identity: None,
             lease_access: None,
             check_jobs: Vec::new(),
             checks_task: None,
@@ -2102,6 +2112,7 @@ pub(crate) async fn finish_release(
                     tx_signature: settlement.tx_signature.clone(),
                     recorded_at_ms: crate::epoch_ms(),
                 },
+                state.verified_price_history_identity(),
             ) {
                 tracing::error!(%job_id, error = %e, "lease settled on-chain but recording it failed");
             }
@@ -2216,7 +2227,11 @@ async fn push_stream(
                 value,
             )]) {
                 Ok(Some(access)) if access.job_id == job_id => {
-                    if let Err(e) = state.jobs().set_lease_access(job_id, access) {
+                    if let Err(e) = state.jobs().set_lease_access(
+                        job_id,
+                        access,
+                        state.verified_price_history_identity(),
+                    ) {
                         tracing::error!(%job_id, error = %e, "could not pin a lease access grant");
                     }
                     break;
@@ -4336,6 +4351,7 @@ mod tests {
             accepted_at_ms: Some(now),
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
+            price_history_identity: None,
             lease_access: None,
             check_jobs: Vec::new(),
             checks_task: None,
@@ -4523,6 +4539,7 @@ mod tests {
             accepted_at_ms: Some(accepted_at),
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
+            price_history_identity: None,
             lease_access: None,
             check_jobs: Vec::new(),
             checks_task: None,
@@ -4666,6 +4683,7 @@ mod tests {
             accepted_at_ms: None,
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
+            price_history_identity: None,
             lease_access: None,
             check_jobs: Vec::new(),
             checks_task: None,
@@ -4870,6 +4888,7 @@ mod tests {
             accepted_at_ms: Some(now),
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
+            price_history_identity: None,
             lease_access: None,
             check_jobs: Vec::new(),
             checks_task: None,
@@ -5011,6 +5030,7 @@ mod tests {
             accepted_at_ms: Some(accepted_at_ms),
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
+            price_history_identity: None,
             lease_access: None,
             check_jobs: Vec::new(),
             checks_task: None,

@@ -200,6 +200,11 @@ pub struct JobRecord {
     /// they are paying for.
     #[serde(default)]
     pub lease_access: Option<covenant_compute_protocol::LeaseAccess>,
+    /// Coordinator-verified provenance for public settlement price history.
+    /// Stamped with access metadata, retained only if the same verified identity
+    /// also records payout. Never reconstructed for older/unknown periods.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price_history_identity: Option<crate::prices::PriceHistoryIdentity>,
     /// On an agent task: the check jobs ordered for its result, latest
     /// last. Only the latest is live; earlier ones ran without a verdict.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -485,6 +490,49 @@ impl JobBook {
         Ok(())
     }
 
+    /// Filter and copy only the minimal public projection while locked. Receipt
+    /// verification runs after releasing the job mutex so public history cannot
+    /// block admissions/settlement behind historical signature checks.
+    pub fn price_observations(
+        &self,
+        identity: Option<&crate::prices::PriceHistoryIdentity>,
+        since_ms: u64,
+        until_ms: u64,
+    ) -> Vec<crate::prices::PriceObservation> {
+        let projections: Vec<_> = {
+            let jobs = self.jobs.lock();
+            jobs.iter()
+                .filter_map(|(id, row)| {
+                    crate::prices::PriceProjection::from_record(
+                        *id, row, identity, since_ms, until_ms,
+                    )
+                })
+                .collect()
+        };
+        projections
+            .into_iter()
+            .flat_map(crate::prices::PriceProjection::verified_observations)
+            .collect()
+    }
+
+    /// Copies only the narrowly eligible price projection, never private job
+    /// input/output or the entire legacy receipt feed.
+    pub(crate) fn price_projection(
+        &self,
+        job_id: Uuid,
+        identity: &crate::prices::PriceHistoryIdentity,
+        now_ms: u64,
+    ) -> Option<crate::prices::PriceProjection> {
+        let jobs = self.jobs.lock();
+        crate::prices::PriceProjection::from_record(
+            job_id,
+            jobs.get(&job_id)?,
+            Some(identity),
+            0,
+            now_ms,
+        )
+    }
+
     pub fn get(&self, job_id: Uuid) -> Option<JobRecord> {
         self.jobs.lock().get(&job_id).cloned()
     }
@@ -554,7 +602,7 @@ impl JobBook {
                 Some((at, r.settlement_proof(*id, mint_b58)?))
             })
             .collect();
-        settled.sort_by(|a, b| b.0.cmp(&a.0));
+        settled.sort_by_key(|entry| std::cmp::Reverse(entry.0));
         settled.truncate(limit);
         settled.into_iter().map(|(_, proof)| proof).collect()
     }
@@ -629,8 +677,18 @@ impl JobBook {
         })
     }
 
-    pub fn set_payout(&self, job_id: Uuid, payout: PayoutOutcome) -> Result<(), JobError> {
-        self.update(job_id, |record| record.payout = Some(payout))
+    pub fn set_payout(
+        &self,
+        job_id: Uuid,
+        payout: PayoutOutcome,
+        identity: Option<&crate::prices::PriceHistoryIdentity>,
+    ) -> Result<(), JobError> {
+        self.update(job_id, |record| {
+            if record.price_history_identity.as_ref() != identity {
+                record.price_history_identity = None;
+            }
+            record.payout = Some(payout);
+        })
     }
 
     /// Completed jobs whose release no recorded push ever honored —
@@ -861,12 +919,23 @@ impl JobBook {
     pub fn set_lease_access(
         &self,
         job_id: Uuid,
-        access: covenant_compute_protocol::LeaseAccess,
+        mut access: covenant_compute_protocol::LeaseAccess,
+        identity: Option<&crate::prices::PriceHistoryIdentity>,
     ) -> Result<bool, JobError> {
+        let now = crate::epoch_ms();
+        if let Some(source) = &mut access.source_price {
+            source.observed_at_ms = now;
+        }
+        let identity = identity
+            .filter(|i| i.validate().is_ok() && i.recording_started_at_ms <= now)
+            .cloned();
         self.update_if(
             job_id,
             |r| r.lease_access.is_none(),
-            move |r| r.lease_access = Some(access),
+            move |r| {
+                r.price_history_identity = identity;
+                r.lease_access = Some(access);
+            },
         )
     }
 
@@ -1264,6 +1333,7 @@ mod tests {
             metered_elapsed_ms: None,
             close_requested_at_ms: None,
             lease_access: None,
+            price_history_identity: None,
             check_jobs: Vec::new(),
             checks_task: None,
             hidden_checks: None,
@@ -1515,6 +1585,7 @@ mod tests {
             metered_elapsed_ms,
             close_requested_at_ms: None,
             lease_access: None,
+            price_history_identity: None,
             check_jobs: Vec::new(),
             checks_task: None,
             hidden_checks: None,
@@ -1689,6 +1760,50 @@ mod tests {
     }
 
     #[test]
+    fn source_price_replays_without_inventing_settlement_or_duplicate_samples() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("journal.jsonl");
+        let id = Uuid::new_v4();
+        let mut row = lease_record(
+            id,
+            LeaseTerms {
+                max_duration_secs: 60,
+                rate_micro_usdc_per_sec: 1,
+                client_public_key: None,
+            },
+            Some(5_000),
+        );
+        row.phase = JobPhase::Accepted;
+        let access = covenant_compute_protocol::LeaseAccess {
+            job_id: id,
+            endpoint: "ssh root@example.invalid".into(),
+            ready_at_ms: 100,
+            note: None,
+            source_price: Some(covenant_compute_protocol::price_history::SourcePrice {
+                version: 1,
+                provider: "fixture".into(),
+                gpu_model: "A100".into(),
+                gpu_count: 1,
+                instance_micro_usd_per_hour: 500_000,
+                observed_at_ms: 1,
+            }),
+        };
+        {
+            let book = JobBook::restore(HashMap::new(), Arc::new(Journal::open(&path).unwrap()));
+            book.insert(id, row).unwrap();
+            assert!(book.set_lease_access(id, access.clone(), None).unwrap());
+            assert!(!book.set_lease_access(id, access, None).unwrap());
+        }
+        let restored = Journal::load(&path).unwrap();
+        let book = JobBook::restore(restored.jobs, Arc::new(Journal::open(&path).unwrap()));
+        let rows = book.price_observations(None, 0, u64::MAX);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].currency, "USD");
+        assert!(rows[0].at_ms > 1); // coordinator observation time, not operator backdating
+        assert!(rows[0].proof_path.is_none());
+    }
+
+    #[test]
     fn a_concluded_lease_stops_serving_its_access_grant() {
         let terms = LeaseTerms {
             max_duration_secs: 600,
@@ -1696,6 +1811,7 @@ mod tests {
             client_public_key: None,
         };
         let access = covenant_compute_protocol::LeaseAccess {
+            source_price: None,
             job_id: Uuid::nil(),
             endpoint: "ssh root@203.0.113.9 -p 22".into(),
             ready_at_ms: 0,
@@ -2097,7 +2213,7 @@ mod tests {
             let journal = Arc::new(Journal::open(&path).unwrap());
             let book = JobBook::restore(HashMap::new(), journal);
             book.insert(job_id, record(job_id, 0, 5_000)).unwrap();
-            book.set_payout(job_id, outcome.clone()).unwrap();
+            book.set_payout(job_id, outcome.clone(), None).unwrap();
         }
 
         let restored = Journal::load(&path).unwrap();
@@ -2145,5 +2261,409 @@ mod tests {
         row.as_object_mut().unwrap().remove("refund_reason");
         let old: JobRecord = serde_json::from_value(row).unwrap();
         assert_eq!(old.refund_reason, None);
+    }
+    fn price_identity(coordinator: &str) -> crate::prices::PriceHistoryIdentity {
+        crate::prices::PriceHistoryIdentity {
+            version: 1,
+            coordinator_pubkey_b58: coordinator.into(),
+            genesis_hash: crate::prices::SOLANA_MAINNET_GENESIS.into(),
+            settlement_mint_b58: crate::prices::SOLANA_MAINNET_USDC.into(),
+            recording_started_at_ms: 100,
+        }
+    }
+
+    fn price_record(id: Uuid, source_at: u64, payout_at: u64) -> JobRecord {
+        let mut row = lease_record(
+            id,
+            LeaseTerms {
+                max_duration_secs: 60,
+                rate_micro_usdc_per_sec: 100,
+                client_public_key: None,
+            },
+            Some(5_000),
+        );
+        let operator = LocalIdentity::generate("price-operator@fixture");
+        row.concluded_at_ms = Some(200);
+        row.receipt = Some(signed_receipt(id, &operator, 6_000));
+        row.payout = Some(PayoutOutcome {
+            amount_micro_usdc: 490,
+            tx_signature: Some(bs58::encode([7u8; 64]).into_string()),
+            recorded_at_ms: payout_at,
+        });
+        row.fee_micro_usdc = 10;
+        row.lease_access = Some(covenant_compute_protocol::LeaseAccess {
+            job_id: id,
+            endpoint: "PRIVATE_SSH_ENDPOINT".into(),
+            ready_at_ms: source_at,
+            note: Some("PRIVATE_LEASE_NOTE".into()),
+            source_price: Some(covenant_compute_protocol::price_history::SourcePrice {
+                version: 1,
+                provider: "vast.ai".into(),
+                gpu_model: "A100".into(),
+                gpu_count: 2,
+                instance_micro_usd_per_hour: 800_000,
+                observed_at_ms: source_at,
+            }),
+        });
+        row.output = Some(vec![Content::text("PRIVATE_JOB_OUTPUT")]);
+        row.price_history_identity = Some(price_identity(&bs58::encode([9u8; 32]).into_string()));
+        row
+    }
+
+    #[test]
+    fn price_history_uses_payout_day_and_replays_without_duplicate_settlements() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("journal.jsonl");
+        let id = Uuid::new_v4();
+        let coordinator = bs58::encode([9u8; 32]).into_string();
+        let identity = price_identity(&coordinator);
+        let payout_at = 86_400_300;
+        let row = price_record(id, 100, payout_at);
+        let journal = Arc::new(Journal::open(&path).unwrap());
+        let book = JobBook::restore(HashMap::new(), journal);
+        book.insert(id, row).unwrap();
+        let first = book.price_observations(Some(&identity), 0, 86_400_000);
+        assert_eq!(
+            first.len(),
+            1,
+            "only the source quote existed on conclusion day"
+        );
+        let paid = book.price_observations(Some(&identity), 86_400_000, 172_800_000);
+        assert_eq!(paid.len(), 1);
+        assert_eq!(paid[0].at_ms, payout_at);
+        assert_eq!(
+            paid[0].amount_micros, 500,
+            "gross metered charge, fee included; never window ceiling"
+        );
+        assert_eq!(paid[0].currency, "USDC");
+        assert_eq!(paid[0].gpu_count, 2);
+        drop(book);
+        let replay = Journal::load(&path).unwrap();
+        let restored = JobBook::restore(replay.jobs, Arc::new(Journal::open(&path).unwrap()));
+        assert_eq!(
+            restored
+                .price_observations(Some(&identity), 0, 172_800_000)
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn price_history_refuses_unpinned_old_invalid_unpaid_and_probe_settlements() {
+        let identity = price_identity(&bs58::encode([9u8; 32]).into_string());
+        let id = Uuid::new_v4();
+        for case in [
+            "old",
+            "unpaid",
+            "invalid_receipt",
+            "mock_tx",
+            "wrong_split",
+            "refunded",
+            "missing_duration",
+        ] {
+            let book = JobBook::new();
+            let mut row = price_record(id, 100, 300);
+            match case {
+                "old" => {
+                    row.lease_access
+                        .as_mut()
+                        .unwrap()
+                        .source_price
+                        .as_mut()
+                        .unwrap()
+                        .observed_at_ms = 99
+                }
+                "unpaid" => row.payout = None,
+                "invalid_receipt" => row.receipt.as_mut().unwrap().receipt.price_micro_usdc += 1,
+                "mock_tx" => {
+                    row.payout.as_mut().unwrap().tx_signature = Some("mock-onchain".into())
+                }
+                "wrong_split" => row.payout.as_mut().unwrap().amount_micro_usdc += 1,
+                "refunded" => row.phase = JobPhase::Refunded,
+                "missing_duration" => row.metered_elapsed_ms = None,
+                _ => unreachable!(),
+            }
+            book.insert(id, row).unwrap();
+            let rows = book.price_observations(Some(&identity), 0, 1_000);
+            assert!(rows.iter().all(|r| r.currency == "USD"), "{case}");
+        }
+        let book = JobBook::new();
+        book.insert(id, price_record(id, 100, 300)).unwrap();
+        assert_eq!(
+            book.price_observations(None, 0, 1_000).len(),
+            1,
+            "unknown identity suppresses only settlement"
+        );
+        let mut probe = price_record(id, 100, 300);
+        probe.pinned = true;
+        assert!(
+            crate::prices::PriceProjection::from_record(id, &probe, Some(&identity), 0, 1_000)
+                .is_none()
+        );
+        let old = price_record(id, 100, 300);
+        assert!(
+            crate::prices::PriceProjection::from_record(id, &old, Some(&identity), 400, 1_000)
+                .is_none(),
+            "out-of-range data is not copied for signature verification"
+        );
+    }
+
+    #[tokio::test]
+    async fn price_history_http_optin_ranges_privacy_and_identity_gate() {
+        use crate::{CoordinatorConfig, CoordinatorState, MockPayout, NoReputation};
+        use axum::{routing::get, Router};
+        use covenant_audit::InMemoryAuditLog;
+        for (enabled, proof_enabled, valid_identity, expected_points) in [
+            (false, true, true, 0usize),
+            (true, false, true, 2),
+            (true, true, false, 1),
+            (true, true, true, 2),
+        ] {
+            let coordinator = LocalIdentity::generate("price-coordinator@fixture");
+            let mut identity = price_identity(&coordinator.agent_id().pubkey_base58());
+            if !valid_identity {
+                identity.genesis_hash = "wrong-cluster".into();
+            }
+            let config = CoordinatorConfig {
+                public_price_history: enabled,
+                public_proof_feed: proof_enabled,
+                price_history_identity: Some(identity),
+                ..CoordinatorConfig::default()
+            };
+            let state = CoordinatorState::new(
+                coordinator,
+                config,
+                Arc::new(NoReputation),
+                Arc::new(MockPayout::with_onchain_mint(
+                    crate::prices::SOLANA_MAINNET_USDC,
+                )),
+                Arc::new(InMemoryAuditLog::new()),
+            );
+            let id = Uuid::new_v4();
+            let row = price_record(id, 100, 300);
+            let buyer = row.envelope.payload.buyer.pubkey_base58();
+            let mut row = row;
+            row.price_history_identity = state.config().price_history_identity.clone();
+            state.jobs().insert(id, row).unwrap();
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let app = Router::new()
+                .route("/prices/history", get(crate::prices::history))
+                .with_state(state);
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let client = reqwest::Client::new();
+            let response = client
+                .get(format!("{base}/prices/history?since_ms=0&until_ms=1000"))
+                .send()
+                .await
+                .unwrap();
+            if !enabled {
+                assert_eq!(response.status(), 404);
+            } else {
+                assert_eq!(response.status(), 200);
+                let text = response.text().await.unwrap();
+                let body: serde_json::Value = serde_json::from_str(&text).unwrap();
+                assert_eq!(body["points"].as_array().unwrap().len(), expected_points);
+                for secret in [
+                    "PRIVATE_SSH_ENDPOINT",
+                    "PRIVATE_LEASE_NOTE",
+                    "PRIVATE_JOB_OUTPUT",
+                    buyer.as_str(),
+                ] {
+                    assert!(!text.contains(secret), "public response leaked {secret}");
+                }
+                assert_eq!(body["settlement_mint_b58"].is_null(), expected_points != 2);
+                for query in [
+                    "since_ms=2&until_ms=1",
+                    "since_ms=0&until_ms=31708800000",
+                    "since_ms=bad",
+                ] {
+                    let response = client
+                        .get(format!("{base}/prices/history?{query}"))
+                        .send()
+                        .await
+                        .unwrap();
+                    assert_eq!(response.status(), 400, "{query}");
+                }
+                let body: serde_json::Value = client
+                    .get(format!("{base}/prices/history?since_ms=400&until_ms=500"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .json()
+                    .await
+                    .unwrap();
+                assert!(body["points"].as_array().unwrap().is_empty());
+            }
+            server.abort();
+        }
+    }
+
+    #[test]
+    fn price_history_unknown_identity_period_never_relabels_after_recovery() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("journal.jsonl");
+        let identity = price_identity(&bs58::encode([9u8; 32]).into_string());
+        let id = Uuid::new_v4();
+        let mut row = price_record(id, 100, 300);
+        let access = row.lease_access.take().unwrap();
+        row.price_history_identity = None;
+        row.payout = None;
+        let book = JobBook::restore(HashMap::new(), Arc::new(Journal::open(&path).unwrap()));
+        book.insert(id, row).unwrap();
+        // Access recorded while genesis was unavailable remains unclassified,
+        // even after a later restart verifies the previous mainnet pin again.
+        assert!(book.set_lease_access(id, access, None).unwrap());
+        let paid = PayoutOutcome {
+            amount_micro_usdc: 490,
+            tx_signature: Some(bs58::encode([7u8; 64]).into_string()),
+            recorded_at_ms: crate::epoch_ms().saturating_add(1),
+        };
+        book.set_payout(id, paid.clone(), Some(&identity)).unwrap();
+        drop(book);
+        let replay = Journal::load(&path).unwrap();
+        let book = JobBook::restore(replay.jobs, Arc::new(Journal::open(&path).unwrap()));
+        assert!(book.get(id).unwrap().price_history_identity.is_none());
+        assert!(book
+            .price_observations(Some(&identity), 0, u64::MAX)
+            .iter()
+            .all(|r| r.currency == "USD"));
+        // The inverse race is also fenced: a known deployment started the
+        // lease, but an unverified deployment recorded its eventual payout.
+        let id2 = Uuid::new_v4();
+        let mut row = price_record(id2, 100, 300);
+        row.payout = None;
+        book.insert(id2, row).unwrap();
+        book.set_payout(id2, paid.clone(), None).unwrap();
+        assert!(book.get(id2).unwrap().price_history_identity.is_none());
+        book.set_payout(id2, paid, Some(&identity)).unwrap();
+        assert!(
+            book.get(id2).unwrap().price_history_identity.is_none(),
+            "later known identity must not repair missing provenance"
+        );
+    }
+    #[tokio::test]
+    async fn price_scoped_proofs_keep_legacy_jobs_private_without_enabling_full_feed() {
+        use crate::{CoordinatorConfig, CoordinatorState, MockPayout, NoReputation};
+        use covenant_audit::InMemoryAuditLog;
+        let coordinator = LocalIdentity::generate("price-private-feed@fixture");
+        let identity = price_identity(&coordinator.agent_id().pubkey_base58());
+        let state = CoordinatorState::new(
+            coordinator,
+            CoordinatorConfig {
+                public_price_history: true,
+                public_proof_feed: false,
+                price_history_identity: Some(identity.clone()),
+                ..CoordinatorConfig::default()
+            },
+            Arc::new(NoReputation),
+            Arc::new(MockPayout::with_onchain_mint(
+                crate::prices::SOLANA_MAINNET_USDC,
+            )),
+            Arc::new(InMemoryAuditLog::new()),
+        );
+        let eligible = Uuid::new_v4();
+        let mut row = price_record(eligible, 100, 300);
+        row.price_history_identity = Some(identity.clone());
+        let buyer = row.envelope.payload.buyer.pubkey_base58();
+        state.jobs().insert(eligible, row).unwrap();
+        let mut rejected = Vec::new();
+        for case in [
+            "legacy",
+            "invalid_receipt",
+            "unpaid",
+            "probe",
+            "wrong_identity",
+        ] {
+            let id = Uuid::new_v4();
+            let mut row = price_record(id, 100, 300);
+            row.price_history_identity = Some(identity.clone());
+            match case {
+                "legacy" => row.price_history_identity = None,
+                "invalid_receipt" => row.receipt.as_mut().unwrap().receipt.price_micro_usdc += 1,
+                "unpaid" => row.payout = None,
+                "probe" => row.pinned = true,
+                "wrong_identity" => {
+                    row.price_history_identity
+                        .as_mut()
+                        .unwrap()
+                        .coordinator_pubkey_b58 = bs58::encode([8u8; 32]).into_string()
+                }
+                _ => unreachable!(),
+            }
+            state.jobs().insert(id, row).unwrap();
+            rejected.push(id);
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        // Use the production router: both the scoped and existing full proof
+        // surfaces are exercised with the full proof opt-in deliberately off.
+        let server =
+            tokio::spawn(async move { axum::serve(listener, crate::router(state)).await.unwrap() });
+        let client = reqwest::Client::new();
+        let response = client
+            .get(format!("{base}/prices/proofs/{eligible}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        let text = response.text().await.unwrap();
+        let proof: covenant_compute_protocol::SettlementProof =
+            serde_json::from_str(&text).unwrap();
+        proof.verify_offline().unwrap();
+        assert_eq!(proof.job_id, eligible);
+        for secret in [
+            "PRIVATE_SSH_ENDPOINT",
+            "PRIVATE_LEASE_NOTE",
+            "PRIVATE_JOB_OUTPUT",
+            buyer.as_str(),
+        ] {
+            assert!(!text.contains(secret), "public proof leaked {secret}");
+        }
+        rejected.push(Uuid::new_v4());
+        for id in rejected {
+            assert_eq!(
+                client
+                    .get(format!("{base}/prices/proofs/{id}"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                404
+            );
+        }
+        for path in [
+            "/proof/receipts".to_owned(),
+            format!("/proof/receipts/{eligible}"),
+        ] {
+            assert_eq!(
+                client
+                    .get(format!("{base}{path}"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                404
+            );
+        }
+        let history: serde_json::Value = client
+            .get(format!("{base}/prices/history?since_ms=0&until_ms=1000"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let paid = history["points"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["currency"] == "USDC")
+            .unwrap();
+        assert_eq!(
+            paid["proof_paths"],
+            serde_json::json!([format!("/prices/proofs/{eligible}")])
+        );
+        server.abort();
     }
 }

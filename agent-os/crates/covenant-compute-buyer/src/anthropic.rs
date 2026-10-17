@@ -977,6 +977,8 @@ fn message_delta_event(reply: &AssistantReply, outcome: &DispatchOutcome) -> Eve
 /// failure — letting the request future's cancellation drop it would leave
 /// real spend uncounted against the session cap. This mirrors the OpenAI
 /// front door's `dispatch_settling`, shaped to Anthropic's error body.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn dispatch_settling(
     state: Arc<OpenAiState>,
     request: JobRequest,
@@ -1004,6 +1006,8 @@ async fn dispatch_settling(
 
 /// Whether the network is serving `model` for a message (an
 /// `inference_call` job); returns the SDK-correct 404 otherwise.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn ensure_model_servable(state: &OpenAiState, model: &str) -> Result<(), Response> {
     let view = capacity(&state.http, &state.buyer)
         .await
@@ -1050,6 +1054,8 @@ pub(crate) fn wants_anthropic_dialect(headers: &HeaderMap) -> bool {
 /// The concrete chat model ids the network is serving right now. Reads the
 /// coordinator's live capacity directory, then narrows it with
 /// [`chat_model_ids`].
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn chat_models(state: &OpenAiState) -> Result<Vec<String>, Response> {
     let view = capacity(&state.http, &state.buyer)
         .await

@@ -6034,6 +6034,7 @@ async fn partner_payout_records_are_gated_idempotent_and_bounded_by_accruals() {
                     accepted_at_ms: None,
                     metered_elapsed_ms: None,
                     close_requested_at_ms: None,
+                    price_history_identity: None,
                     lease_access: None,
                     check_jobs: Vec::new(),
                     checks_task: None,
@@ -11211,7 +11212,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/http.rs")).unwrap();
     assert_eq!(
         router_source.matches(".route(").count(),
-        42,
+        45,
         "the route table changed — teach the hostile-wire barrage the new route first"
     );
 
@@ -11313,6 +11314,10 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         // a hostile query is ignorable either way — never a 5xx.
         "/proof/receipts",
         "/proof/batch",
+        // Price history has an independent publication gate, off in
+        // this fixture; malformed queries must never move funds.
+        "/prices",
+        "/prices/history",
         // Admin-gated: hostile queries with no bearer land on the
         // fail-closed 401, never a 5xx or a list.
         "/admin/transfers",
@@ -11322,6 +11327,20 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
             http.get(&url),
             true,
             format!("GET {path} (hostile query)"),
+            &mut violations,
+        )
+        .await;
+    }
+
+    for query in [
+        "since_ms=garbage",
+        "since_ms=-1",
+        "until_ms=18446744073709551616",
+    ] {
+        assert_wire_answer(
+            http.get(format!("{base_url}/prices/history?{query}")),
+            false,
+            format!("GET /prices/history ({query})"),
             &mut violations,
         )
         .await;
@@ -11338,6 +11357,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
             (format!("/federation/operators/{hp}/bond"), false),
             (format!("/federation/jobs/{hp}/receipt"), false),
             (format!("/proof/receipts/{hp}"), false),
+            (format!("/prices/proofs/{hp}"), false),
             (format!("/proof/batch/{hp}"), false),
             (format!("/federation/jobs/{hp}/lease"), false),
             (format!("/federation/jobs/{hp}/stream"), false),

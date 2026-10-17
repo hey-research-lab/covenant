@@ -27,6 +27,7 @@ mod lease_close;
 mod logprobs;
 mod merkle;
 mod payout;
+pub mod price_history;
 mod proof;
 mod read_auth;
 mod receipt;

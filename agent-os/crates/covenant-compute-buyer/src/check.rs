@@ -87,6 +87,7 @@ pub fn check_preview(
     )
 }
 
+#[allow(clippy::too_many_arguments)] // Mirrors the caller's explicit signed purchase fields.
 pub async fn check_pinned_task(
     http: &reqwest::Client,
     config: &BuyerConfig,

@@ -388,6 +388,32 @@ pub async fn before_submit(
     Ok(budget)
 }
 
+pub fn tool_spec() -> covenant_mcp::ToolSpec {
+    covenant_mcp::ToolSpec {name:"compute.budget".into(),description:"Read this buyer and coordinator's persistent rolling-24-hour spend ceiling. Optional reconcile reads existing jobs only; uncertain reservations remain held and it never dispatches work.".into(),input_schema:serde_json::json!({"type":"object","properties":{"reconcile":{"type":"boolean","default":false}},"additionalProperties":false})}
+}
+pub async fn describe(
+    http: &reqwest::Client,
+    config: &crate::BuyerConfig,
+    identity: &covenant_identity::LocalIdentity,
+    refresh: bool,
+) -> std::result::Result<serde_json::Value, crate::BuyerError> {
+    let Some(budget) = DurableBudget::from_env(
+        &identity.agent_id().pubkey_base58(),
+        &config.coordinator_url,
+    )
+    .map_err(buyer_error)?
+    else {
+        return Ok(serde_json::json!({"enabled":false}));
+    };
+    if refresh {
+        reconcile(&budget, http, config, identity).await?;
+    }
+    let status = budget.status(crate::epoch_ms()).map_err(buyer_error)?;
+    Ok(serde_json::json!({"enabled":true,"status":status}))
+}
+
+pub const BUDGET_TOOL: &str = "compute.budget";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -527,29 +553,3 @@ mod tests {
         assert_eq!(successes, 1);
     }
 }
-
-pub fn tool_spec() -> covenant_mcp::ToolSpec {
-    covenant_mcp::ToolSpec {name:"compute.budget".into(),description:"Read this buyer and coordinator's persistent rolling-24-hour spend ceiling. Optional reconcile reads existing jobs only; uncertain reservations remain held and it never dispatches work.".into(),input_schema:serde_json::json!({"type":"object","properties":{"reconcile":{"type":"boolean","default":false}},"additionalProperties":false})}
-}
-pub async fn describe(
-    http: &reqwest::Client,
-    config: &crate::BuyerConfig,
-    identity: &covenant_identity::LocalIdentity,
-    refresh: bool,
-) -> std::result::Result<serde_json::Value, crate::BuyerError> {
-    let Some(budget) = DurableBudget::from_env(
-        &identity.agent_id().pubkey_base58(),
-        &config.coordinator_url,
-    )
-    .map_err(buyer_error)?
-    else {
-        return Ok(serde_json::json!({"enabled":false}));
-    };
-    if refresh {
-        reconcile(&budget, http, config, identity).await?;
-    }
-    let status = budget.status(crate::epoch_ms()).map_err(buyer_error)?;
-    Ok(serde_json::json!({"enabled":true,"status":status}))
-}
-
-pub const BUDGET_TOOL: &str = "compute.budget";

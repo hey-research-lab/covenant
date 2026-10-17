@@ -284,7 +284,7 @@ fn agent_request(
     Ok(JobRequest {
         kind: JobKind::AgentTask,
         input: vec![input],
-        model: Some(task.spec.builder_model().into()),
+        model: Some(task.spec.builder_model()),
         gpu_class: None,
         min_vram_gb: None,
         min_reputation_bps: None,

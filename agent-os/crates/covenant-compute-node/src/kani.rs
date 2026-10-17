@@ -319,7 +319,7 @@ fn container_args(req: &KaniRequest<'_>, request_dir: &Path, owner: &str) -> Vec
         owner,
         "--tmpfs",
         &format!(
-            "/scratch:rw,nosuid,nodev,size={}m,uid={},gid={},mode=0700",
+            "/scratch:rw,exec,nosuid,nodev,size={}m,uid={},gid={},mode=0700",
             spec.scratch_mib,
             owner.split(':').next().unwrap_or("0"),
             owner.split(':').nth(1).unwrap_or("0")
@@ -822,17 +822,43 @@ mod tests {
         assert_eq!(value("--memory"), "8192m");
         assert_eq!(value("--memory-swap"), "8192m");
         assert_eq!(value("--cpus"), "4");
+        assert_eq!(value("--pids-limit"), "512");
+        assert_eq!(value("--user"), "1000:1000");
+        assert_eq!(value("--cap-drop"), "ALL");
+        assert_eq!(value("--security-opt"), "no-new-privileges");
         assert!(args.contains(&"--read-only".into()));
         assert!(args.contains(&"CARGO_NET_OFFLINE=true".into()));
+        assert!(args.contains(&"CARGO_TARGET_DIR=/scratch/target".into()));
         for pair in args.windows(2).filter(|p| p[0] == "-v") {
             assert!(pair[1].ends_with(":ro"));
         }
-        assert!(args
-            .iter()
-            .any(|a| a.starts_with("/evidence:rw,") && a.contains("size=20m")));
-        assert!(args
-            .iter()
-            .any(|a| a.starts_with("/scratch:rw,") && a.contains("size=1024m")));
+        let tmpfs: Vec<_> = args
+            .windows(2)
+            .filter(|pair| pair[0] == "--tmpfs")
+            .map(|pair| pair[1].as_str())
+            .collect();
+        assert_eq!(
+            tmpfs,
+            [
+                "/scratch:rw,exec,nosuid,nodev,size=1024m,uid=1000,gid=1000,mode=0700",
+                "/tmp:rw,nosuid,nodev,size=16m",
+                "/evidence:rw,nosuid,nodev,size=20m,uid=1000,gid=1000,mode=0700",
+            ]
+        );
+        // Build scripts execute from Cargo's target directory. Only that tmpfs
+        // opts out of Docker's default noexec; /tmp and /evidence retain it.
+        assert_eq!(
+            tmpfs
+                .iter()
+                .filter(|mount| mount
+                    .split(':')
+                    .nth(1)
+                    .unwrap()
+                    .split(',')
+                    .any(|o| o == "exec"))
+                .count(),
+            1
+        );
         assert_eq!(value("--entrypoint"), "/usr/bin/python3");
     }
 

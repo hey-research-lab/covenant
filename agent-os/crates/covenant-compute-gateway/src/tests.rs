@@ -194,6 +194,119 @@ struct UncertainExecute {
     seen: std::sync::Mutex<Vec<Uuid>>,
     fail_unpaid: bool,
 }
+
+struct SellerLossExecute(Execute);
+#[async_trait]
+impl Executor for SellerLossExecute {
+    fn prepare(&self, request: &Value) -> Result<PreparedExecution> {
+        self.0.prepare(request)
+    }
+    async fn execute(&self, _: &PreparedExecution) -> std::result::Result<Value, ExecutionFailure> {
+        self.0.calls.fetch_add(1, Ordering::SeqCst);
+        Err(ExecutionFailure {
+            message: "verified native result used an unapproved operator".into(),
+            definitely_unpaid: false,
+            terminal_seller_loss: true,
+        })
+    }
+}
+
+#[tokio::test]
+async fn unapproved_operator_result_is_a_terminal_seller_loss_without_customer_settlement() {
+    let directory = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    let executor = Arc::new(SellerLossExecute(Execute {
+        identity: LocalIdentity::generate("pin-test@local"),
+        calls: AtomicUsize::new(0),
+    }));
+    let gateway = Gateway::open(
+        directory.path(),
+        "pinned-operator",
+        10,
+        12,
+        rail.clone(),
+        executor.clone(),
+    )
+    .unwrap();
+    let request = json!({"prompt":"same"});
+    let GatewayReply::PaymentRequired(quote) = gateway
+        .handle(request.clone(), None, None, 100)
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(matches!(
+        gateway
+            .handle(
+                request.clone(),
+                Some(quote.quote_id),
+                Some("authorization"),
+                101
+            )
+            .await
+            .unwrap(),
+        GatewayReply::Failed(_)
+    ));
+    assert_eq!(gateway.disk.lock().await.used_reserve(), 10);
+    drop(gateway);
+    let gateway = Gateway::open(
+        directory.path(),
+        "pinned-operator",
+        10,
+        12,
+        rail.clone(),
+        executor.clone(),
+    )
+    .unwrap();
+    gateway.recover_pending(102).await.unwrap();
+    assert!(matches!(
+        gateway
+            .handle(
+                request.clone(),
+                Some(quote.quote_id),
+                Some("authorization"),
+                103
+            )
+            .await
+            .unwrap(),
+        GatewayReply::Failed(_)
+    ));
+    let GatewayReply::PaymentRequired(next) = gateway
+        .handle(request.clone(), None, None, 104)
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(gateway
+        .handle(
+            request,
+            Some(next.quote_id),
+            Some("another-authorization"),
+            105
+        )
+        .await
+        .is_err());
+    assert_eq!(
+        executor.0.calls.load(Ordering::SeqCst),
+        1,
+        "no replacement native purchase"
+    );
+    assert_eq!(
+        rail.settles.load(Ordering::SeqCst),
+        0,
+        "customer is never charged for an unapproved operator"
+    );
+    assert_eq!(
+        gateway.disk.lock().await.used_reserve(),
+        10,
+        "seller loss survives restart"
+    );
+}
 #[async_trait]
 impl Executor for UncertainExecute {
     fn prepare(&self, r: &Value) -> Result<PreparedExecution> {
@@ -204,6 +317,7 @@ impl Executor for UncertainExecute {
         seen.push(p.job_envelopes[0].payload.job_id);
         if seen.len() == 1 || self.fail_unpaid {
             return Err(ExecutionFailure {
+                terminal_seller_loss: false,
                 message: "fixture execution failed".into(),
                 definitely_unpaid: self.fail_unpaid,
             });
@@ -579,8 +693,8 @@ async fn rejected_payment_and_http_body_mismatch_cause_no_dispatch() {
     server.abort();
 }
 
-#[test]
-fn native_signed_response_fixture_and_request_validation() {
+#[tokio::test]
+async fn native_signed_response_fixture_and_request_validation() {
     use covenant_compute_buyer::{durable_budget::DurableBudget, verify_receipt, DispatchOutcome};
     use covenant_compute_protocol::{
         output_hash_hex, JobMeter, SignedWorkReceipt, WorkReceiptPayload,
@@ -594,7 +708,7 @@ fn native_signed_response_fixture_and_request_validation() {
         referral_code: None,
         rpc_url: None,
     };
-    let executor = buyer::BuyerExecutor {
+    let executor = Arc::new(buyer::BuyerExecutor {
         budget: DurableBudget::open(
             directory.path(),
             &identity.agent_id().pubkey_base58(),
@@ -608,16 +722,61 @@ fn native_signed_response_fixture_and_request_validation() {
         model: "fixture-model".into(),
         offer_micro_usdc: 10,
         max_tokens: 100,
-    };
+        max_input_bytes: 4096,
+        approved_operators: vec![operator.agent_id().pubkey_base58()],
+    });
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    let gateway = Gateway::open(
+        &directory.path().join("gateway"),
+        "input-limits",
+        1000,
+        12,
+        rail.clone(),
+        executor.clone(),
+    )
+    .unwrap();
     let request = json!({"model":"fixture-model","messages":[{"role":"system","content":"Be precise."},{"role":"user","content":"Explain a rainbow."}],"max_tokens":64,"temperature":0.25});
     for bad in [
         json!({"model":"fixture-model","messages":[{"role":"user","content":"hi","tools":[]}],"max_tokens":64}),
         json!({"model":"another-model","messages":[{"role":"user","content":"hi"}],"max_tokens":64}),
         json!({"model":"fixture-model","messages":[{"role":"user","content":"hi"}],"max_tokens":101}),
         json!({"model":"fixture-model","messages":[{"role":"user","content":"hi"}],"max_tokens":64,"temperature":3}),
+        json!({"model":"fixture-model","messages":vec![json!({"role":"user","content":"hi"});33],"max_tokens":64}),
+        json!({"model":"fixture-model","messages":[{"role":"user","content":"x".repeat(4096)}],"max_tokens":64}),
+        json!({"model":"fixture-model","messages":[{"role":"user","content":"界".repeat(1400)}],"max_tokens":64}),
     ] {
         assert!(executor.prepare(&bad).is_err());
+        assert!(gateway.handle(bad, None, None, now_ms()).await.is_err());
     }
+    assert!(
+        gateway.disk.lock().await.journal.entries.is_empty(),
+        "invalid input must not obtain a payable quote"
+    );
+    assert_eq!(rail.settles.load(Ordering::SeqCst), 0);
+    assert!(executor.budget.pending(now_ms()).unwrap().is_empty());
+    assert!(executor
+        .require_approved_operator(&operator.agent_id().pubkey_base58())
+        .is_ok());
+    let pin_failure = executor
+        .require_approved_operator(
+            &LocalIdentity::generate("unapproved@local")
+                .agent_id()
+                .pubkey_base58(),
+        )
+        .unwrap_err();
+    assert!(pin_failure.terminal_seller_loss);
+    assert!(!pin_failure.definitely_unpaid);
+    let overhead = serde_json::to_vec(&json!([{"role":"user","content":""}]))
+        .unwrap()
+        .len();
+    let exact_limit = json!({"model":"fixture-model","messages":[{"role":"user","content":"x".repeat(4096-overhead)}],"max_tokens":64});
+    assert!(
+        executor.prepare(&exact_limit).is_ok(),
+        "exact byte boundary is supported"
+    );
     let envelope = executor.prepare(&request).unwrap().job_envelopes.remove(0);
     let output = vec![
         Content::text("Light separates into colors."),

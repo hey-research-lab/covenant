@@ -129,6 +129,10 @@ pub struct ExecutionFailure {
     /// Only a coordinator refusal or verified unpaid terminal state proves
     /// this. Transport/timeout/verification failure is always uncertain.
     pub definitely_unpaid: bool,
+    /// A verified native success that cannot be sold to the customer (for
+    /// example an unapproved operator). Keep the full seller reserve cost,
+    /// stop this purchase, and never charge the customer or buy a replacement.
+    pub terminal_seller_loss: bool,
 }
 #[async_trait]
 pub trait Executor: Send + Sync {
@@ -552,6 +556,12 @@ impl Gateway {
                     phase = Phase::Failed {
                         reason: failure.message,
                         reserve_loss_micro_usdc: 0,
+                    };
+                }
+                Err(failure) if failure.terminal_seller_loss => {
+                    phase = Phase::Failed {
+                        reason: failure.message,
+                        reserve_loss_micro_usdc: prepared.maximum_cost_micro_usdc,
                     };
                 }
                 Err(_) => return Ok(GatewayReply::Pending { quote_id }),

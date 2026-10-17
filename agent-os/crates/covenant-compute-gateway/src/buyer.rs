@@ -10,7 +10,7 @@ use covenant_compute_protocol::{
 };
 use covenant_identity::LocalIdentity;
 use covenant_mcp::Content;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -22,6 +22,10 @@ pub struct BuyerExecutor {
     pub model: String,
     pub offer_micro_usdc: u64,
     pub max_tokens: u32,
+    /// UTF-8 bytes of the normalized JSON message array, matching the provider.
+    pub max_input_bytes: usize,
+    /// Operator receipt keys approved for this gateway deployment.
+    pub approved_operators: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -34,7 +38,7 @@ struct Request {
     #[serde(default)]
     stream: bool,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TextMessage {
     role: ChatRole,
@@ -50,7 +54,8 @@ impl Executor for BuyerExecutor {
             || request.max_tokens > self.max_tokens
             || request.stream
             || request.messages.is_empty()
-            || request.messages.len() > 64
+            || request.messages.len() > 32
+            || serde_json::to_vec(&request.messages)?.len() > self.max_input_bytes
             || request
                 .messages
                 .iter()
@@ -110,6 +115,7 @@ impl Executor for BuyerExecutor {
         let uncertain = |message: String| ExecutionFailure {
             message,
             definitely_unpaid: false,
+            terminal_seller_loss: false,
         };
         if prepared.buyer != self.identity.agent_id().pubkey_base58()
             || prepared.coordinator != self.config.coordinator_url
@@ -125,9 +131,30 @@ impl Executor for BuyerExecutor {
             .await
             .map_err(|e| ExecutionFailure {
                 definitely_unpaid: e.concludes_purchase_unpaid(),
+                terminal_seller_loss: false,
                 message: e.to_string(),
             })?;
+        self.require_approved_operator(&outcome.receipt.signer_pubkey_b58)?;
         completed_response(outcome, &self.model).map_err(|e| uncertain(e.to_string()))
+    }
+}
+impl BuyerExecutor {
+    pub(crate) fn require_approved_operator(
+        &self,
+        signer_pubkey_b58: &str,
+    ) -> std::result::Result<(), ExecutionFailure> {
+        if !self
+            .approved_operators
+            .iter()
+            .any(|key| key == signer_pubkey_b58)
+        {
+            return Err(ExecutionFailure {
+                message: "verified native result used an unapproved inference operator; customer payment not settled".into(),
+                definitely_unpaid: false,
+                terminal_seller_loss: true,
+            });
+        }
+        Ok(())
     }
 }
 pub fn completed_response(

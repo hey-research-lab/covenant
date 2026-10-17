@@ -34,6 +34,28 @@ async fn main() -> anyhow::Result<()> {
         offer > 0 && price >= offer && reserve >= offer,
         "price/reserve must cover the compute offer"
     );
+    let max_input_bytes: usize = required("COVENANT_GATEWAY_MAX_INPUT_BYTES")?.parse()?;
+    anyhow::ensure!(
+        (1..=65_536).contains(&max_input_bytes),
+        "maximum input bytes must be between 1 and 65536"
+    );
+    let approved_operators = required("COVENANT_GATEWAY_APPROVED_OPERATOR_PUBKEYS")?
+        .split(',')
+        .map(|key| key.trim().to_owned())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    anyhow::ensure!(
+        !approved_operators.is_empty()
+            && approved_operators.len() <= 32
+            && approved_operators.iter().all(|key| {
+                bs58::decode(key)
+                    .into_vec()
+                    .is_ok_and(|bytes| bytes.len() == 32)
+            }),
+        "approved operators must be one to 32 comma-separated public keys"
+    );
+    let operator_namespace = approved_operators.join(",");
     let rail = Arc::new(SvmBridge::new(
         required("COVENANT_GATEWAY_BRIDGE_URL")?,
         required("COVENANT_GATEWAY_BRIDGE_SECRET")?,
@@ -56,9 +78,11 @@ async fn main() -> anyhow::Result<()> {
         model: required("COVENANT_GATEWAY_MODEL")?,
         offer_micro_usdc: offer,
         max_tokens: required("COVENANT_GATEWAY_MAX_TOKENS")?.parse()?,
+        max_input_bytes,
+        approved_operators,
     });
     let namespace = format!(
-        "{}\0{coordinator}\0{}\0{}\0{offer}",
+        "{}\0{coordinator}\0{}\0{}\0{offer}\0{max_input_bytes}\0{operator_namespace}",
         identity.agent_id().pubkey_base58(),
         executor.model,
         executor.max_tokens

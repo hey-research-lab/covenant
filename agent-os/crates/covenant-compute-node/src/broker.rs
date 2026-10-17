@@ -183,7 +183,8 @@ impl BrokerSessionBackend {
                             instance_micro_usd_per_hour: launch.offer.hourly_micros,
                             observed_at_ms: std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
-                                .map(|d| d.as_millis() as u64).unwrap_or(0),
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0),
                         }),
                         job_id,
                         endpoint: format!("ssh -p {} root@{}", ssh.port, ssh.host),

@@ -313,7 +313,7 @@ naming the variable rather than starting on the wrong setting.
 | `COVENANT_COMPUTE_MIN_PROTOCOL` | `0` | Wire-version floor for `/federation/*`; older clients get 426. `/health` and `/metrics` never floor. |
 | `COVENANT_COMPUTE_ADMIN_TOKEN` | (unset) | Bearer token for the admin surface (partner mark-paid, subsidy close). Fail-closed until set. |
 | `COVENANT_COMPUTE_PUBLIC_PROOF_FEED` | off | `1` serves the public settlement proof feed at `/proof/receipts` and its committed form at `/proof/batch`; off keeps every receipt read buyer-gated. Effective only when payouts settle on a chain, so a proof has a transaction to cite. |
-| `COVENANT_COMPUTE_PUBLIC_PRICE_HISTORY` | off | `1` serves `/prices` and `/prices/history` and samples public provider quotes hourly without rentals. Settled prices additionally require the proof feed and a verified persistent mainnet-USDC deployment binding. |
+| `COVENANT_COMPUTE_PUBLIC_PRICE_HISTORY` | off | `1` serves `/prices` and `/prices/history` and samples public provider quotes hourly without rentals. Settled prices require a verified persistent mainnet-USDC deployment binding; `/prices/proofs/:job_id` exposes only price-qualified lease proofs. The broader proof feed remains separately gated. |
 
 **Background tasks** (all self-heal the books; `0` disables)
 

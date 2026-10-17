@@ -2,7 +2,7 @@
 //! prices, interpolation or live asks are passed off as historical settlement.
 use crate::{CoordinatorState, JobRecord};
 use axum::{
-    extract::{Query, State},
+    extract::{Path as AxumPath, Query, State},
     http::StatusCode,
     Json,
 };
@@ -175,7 +175,7 @@ impl PriceProjection {
                 duration_ms: elapsed,
                 source: "settled_lease_charge",
                 currency: "USDC",
-                proof_path: Some(format!("/proof/receipts/{id}")),
+                proof_path: Some(format!("/prices/proofs/{id}")),
             };
             Some((observation, proof))
         })();
@@ -183,14 +183,23 @@ impl PriceProjection {
     }
 
     pub(crate) fn verified_observations(self) -> impl Iterator<Item = PriceObservation> {
-        let settlement = self.settlement.and_then(|(row, proof)| {
-            let signature_shape = bs58::decode(&proof.tx_signature)
-                .into_vec()
-                .is_ok_and(|v| v.len() == 64 && v.iter().any(|b| *b != 0));
-            (signature_shape && proof.verify_offline().is_ok()).then_some(row)
-        });
+        let settlement = self
+            .settlement
+            .and_then(|(row, proof)| valid_settlement(&proof).then_some(row));
         self.quote.into_iter().chain(settlement)
     }
+
+    fn verified_proof(self) -> Option<SettlementProof> {
+        self.settlement
+            .and_then(|(_, proof)| valid_settlement(&proof).then_some(proof))
+    }
+}
+
+fn valid_settlement(proof: &SettlementProof) -> bool {
+    let signature_shape = bs58::decode(&proof.tx_signature)
+        .into_vec()
+        .is_ok_and(|v| v.len() == 64 && v.iter().any(|b| *b != 0));
+    signature_shape && proof.verify_offline().is_ok()
 }
 
 #[derive(Debug, Serialize)]
@@ -366,6 +375,42 @@ pub async fn history(
     })
 }
 
+/// A price-history-specific proof surface. Opting into prices does not publish
+/// the deployment's older private receipt feed. Exactly the same provenance,
+/// payout and signature predicates admit this proof and its historical point.
+pub async fn scoped_proof(
+    State(state): State<CoordinatorState>,
+    AxumPath(job_id): AxumPath<Uuid>,
+) -> Result<Json<SettlementProof>, (StatusCode, &'static str)> {
+    if !state.config().public_price_history {
+        return Err((StatusCode::NOT_FOUND, "public price history is disabled"));
+    }
+    let permit = HISTORY_REQUESTS.try_acquire().map_err(|_| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            "price history is busy; retry shortly",
+        )
+    })?;
+    let proof = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let identity = state.verified_price_history_identity()?;
+        state
+            .jobs()
+            .price_projection(job_id, identity, crate::epoch_ms())?
+            .verified_proof()
+    })
+    .await
+    .map_err(|_| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "price proof is temporarily unavailable",
+        )
+    })?;
+    proof
+        .map(Json)
+        .ok_or((StatusCode::NOT_FOUND, "no qualifying public price proof"))
+}
+
 static HISTORY_REQUESTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 
 fn build_history(state: &CoordinatorState, since: u64, until: u64, now: u64) -> History {
@@ -375,8 +420,7 @@ fn build_history(state: &CoordinatorState, since: u64, until: u64, now: u64) -> 
         .price_history_identity
         .as_ref()
         .filter(|identity| {
-            state.config().public_proof_feed
-                && identity.matches_runtime(&coordinator, state.payout().payout_mint_b58(), now)
+            identity.matches_runtime(&coordinator, state.payout().payout_mint_b58(), now)
         });
     let mut aggregate = PriceSeries::new(since, until);
     for row in state.jobs().price_observations(identity, since, until) {
@@ -395,7 +439,7 @@ fn build_history(state: &CoordinatorState, since: u64, until: u64, now: u64) -> 
         settlement_evidence: "valid signed receipts and recorded payout transaction citations; independently verify cited transactions for chain finality; timestamps record payout observation, not block time; no cross-deployment aggregation",
         generated_at_ms: now,
         unit: "millionths of the named currency per GPU-hour",
-        coverage: "provider market quotes are a limited hourly price-ordered sample, not every offer; lease quotes are sampled at successful provisioning; market asks include the configured 16 GB storage and exclude bandwidth/additional usage; quotes are not invoices; history begins with recording; settled series requires the same durable verified identity at source observation and payout and an enabled public proof feed",
+        coverage: "provider market quotes are a limited hourly price-ordered sample, not every offer; lease quotes are sampled at successful provisioning; market asks include the configured 16 GB storage and exclude bandwidth/additional usage; quotes are not invoices; history begins with recording; settled series requires the same durable verified identity at source observation and payout; linked proofs cover only qualifying price-history leases",
         provider_sampling,
         points,
     }

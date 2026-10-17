@@ -43,7 +43,7 @@ for (const point of data.points) {
   assert.ok(point.min_micros_per_gpu_hour <= point.mean_micros_per_gpu_hour);
   assert.ok(point.mean_micros_per_gpu_hour <= point.max_micros_per_gpu_hour);
   for (const path of point.proof_paths) {
-    assert.match(path, /^\/proof\/receipts\/[a-f0-9-]{36}$/);
+    assert.match(path, /^\/prices\/proofs\/[a-f0-9-]{36}$/);
     const proof = await get(path);
     assert.match(proof.headers.get('content-type') ?? '', /application\/json/);
   }

@@ -518,6 +518,8 @@ async fn health() -> Json<Value> {
 /// spend uncounted against the session cap. Spawning detaches the
 /// submit-verify-settle sequence from that cancellation. The streaming path
 /// spawns for the same reason.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 pub(crate) async fn dispatch_settling(
     state: Arc<OpenAiState>,
     request: JobRequest,
@@ -597,6 +599,8 @@ pub(crate) fn reservation_refusal(msg: String) -> Response {
 /// single-job contract, run `n` times), so the buyer is charged for exactly
 /// the completions that come back. A job that faults has already released
 /// its reservation; if every job faults, the first fault is surfaced.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn dispatch_fanned(
     state: &Arc<OpenAiState>,
     request: JobRequest,
@@ -2540,6 +2544,8 @@ fn speech_response(outcome: &DispatchOutcome) -> Result<Response, String> {
 /// buys speech at `/v1/audio/speech` can also discover the voice model here.
 /// Generic `any`-serving nodes are excluded — they advertise no concrete id
 /// a client could name as `model`.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 async fn served_models(state: &OpenAiState) -> Result<Vec<String>, Response> {
     let view = capacity(&state.http, &state.buyer)
         .await
@@ -2619,6 +2625,8 @@ fn model_not_found(model: &str) -> Response {
 /// model no operator will take at the offered terms is a different
 /// condition than a model that does not exist, and only the latter is a
 /// 404.
+// Return the axum response inline at this HTTP handler boundary.
+#[allow(clippy::result_large_err)]
 pub(crate) async fn ensure_model_servable(
     state: &OpenAiState,
     model: &str,

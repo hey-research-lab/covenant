@@ -11212,7 +11212,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/http.rs")).unwrap();
     assert_eq!(
         router_source.matches(".route(").count(),
-        44,
+        45,
         "the route table changed — teach the hostile-wire barrage the new route first"
     );
 
@@ -11357,6 +11357,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
             (format!("/federation/operators/{hp}/bond"), false),
             (format!("/federation/jobs/{hp}/receipt"), false),
             (format!("/proof/receipts/{hp}"), false),
+            (format!("/prices/proofs/{hp}"), false),
             (format!("/proof/batch/{hp}"), false),
             (format!("/federation/jobs/{hp}/lease"), false),
             (format!("/federation/jobs/{hp}/stream"), false),

@@ -1853,9 +1853,7 @@ fn validate_workspace_image(image: &str) -> Result<()> {
 
 fn parse_cuda_version(value: &serde_json::Number) -> Result<CudaVersion> {
     let rendered = value.to_string();
-    let (major, minor) = rendered
-        .split_once('.')
-        .map_or((rendered.as_str(), "0"), |parts| parts);
+    let (major, minor) = rendered.split_once('.').unwrap_or((rendered.as_str(), "0"));
     let minor = minor.trim_end_matches('0');
     let minor = if minor.is_empty() { "0" } else { minor };
     if major.is_empty()

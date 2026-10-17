@@ -131,7 +131,9 @@ pub struct LeaseAccess {
 
 impl LeaseAccess {
     pub fn validate(&self) -> Result<(), ProtocolError> {
-        if let Some(source) = &self.source_price { source.validate()?; }
+        if let Some(source) = &self.source_price {
+            source.validate()?;
+        }
         if self.endpoint.trim().is_empty() {
             return Err(ProtocolError::Invalid(
                 "lease access endpoint is empty".into(),

@@ -118,6 +118,7 @@ pub fn router(state: CoordinatorState) -> Router {
         .route("/health", get(health))
         .route("/prices", get(crate::prices_page::page))
         .route("/prices/history", get(crate::prices::history))
+        .route("/prices/proofs/:job_id", get(crate::prices::scoped_proof))
         .route("/metrics", get(metrics))
         .route("/federation/operators/register", post(register))
         .route("/federation/operators/heartbeat", post(heartbeat))

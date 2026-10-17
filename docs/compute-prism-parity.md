@@ -59,8 +59,7 @@ range is 30 days; maximum is 366 days. USD provider asks and gross USDC rental
 charges stay separate. Multi-GPU rates use GPU-hours; settled rates are weighted
 by metered duration. GPU identity is provider/operator-reported, not attested.
 
-Settled series additionally require `COVENANT_COMPUTE_PUBLIC_PROOF_FEED=1`, a
-verified mainnet-USDC deployment pin in `price-history-identity.json`, and the same
+Settled series require a verified mainnet-USDC deployment pin in `price-history-identity.json`, and the same
 pin durably recorded when access and payout are observed. Missing identity,
 wrong chain/mint, old metadata, unknown-configuration periods, unpaid/refunded
 jobs, probes and malformed receipts are excluded. Payout timestamps use the
@@ -68,7 +67,10 @@ observed payout time, not job completion or claimed block time. Signatures and
 arithmetic are checked offline; transaction citations remain independently
 checkable on chain and do not themselves prove finality.
 
-Both price surfaces are opt-in independently of proof publication. The page
+All price surfaces are opt-in independently of the existing proof feed.
+`/prices/proofs/:job_id` publishes only the exact qualified new lease records
+represented in price history. The older full receipt feed stays private unless
+a deployment separately enables it. The page
 uses Covenant's published brand guide, separates sources/assets, shows gaps and
 outages, and inserts provider labels as text. It exposes no buyer, prompt, SSH
 endpoint or provider credentials. Range filtering precedes signature work;
@@ -84,18 +86,22 @@ Local validation on 2026-10-17:
   opt-in/ignored targets); 280 protocol tests passed separately.
 - Eight page renderer tests passed, including hostile labels/links, separate
   sources/assets, missing days, exact small prices and outage handling.
-- Both Compute documentation validators passed.
+- Both Compute documentation validators passed; affected coordinator/node Clippy
+  (all targets, warnings denied) and formatting passed. Scoped price-proof and
+  hostile-wire HTTP tests passed after the final privacy refinement.
+- The repository-wide script gate has an inherited failure: 18 stale chain-CLI
+  documentation line references. The script, cited CLI source and cited document
+  are byte-identical to deployed `5b02333`; running the guard on that baseline
+  produces the same errors. This is not a passing whole-repository CI claim.
 - A real local coordinator queried the public provider with no credentials or
   paid operations: 53 offers across eight GPU models. Restart preserved the
   coordinator identity and exact persisted history without duplicate sampling.
 - Identity, delayed payout, journal replay, unknown-network periods, source store
   corruption, interrupted writes and HTTP opt-in/privacy/range checks pass.
 
-Production promotion is pending. Existing service identified read-only:
-`keystone-coordinator` (`srv-d9agfv7aqgkc739jpcn0`) serves
-`https://compute-api.opencovenant.org`; the broker is
-`covenant-compute-node-l40s` (`srv-datp7tvlot8c738eofog`). Preserve their persistent
-`/data` disks and identities. Before promotion, zero jobs were offered/accepted,
+Production promotion is pending. The current public coordinator is
+`https://compute-api.opencovenant.org`. Preserve the coordinator and broker
+persistent `/data` disks and identities. Before promotion, zero jobs were offered/accepted,
 six operators were live and journal health was good.
 
 Publish immutable coordinator/node images from the reviewed deployment commit.
@@ -104,8 +110,8 @@ mirror packages `covenant/compute-coordinator-public` and
 `covenant/compute-node-public` allow anonymous pulls without changing visibility
 of historical private packages. Then
 verify registry pulls, deploy the accepting coordinator before the metadata-emitting
-broker, and enable price history. Enable proof publication only with the verified
-mainnet/USDC binding. Verify `/health` names the exact build revision, provider
+broker, and enable price history. Scoped price proofs require the verified mainnet/USDC binding;
+keep the broader public-proof-feed setting unchanged. Verify `/health` names the exact build revision, provider
 sampling becomes available, existing books/identity/capacity recover, and run:
 
 ```sh

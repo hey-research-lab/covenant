@@ -515,6 +515,24 @@ impl JobBook {
             .collect()
     }
 
+    /// Copies only the narrowly eligible price projection, never private job
+    /// input/output or the entire legacy receipt feed.
+    pub(crate) fn price_projection(
+        &self,
+        job_id: Uuid,
+        identity: &crate::prices::PriceHistoryIdentity,
+        now_ms: u64,
+    ) -> Option<crate::prices::PriceProjection> {
+        let jobs = self.jobs.lock();
+        crate::prices::PriceProjection::from_record(
+            job_id,
+            jobs.get(&job_id)?,
+            Some(identity),
+            0,
+            now_ms,
+        )
+    }
+
     pub fn get(&self, job_id: Uuid) -> Option<JobRecord> {
         self.jobs.lock().get(&job_id).cloned()
     }
@@ -584,7 +602,7 @@ impl JobBook {
                 Some((at, r.settlement_proof(*id, mint_b58)?))
             })
             .collect();
-        settled.sort_by(|a, b| b.0.cmp(&a.0));
+        settled.sort_by_key(|entry| std::cmp::Reverse(entry.0));
         settled.truncate(limit);
         settled.into_iter().map(|(_, proof)| proof).collect()
     }
@@ -2397,7 +2415,7 @@ mod tests {
         use covenant_audit::InMemoryAuditLog;
         for (enabled, proof_enabled, valid_identity, expected_points) in [
             (false, true, true, 0usize),
-            (true, false, true, 1),
+            (true, false, true, 2),
             (true, true, false, 1),
             (true, true, true, 2),
         ] {
@@ -2523,5 +2541,129 @@ mod tests {
             book.get(id2).unwrap().price_history_identity.is_none(),
             "later known identity must not repair missing provenance"
         );
+    }
+    #[tokio::test]
+    async fn price_scoped_proofs_keep_legacy_jobs_private_without_enabling_full_feed() {
+        use crate::{CoordinatorConfig, CoordinatorState, MockPayout, NoReputation};
+        use covenant_audit::InMemoryAuditLog;
+        let coordinator = LocalIdentity::generate("price-private-feed@fixture");
+        let identity = price_identity(&coordinator.agent_id().pubkey_base58());
+        let state = CoordinatorState::new(
+            coordinator,
+            CoordinatorConfig {
+                public_price_history: true,
+                public_proof_feed: false,
+                price_history_identity: Some(identity.clone()),
+                ..CoordinatorConfig::default()
+            },
+            Arc::new(NoReputation),
+            Arc::new(MockPayout::with_onchain_mint(
+                crate::prices::SOLANA_MAINNET_USDC,
+            )),
+            Arc::new(InMemoryAuditLog::new()),
+        );
+        let eligible = Uuid::new_v4();
+        let mut row = price_record(eligible, 100, 300);
+        row.price_history_identity = Some(identity.clone());
+        let buyer = row.envelope.payload.buyer.pubkey_base58();
+        state.jobs().insert(eligible, row).unwrap();
+        let mut rejected = Vec::new();
+        for case in [
+            "legacy",
+            "invalid_receipt",
+            "unpaid",
+            "probe",
+            "wrong_identity",
+        ] {
+            let id = Uuid::new_v4();
+            let mut row = price_record(id, 100, 300);
+            row.price_history_identity = Some(identity.clone());
+            match case {
+                "legacy" => row.price_history_identity = None,
+                "invalid_receipt" => row.receipt.as_mut().unwrap().receipt.price_micro_usdc += 1,
+                "unpaid" => row.payout = None,
+                "probe" => row.pinned = true,
+                "wrong_identity" => {
+                    row.price_history_identity
+                        .as_mut()
+                        .unwrap()
+                        .coordinator_pubkey_b58 = bs58::encode([8u8; 32]).into_string()
+                }
+                _ => unreachable!(),
+            }
+            state.jobs().insert(id, row).unwrap();
+            rejected.push(id);
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        // Use the production router: both the scoped and existing full proof
+        // surfaces are exercised with the full proof opt-in deliberately off.
+        let server =
+            tokio::spawn(async move { axum::serve(listener, crate::router(state)).await.unwrap() });
+        let client = reqwest::Client::new();
+        let response = client
+            .get(format!("{base}/prices/proofs/{eligible}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        let text = response.text().await.unwrap();
+        let proof: covenant_compute_protocol::SettlementProof =
+            serde_json::from_str(&text).unwrap();
+        proof.verify_offline().unwrap();
+        assert_eq!(proof.job_id, eligible);
+        for secret in [
+            "PRIVATE_SSH_ENDPOINT",
+            "PRIVATE_LEASE_NOTE",
+            "PRIVATE_JOB_OUTPUT",
+            buyer.as_str(),
+        ] {
+            assert!(!text.contains(secret), "public proof leaked {secret}");
+        }
+        rejected.push(Uuid::new_v4());
+        for id in rejected {
+            assert_eq!(
+                client
+                    .get(format!("{base}/prices/proofs/{id}"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                404
+            );
+        }
+        for path in [
+            "/proof/receipts".to_owned(),
+            format!("/proof/receipts/{eligible}"),
+        ] {
+            assert_eq!(
+                client
+                    .get(format!("{base}{path}"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                404
+            );
+        }
+        let history: serde_json::Value = client
+            .get(format!("{base}/prices/history?since_ms=0&until_ms=1000"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let paid = history["points"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["currency"] == "USDC")
+            .unwrap();
+        assert_eq!(
+            paid["proof_paths"],
+            serde_json::json!([format!("/prices/proofs/{eligible}")])
+        );
+        server.abort();
     }
 }

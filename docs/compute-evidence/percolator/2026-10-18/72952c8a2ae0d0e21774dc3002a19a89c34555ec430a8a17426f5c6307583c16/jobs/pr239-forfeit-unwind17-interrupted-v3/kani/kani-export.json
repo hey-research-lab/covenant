@@ -1,0 +1,124 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "timestamp": "2026-10-18T01:11:10.880950849Z",
+    "kani_version": "0.68.0",
+    "target": "x86_64-unknown-linux-gnu",
+    "build_mode": "release"
+  },
+  "project": {
+    "crate_name": [
+      "percolator",
+      "backing_double_claim_fuzz",
+      "proofs_v16",
+      "proofs_v16_arithmetic",
+      "reference_model_conformance",
+      "resolved_insolvent_fuzz",
+      "rounding_residue_fuzz",
+      "v16_fuzzing",
+      "v16_spec_tests"
+    ],
+    "workspace_root": "/work",
+    "output_dir": "/scratch/target/kani/x86_64-unknown-linux-gnu/debug/build/percolator/97467c852623aaf5/out"
+  },
+  "tools": {
+    "kani": "0.68.0",
+    "rustc": "rustc 1.100.0-nightly (8925ea358 2026-08-20)",
+    "cbmc": "6.11.0 (cbmc-6.11.0)",
+    "goto_cc": "gcc (goto-cc 6.11.0 (cbmc-6.11.0)) 14.2.0",
+    "goto_instrument": "6.11.0 (cbmc-6.11.0)",
+    "solvers": [
+      {
+        "name": "cadical",
+        "version": null
+      }
+    ]
+  },
+  "harness_metadata": [
+    {
+      "pretty_name": "proof_v16_public_forfeit_long_flat_residue",
+      "mangled_name": "_RNvCs2kB8Ac10TxL_10proofs_v1642proof_v16_public_forfeit_long_flat_residue",
+      "crate_name": "proofs_v16",
+      "source": {
+        "file": "tests/proofs_v16.rs",
+        "start_line": 19824,
+        "end_line": 19917
+      },
+      "goto_file": "/scratch/target/kani/x86_64-unknown-linux-gnu/debug/build/percolator/f2fbc9052e0d37e3/out/proofs_v16-f2fbc9052e0d37e3__RNvCs2kB8Ac10TxL_10proofs_v1642proof_v16_public_forfeit_long_flat_residue.symtab.out",
+      "attributes": {
+        "kind": "Proof",
+        "should_panic": false
+      },
+      "contract": {
+        "contracted_function_name": null,
+        "recursion_tracker": null
+      },
+      "has_loop_contracts": false,
+      "is_automatically_generated": false,
+      "is_bounded": false,
+      "is_ctor_based": false
+    }
+  ],
+  "error_details": [
+    {
+      "harness_id": "proof_v16_public_forfeit_long_flat_residue",
+      "has_errors": true,
+      "error_type": "verification_failure",
+      "failed_properties_type": "Other",
+      "exit_status": "exit_code_15"
+    }
+  ],
+  "property_details": [
+    {
+      "harness_id": "proof_v16_public_forfeit_long_flat_residue",
+      "property_details": {
+        "total_properties": null,
+        "passed": null,
+        "failed": null,
+        "unreachable": null,
+        "undetermined": null,
+        "solver_error": null,
+        "satisfied": null,
+        "unsatisfiable": null,
+        "covered": null,
+        "uncovered": null,
+        "error": "Could not extract property details due to verification failure"
+      }
+    }
+  ],
+  "cbmc": [
+    {
+      "harness_id": "proof_v16_public_forfeit_long_flat_residue",
+      "cbmc_metadata": {
+        "version": "6.11.0",
+        "os_info": "x86_64 linux unix"
+      },
+      "configuration": {
+        "object_bits": 16,
+        "solver": "cadical"
+      },
+      "cbmc_stats": null
+    }
+  ],
+  "verification_results": {
+    "summary": {
+      "total_harnesses": 1,
+      "executed": 1,
+      "status": "completed",
+      "successful": 0,
+      "failed": 1,
+      "duration_ms": 1830851
+    },
+    "results": [
+      {
+        "harness_id": "proof_v16_public_forfeit_long_flat_residue",
+        "status": "Failure",
+        "duration_ms": 1830851,
+        "checks": []
+      }
+    ]
+  },
+  "coverage": {
+    "enabled": false
+  }
+}

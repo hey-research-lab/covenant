@@ -1,0 +1,85 @@
+{
+  "job_id": "6040695e-4349-4fa9-98c9-dbdbd8b61e51",
+  "outcome": "out_of_memory",
+  "accepted": false,
+  "proof_or_refutation_established": false,
+  "required_covers_established": false,
+  "oom_killed": true,
+  "timed_out": false,
+  "evidence_complete": false,
+  "evidence_overflow": false,
+  "duration_ms": 980970,
+  "exit_code": 1,
+  "available_raw_bytes": 2606221,
+  "raw_artifact_files": {
+    "kani-export.json": {
+      "bytes": 3373,
+      "sha256": "d27d29bc5df0e343f72c42649038dbde62e89f7f2631dabb1fddca05e3b6bed4"
+    },
+    "result.json": {
+      "bytes": 1179,
+      "sha256": "6e1efe2f4430377b2c88cf910b68f7afe3fadc99e6b731a0f926984062c18513"
+    },
+    "stderr.log": {
+      "bytes": 2259,
+      "sha256": "65b43cbdbc9b239098f90d1d30b9389dd9271c0de8addb9209bfa4007650d6bb"
+    },
+    "stdout.log": {
+      "bytes": 2599410,
+      "sha256": "e03f325820bc5831b58f1b7bf4d734f3be5be8a305bd0fba96b540882185ba53"
+    }
+  },
+  "original_frozen_commit": "ea72a05d351207ce2eded5b517b049e186fed3aa",
+  "signed_snapshot_commit": "895f9a8f0164d199584a1035297d7f5e0d00f8d4",
+  "tree_hash": "5703a742d9b3fca8038ae4f93ec74e0be2b7fc46",
+  "source_bundle_sha256": "d05075704f9fc84b176cf5fa97ce577df9fd5ea7e0840ab8eecd08c123cb3c0d",
+  "image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+  "image_id": "sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+  "memory_mib": 27648,
+  "cpus": 6,
+  "scratch_mib": 8192,
+  "plan": {
+    "expected_assertion": null,
+    "expected_outcome": "proven",
+    "features": [
+      "fuzz"
+    ],
+    "harness": "proof_v16_public_auto_crank_long_residue",
+    "manifest_path": "Cargo.toml",
+    "required_covers": [
+      "pr239 auto-crank zero residue",
+      "pr239 auto-crank two-sided residue"
+    ],
+    "schema": "covenant.kani.plan.v1",
+    "tests": true,
+    "timeout_secs": 1200,
+    "unwind": 17
+  },
+  "tool_pin": {
+    "cbmc": "6.11.0",
+    "kani": "0.68.0",
+    "rust_toolchain": "nightly-2026-08-21-x86_64-unknown-linux-gnu"
+  },
+  "signed_receipt_price_micro_usdc": 50000,
+  "coordinator_reported_charge_micro_usdc": 50000,
+  "payout_recorded": {
+    "amount_micro_usdc": 45000,
+    "tx_signature": "ReWMhnCGP1VeHgvZCo5SRFT81P8z4yreLryQUtDuXL7uudeAKh83ntBAoftYx6Vbzc9yfGhD3i5hXbw2hdSDjtc",
+    "memo": "compute-payout:v1:6040695e-4349-4fa9-98c9-dbdbd8b61e51:2uqcetuQCh3td9ocQWRiTLgdzLrcxWtwFRGPTscmUor2MwQsS8xyHrozM6h2eAw3FaSCYv38PyNGmPyo9cjAUu9b",
+    "recorded_at_ms": 1792288776359
+  },
+  "budget_accounting": {
+    "maximum_micro_usdc": 50000,
+    "reserved_micro_usdc": 50000,
+    "budget_state": "verified_terminal_ceiling_counted",
+    "reported_charge_micro_usdc": 50000,
+    "budget_reconciled_at": "2026-10-18T01:59:37.384329+00:00"
+  },
+  "budget_scope": "Buyer-local budget journal summary; full original budget and purchase journal preserved privately. The 50,000 ceiling remains counted after this paid failed proof attempt.",
+  "settlement_verified": false,
+  "authorship_job_id": "f79b455b-09e8-4a82-a971-fa00a3248100",
+  "authored_patch_sha256": "8a1f74112d4097729afc18b2f83e9e7984e79fc55ead5dfcd4922ded261ac95b",
+  "retry_policy": "Keep this original source/plan/resource receipt unchanged. Any larger-resource attempt requires a separate explicit job and signed order.",
+  "outer_check_command_duration_ms": 981625,
+  "private_budget_observer_inventory_sha256": "1ba567c8943fc1094242f3c7ed3d64261f7f804a56250dd03beb46a2cc481c28"
+}

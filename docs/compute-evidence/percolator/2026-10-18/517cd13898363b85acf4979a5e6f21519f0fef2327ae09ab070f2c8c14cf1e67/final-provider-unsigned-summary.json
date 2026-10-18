@@ -1,0 +1,51 @@
+{
+  "schema": "covenant.retained-kani-operator-observation.v1",
+  "signed": false,
+  "provenance": "Read-only operational observation by the coordinating agent; separate from signed job evidence.",
+  "observed_at": "2026-10-18T02:05:38.637075+00:00",
+  "operator_pubkey_b58": "HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh",
+  "node_revision": "4dd036a4d59612326095768ff4b4f272aa48562d",
+  "node_image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:497176eb0a3247a0bc71e8dcd3674dd7393aaba6471f09276fdd8ce10732e560",
+  "kani_image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+  "retained_profile": {
+    "image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+    "memory_mib": 12288,
+    "cpus": 6,
+    "scratch_mib": 4096
+  },
+  "capability": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+  "host": {
+    "type": "cx43",
+    "vcpus": 8,
+    "cpu_type": "shared",
+    "nominal_memory_gib": 16,
+    "memory_total_kib": 15988548,
+    "memory_available_kib": 15400916,
+    "swap_kib": 0
+  },
+  "required_host_reserve_mib": 2048,
+  "available_above_profile_and_reserve_mib": 703.95703125,
+  "job_kinds": [
+    "agent_task",
+    "agent_check"
+  ],
+  "max_in_flight": 1,
+  "kani_authorship": false,
+  "service_active": true,
+  "registered": true,
+  "live": true,
+  "matchable": true,
+  "staked": true,
+  "idle": true,
+  "operator_identity_preserved": true,
+  "persistent_disk_bytes_preserved": 81923145728,
+  "coordinator": {
+    "image": "ghcr.io/open-covenant/covenant/compute-coordinator-public@sha256:f7b747e294cb8f6f098d034e47c451edd9eb528ae2b7c5145ec6a46d8904e516",
+    "revision": "983172ddd04ac2de70136125e2088f22c6edf505",
+    "status": "ok",
+    "pending_deployments": 0
+  },
+  "paid_runtime_canary_job_id": "56f8bab8-d1e6-4231-9e76-7137574a3fa4",
+  "scope": "The separately verified paid tiny canary establishes the retained profile works for that fixture. It does not establish that either Percolator proof fits this smaller profile.",
+  "mutations_during_audit": false
+}

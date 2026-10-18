@@ -1,0 +1,13 @@
+{
+  "archive_inventory_sha256": "e0d4a2d0ccb0f3f4652cc9f6cc4ef939d4e1153c74cbe6be1fe90d7b901f100e",
+  "reviewed_all_source_patch_and_raw_logs": true,
+  "credentials_and_private_assets_absent": true,
+  "contains_no_private_credentials_or_capabilities": true,
+  "expiry_gate_pending": false,
+  "envelope_expires_at_ms": 1792286159923,
+  "review_scope": "Exact frozen public source and accepted public patch; full available signed report, raw stdout/stderr and Kani JSON export; image/toolchain/price metadata. Logs contain public Percolator/image-toolchain paths. No personal home paths or credential indicators. Full private budget/purchase journal excluded. Incomplete solver evidence and OOM are explicitly disclosed.",
+  "reviewed_at": "2026-10-18T01:01:06.454810+00:00",
+  "published": false,
+  "expiry_gate_completed_at": "2026-10-18T01:16:00.169296+00:00",
+  "publication_status": "Local public-only staging, no remote publication."
+}

@@ -1,0 +1,84 @@
+{
+  "job_id": "0bd8b774-78e7-44bd-a52d-40286b63efba",
+  "outcome": "tool_error",
+  "reason": "property counter passed missing or not an integer",
+  "accepted": false,
+  "proof_or_refutation_established": false,
+  "required_covers_established": false,
+  "oom_killed": false,
+  "timed_out": false,
+  "evidence_complete_field": null,
+  "evidence_complete_field_present": false,
+  "conclusive_solver_verdict_available": false,
+  "evidence_overflow": false,
+  "duration_ms": 1851274,
+  "exit_code": 1,
+  "available_raw_bytes": 2519217,
+  "raw_artifact_files": {
+    "kani-export.json": {
+      "bytes": 3388,
+      "sha256": "8201001ec44fcc86c5a9ab1179c6926e11fdde7c88e72e42537d3963f7c51f85"
+    },
+    "result.json": {
+      "bytes": 1212,
+      "sha256": "edc0e525deae3281dbeb1779b2390e5c50eeff7dce67855cb2d66dc4be202e10"
+    },
+    "stderr.log": {
+      "bytes": 2259,
+      "sha256": "6e0ed9402abcb612c64a38dc8716defe0ca1b0f0a92b42a60dc8db217f7b0402"
+    },
+    "stdout.log": {
+      "bytes": 2512358,
+      "sha256": "4c6f0ee8ed2d2aa09b1670f0084012a24ddcd0c7f3957d590fe0c956cd2de6ee"
+    }
+  },
+  "original_frozen_commit": "ea72a05d351207ce2eded5b517b049e186fed3aa",
+  "signed_snapshot_commit": "895f9a8f0164d199584a1035297d7f5e0d00f8d4",
+  "tree_hash": "5703a742d9b3fca8038ae4f93ec74e0be2b7fc46",
+  "source_bundle_sha256": "d05075704f9fc84b176cf5fa97ce577df9fd5ea7e0840ab8eecd08c123cb3c0d",
+  "image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+  "image_id": "sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+  "memory_mib": 27648,
+  "cpus": 6,
+  "scratch_mib": 8192,
+  "plan": {
+    "expected_assertion": null,
+    "expected_outcome": "proven",
+    "features": [
+      "fuzz"
+    ],
+    "harness": "proof_v16_public_forfeit_long_flat_residue",
+    "manifest_path": "Cargo.toml",
+    "required_covers": [
+      "pr239 forfeit zero residue",
+      "pr239 forfeit long-only residue",
+      "pr239 forfeit short-only residue",
+      "pr239 forfeit two-sided residue"
+    ],
+    "schema": "covenant.kani.plan.v1",
+    "tests": true,
+    "timeout_secs": 3600,
+    "unwind": 17
+  },
+  "tool_pin": {
+    "cbmc": "6.11.0",
+    "kani": "0.68.0",
+    "rust_toolchain": "nightly-2026-08-21-x86_64-unknown-linux-gnu"
+  },
+  "signed_receipt_price_micro_usdc": 50000,
+  "coordinator_reported_charge_micro_usdc": 50000,
+  "payout_recorded": null,
+  "budget_accounting": {
+    "maximum_micro_usdc": 50000,
+    "reserved_micro_usdc": 50000,
+    "budget_state": "verified_terminal_ceiling_counted",
+    "reported_charge_micro_usdc": 50000,
+    "budget_reconciled_at": "2026-10-18T01:41:50.544190+00:00"
+  },
+  "budget_scope": "Buyer-local journal summary; exact budget, purchase journal and operator audit remain in the separately inventoried private companion. The50,000 ceiling remains counted.",
+  "settlement_verified": false,
+  "operator_interruption": "See separately attributed, unsigned operator-interruption-summary.json. Raw signed output is unchanged.",
+  "authorship_job_id": "f79b455b-09e8-4a82-a971-fa00a3248100",
+  "authored_patch_sha256": "8a1f74112d4097729afc18b2f83e9e7984e79fc55ead5dfcd4922ded261ac95b",
+  "retry_policy": "No automatic repeat. Any later source, plan or resource attempt requires a new explicit signed order."
+}

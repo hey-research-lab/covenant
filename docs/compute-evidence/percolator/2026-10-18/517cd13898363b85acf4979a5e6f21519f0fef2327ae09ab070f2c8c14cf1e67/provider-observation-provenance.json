@@ -1,0 +1,24 @@
+{
+  "schema": "covenant.unsigned-provider-audit-provenance.v1",
+  "signed": false,
+  "scope": "Read-only operational observations separate from signed job receipt; original raw provider records remain private.",
+  "original_audit_sha256": {
+    "final-retained-seat-audit.json": "815d493be4e27f49ca2ee44a85a9eb3bf6379c4c808848913b01c7bd78f4bb44",
+    "final-retained-provider-audit.json": "0bce44722a2af8c8cea3d142d62564ad5b125852ff3dcb97a523ad1f3b4d6afb",
+    "final-coordinator-snapshot.json": "70781a2e9694f531634694498c02a1291a92988742a74736906ad4ce37ceb3d4",
+    "final-retained-public-unsigned-summary.json": "ca3c118142ac923893c7442c888d18c48596d5387256b9127fb7ab6a30af738f",
+    "final-retained-capability-removal-audit.json": "91bc813ce28fea621b4b18cd120ce45826d7becaefdd9b15ad95ccbb7b76f5b7"
+  },
+  "private_original_inventory_sha256": "31077952c65c1c1d08fa9645ae8c8705b02e9b897aada3deb67433841bdc4b9c",
+  "capability_removal": {
+    "observed_at": "2026-10-18T02:08:46.395468+00:00",
+    "old_large_model": "kani-v1:f40d465cf554fc3644eb31ed948d5c1d6f7eb35c71c1551b1a374911ec04a83d",
+    "old_large_model_live_capacity_count": 0,
+    "new_small_model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+    "all_live_kani_models": [
+      "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91"
+    ],
+    "source_of_operator_binding": "Exact local profile/deployment for this signing operator plus fresh live/staked/matchable registry reputation. No public per-operator capability listing exists; aggregate live capacity absence proves no matchable operator advertises the old label at this snapshot."
+  },
+  "settlement_or_physical_isolation_proved": false
+}

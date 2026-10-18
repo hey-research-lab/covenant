@@ -1,0 +1,52 @@
+{
+  "purpose": "Covenant authorship of two reduced route harnesses and domain documentation; Kani results were not established by this job.",
+  "parent_job_id": "f79b455b-09e8-4a82-a971-fa00a3248100",
+  "child_job_id": "785892f2-264c-436f-b5fe-d639ef1ff811",
+  "original_input_commit": "81fabc86869d0a4db7da3fabc7eab5430b1f02c5",
+  "signed_snapshot_commit": "b3a59d131e8669d4b8a03e4cca6ce55be433b823",
+  "tree_hash": "6b2882d92ffad6e8df932acae4a0a3d356a1d372",
+  "source_bundle_sha256": "bfa70b9683f2c433dd35ffa8d8649094641e9590ebefec03ee0a69cdaac9bd19",
+  "source_tree_equality_verified": true,
+  "returned_patch_sha256": "8a1f74112d4097729afc18b2f83e9e7984e79fc55ead5dfcd4922ded261ac95b",
+  "returned_patch_bytes": 12172,
+  "changed_files": [
+    "tests/proofs_v16.rs",
+    "docs/proofs/pr239-route-domains.md"
+  ],
+  "raw_manifest_task_sha256": "fe8385440a84e2e13b5eaed19f484fa26e11dfb45e96e2fe17f289b5065a9a57",
+  "signed_task_sha256": "9bf24e644247931ae693b501a7a4d915fb0c9f3dbfcb389c697f4262ecadb855",
+  "task_normalization": "Exactly the final single LF byte was removed by the native CLI; no other task byte changed.",
+  "requested_runtime": "claude_code",
+  "requested_model": "sonnet",
+  "worker_reported_model": "claude-sonnet-5-5",
+  "author_operator_pubkey": "HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh",
+  "checker_operator_pubkey": "8N238CskW3qA8uAyJNYpMMovoedsSKycXhkZLmFLsi7m",
+  "different_operator_keys": true,
+  "independent_infrastructure_ownership_verified": false,
+  "checker_image_requested": "covenant-compute-check:rust",
+  "checker_image_immutable_digest_attested": false,
+  "ordinary_tests_passed": 159,
+  "ordinary_tests_failed": 0,
+  "hidden_acceptance_passed": true,
+  "hidden_acceptance_origin": "Locally prepared buyer contract, disclosed only under the exact reviewed per-archive file/hash/command allowlist. It is not paid-agent-authored content.",
+  "kani_ran_in_linked_check": false,
+  "kani_outcomes_established": false,
+  "final_frozen_proof_source_claimed": false,
+  "signed_parent_price_ceiling_micro_usdc": 2000000,
+  "coordinator_reported_parent_charge_micro_usdc": 331280,
+  "signed_child_price_micro_usdc": 5000,
+  "child_coordinator_metadata": {
+    "assigned_operator": "8N238CskW3qA8uAyJNYpMMovoedsSKycXhkZLmFLsi7m",
+    "phase": "completed",
+    "charged_micro_usdc": 5000,
+    "payout": {
+      "amount_micro_usdc": 4500,
+      "tx_signature": "53Li2U65xhaps3MX9wXaCn7uhjSbRLQH1eA8KM7ib5vWZ26kp7FRwNRKfX2enRJ7Mwc2WQCZjs8RdJxJ1tJFs8uw",
+      "memo": "compute-payout:v1:785892f2-264c-436f-b5fe-d639ef1ff811:23mmbNg5ufnQNc2QMcrmMSzgbd6U1dkrFAudCCdpV1koeXpPUGwaicKx6RAq6b1fL8cFCV7FTy4knXXQhXX7ykRm"
+    }
+  },
+  "worker_reported_model_spend_micro_usd": 271900,
+  "settlement_independently_verified": false,
+  "generic_command_output_scope": "The exact complete signed outputs are preserved, including the protocol-defined command output_tail fields; these are not complete raw process logs or an author transcript.",
+  "later_local_integration": "This archive contains the original paid returned patch only. Any later source freeze, application, integration or Kani verification is recorded separately."
+}

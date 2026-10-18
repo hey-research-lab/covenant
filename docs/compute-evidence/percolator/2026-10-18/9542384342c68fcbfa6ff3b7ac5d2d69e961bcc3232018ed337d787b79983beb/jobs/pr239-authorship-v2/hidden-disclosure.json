@@ -1,0 +1,13 @@
+{
+  "allowlist": {
+    "policy_id": "percolator-pr239-buyer-acceptance-v1",
+    "original_commit": "81fabc86869d0a4db7da3fabc7eab5430b1f02c5",
+    "path": ".covenant-pr239/acceptance.py",
+    "bytes": 6998,
+    "content_sha256": "1b67e2b98d9286c697066994cb72563b62a54b77eecf3ff16ed51122bb572c18",
+    "command": "python3 .covenant-pr239/acceptance.py",
+    "hidden_bundle_sha256": "8558d8bb1f3725cee29fc71757797199882d6c577523f430c24f15f3830e07cb"
+  },
+  "origin": "Locally prepared buyer acceptance contract, disclosed after the full signed authorship/checker chain is verified; not authored by the paid agent.",
+  "source": "Exact bytes from every linked signed checker hidden bundle."
+}

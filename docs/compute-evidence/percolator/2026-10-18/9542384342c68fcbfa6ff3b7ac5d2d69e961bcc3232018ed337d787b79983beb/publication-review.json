@@ -1,0 +1,20 @@
+{
+  "archive_inventory_sha256": "9542384342c68fcbfa6ff3b7ac5d2d69e961bcc3232018ed337d787b79983beb",
+  "reviewed_all_source_patch_and_raw_logs": true,
+  "credentials_and_private_assets_absent": true,
+  "contains_no_private_credentials_or_capabilities": true,
+  "expiry_gate_pending": false,
+  "envelope_expires_at_ms": 1792285547362,
+  "review_scope": "All 29 packed source blobs scanned; exact original source, signed task, returned patch, full signed parent/child output and bounded command tails, decoded hidden contract, verifier/provenance files reviewed. No personal home paths or credential indicators. No hidden files besides the exact reviewed contract.",
+  "hidden_disclosure_authorization": "Exact per-archive allowlist approved by parent/root before disclosure; binding independently revalidated against the complete signed chain.",
+  "kani_outcomes_established": false,
+  "no_remote_publication": true,
+  "reviewed_at": "2026-10-18T00:40:43.703636+00:00",
+  "reverified_before_export_at": "2026-10-18T01:45:46.923551+00:00",
+  "source_blobs_rescanned": 29,
+  "parent_authorized_standalone_export": true,
+  "export_scope": "Standalone immutable authorship and ordinary linked-check evidence; no Kani proof established. The earlier request to keep this standalone archive private is superseded by the explicit parent export instruction.",
+  "expiry_gate_completed_at": "2026-10-18T01:45:46.970751+00:00",
+  "publication_status": "Local public-only staging, no remote publication.",
+  "all_bundle_objects_privacy_reverified_at": "2026-10-18T01:46:15.011433+00:00"
+}

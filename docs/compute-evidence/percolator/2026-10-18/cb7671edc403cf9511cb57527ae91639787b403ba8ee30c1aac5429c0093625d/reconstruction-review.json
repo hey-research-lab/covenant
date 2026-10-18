@@ -1,0 +1,30 @@
+{
+  "at_utc": "2026-10-18T01:49:25.674005+00:00",
+  "classification": "Unsigned local reconstruction check, not a Kani result or operator receipt.",
+  "source_repositories_modified": false,
+  "network_or_paid_execution": false,
+  "variants": [
+    {
+      "variant": "corrected",
+      "offline_bundle_unbundle": true,
+      "raw_base_and_frozen_commit_hashes_valid": true,
+      "reversed_full_tree_matches_base": true,
+      "exact_patch_reapplication_matches_frozen_tree": true,
+      "only_two_allowed_paths_changed": true,
+      "original_proof_prefix_unchanged": true,
+      "history_free_snapshot": true
+    },
+    {
+      "variant": "buggy",
+      "offline_bundle_unbundle": true,
+      "raw_base_and_frozen_commit_hashes_valid": true,
+      "reversed_full_tree_matches_base": true,
+      "exact_patch_reapplication_matches_frozen_tree": true,
+      "only_two_allowed_paths_changed": true,
+      "original_proof_prefix_unchanged": true,
+      "history_free_snapshot": true
+    }
+  ],
+  "identical_appendix_and_domain": true,
+  "import_instruction": "Use git init + git bundle unbundle, not default git clone: corrected signed bundle uses refs/covenant/snapshot."
+}

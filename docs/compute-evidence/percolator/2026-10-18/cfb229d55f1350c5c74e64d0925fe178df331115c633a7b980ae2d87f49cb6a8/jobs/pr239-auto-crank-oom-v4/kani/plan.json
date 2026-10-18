@@ -1,0 +1,17 @@
+{
+  "expected_assertion": null,
+  "expected_outcome": "proven",
+  "features": [
+    "fuzz"
+  ],
+  "harness": "proof_v16_public_auto_crank_long_residue",
+  "manifest_path": "Cargo.toml",
+  "required_covers": [
+    "pr239 auto-crank zero residue",
+    "pr239 auto-crank two-sided residue"
+  ],
+  "schema": "covenant.kani.plan.v1",
+  "tests": true,
+  "timeout_secs": 1200,
+  "unwind": 17
+}

@@ -1,0 +1,142 @@
+{
+  "README.md": {
+    "bytes": 4699,
+    "sha256": "96b8e973966c65a7d9bd1c08f57a3fefab575f10d2a53eb3b44b6dd8d88988b5"
+  },
+  "build-verifier.py": {
+    "bytes": 1383,
+    "sha256": "1ea6b75c8880de07f2c127f58d29202bab9d594dea791831777b7184a12aa21f"
+  },
+  "final-provider-unsigned-summary.json": {
+    "bytes": 2183,
+    "sha256": "ca3c118142ac923893c7442c888d18c48596d5387256b9127fb7ab6a30af738f"
+  },
+  "hidden_disclosure.py": {
+    "bytes": 4715,
+    "sha256": "89805307ab55fcf51a2fdb9db3fcfed9a18d04e7d3d3985d078a9f25948019ff"
+  },
+  "jobs/native-kani-post-stepdown-canary/coordinator-metadata.json": {
+    "bytes": 280,
+    "sha256": "9c7f8300af52b6dd730ccee4a83bb87486d1dbb0e8dac630b8a4232acdb51687"
+  },
+  "jobs/native-kani-post-stepdown-canary/envelope.json": {
+    "bytes": 6051,
+    "sha256": "409c9376723ba7a89682ae70184d188a5aeccb9b0933d372c7d617db0c68cd43"
+  },
+  "jobs/native-kani-post-stepdown-canary/kani/artifacts.json.gz": {
+    "bytes": 4304,
+    "sha256": "02eb0b05018ca5797cf1c5305d250fbf6d4a1b19ba55c7ce0fe4562256fa2883"
+  },
+  "jobs/native-kani-post-stepdown-canary/kani/kani-export.json": {
+    "bytes": 3868,
+    "sha256": "352182a46221dd762c51f871b96078320a51b560c723e9365dbcfa46643ce2d7"
+  },
+  "jobs/native-kani-post-stepdown-canary/kani/plan.json": {
+    "bytes": 291,
+    "sha256": "68b0db286dc0eee1dfcd3b5ef5504af1fa922de6e8bbe073c6d6ec8d4c96227f"
+  },
+  "jobs/native-kani-post-stepdown-canary/kani/result.json": {
+    "bytes": 1093,
+    "sha256": "f2e3dfc7036d21b413afefe1d98f0365eea2e222e7b08734d65d9dfd0b874a45"
+  },
+  "jobs/native-kani-post-stepdown-canary/kani/stderr.log": {
+    "bytes": 120,
+    "sha256": "096366335e07e787a7b7f69a36cb0073ef022db59b2768e944a32b1cbfb75263"
+  },
+  "jobs/native-kani-post-stepdown-canary/kani/stdout.log": {
+    "bytes": 2273,
+    "sha256": "c3500874d4a7d3b7129f2248a06a32c0cfab4841f58d35942cbd631627a2ea44"
+  },
+  "jobs/native-kani-post-stepdown-canary/original-commit.raw": {
+    "bytes": 244,
+    "sha256": "e166f5063d8ecad24dbfb3780ab9a398da07c1ab8693e4ff0742c4dbba4fb435"
+  },
+  "jobs/native-kani-post-stepdown-canary/output.json": {
+    "bytes": 9857,
+    "sha256": "38ee8bcaeb2164fa5a4746730293bfb7a5d38cc5e1125a1ae3c5561496c7cdda"
+  },
+  "jobs/native-kani-post-stepdown-canary/provenance.json": {
+    "bytes": 2437,
+    "sha256": "b32476a79aa2c2ff46d068bcce919bc13914b80bca4f01f9f71a8ccbce51076d"
+  },
+  "jobs/native-kani-post-stepdown-canary/receipt.json": {
+    "bytes": 1537,
+    "sha256": "b0011ee0328028d76743a54c882c56b3ea33a1d2b3a9d6cc886bc0839c43b22b"
+  },
+  "jobs/native-kani-post-stepdown-canary/record.json": {
+    "bytes": 18277,
+    "sha256": "520ada31410cb70f86e6a7e20ec5215bd4372581bd0e62e7ba726dd278cf8462"
+  },
+  "jobs/native-kani-post-stepdown-canary/source/Cargo.lock": {
+    "bytes": 163,
+    "sha256": "655f87147dca214309d19dec3fe50eecd6478b2767e028a444ad3fc45d1329bc"
+  },
+  "jobs/native-kani-post-stepdown-canary/source/Cargo.toml": {
+    "bytes": 68,
+    "sha256": "67af75bb2f718dc707c033966ddb036fe9b950960779fabe1c174c09760bb0ee"
+  },
+  "jobs/native-kani-post-stepdown-canary/source/src/lib.rs": {
+    "bytes": 366,
+    "sha256": "5219e10dc3a9bf672d376dec7fe651f24ac4e6c34400ba6381eefba780f9e924"
+  },
+  "jobs/native-kani-post-stepdown-canary/source-mapping.json": {
+    "bytes": 738,
+    "sha256": "c5fb3d03407e6920b2e93006d5fff8cf8ae843d7962b112e016d85070084aec9"
+  },
+  "jobs/native-kani-post-stepdown-canary/source.bundle": {
+    "bytes": 813,
+    "sha256": "11b3300ac6df43fb529608c502f0b1afe153976c9718719d24d40c8baeda27d2"
+  },
+  "jobs/native-kani-post-stepdown-canary/verification.json": {
+    "bytes": 959,
+    "sha256": "1aa22ff53e1577d4645d2044e3b0ef1337dab13c3411af8f4fc1aaaaa644c4ae"
+  },
+  "ledger.json": {
+    "bytes": 3191,
+    "sha256": "0d47d27ff2eeae8b9de7652a5b65684c7a6a84ed6ddc1db9ed050dcfab8acdbb"
+  },
+  "native-rerun-command.py": {
+    "bytes": 3170,
+    "sha256": "b364a425a7a10193509db9b68b0badc0d13e2a1c6bb74e9d66e550ef044bc694"
+  },
+  "pilot-cli-provenance.json": {
+    "bytes": 12210,
+    "sha256": "cb337e8ad258441fbd991d3734b8403240f47f0fbbfac25898096d3026c4af6c"
+  },
+  "pilot-image-pin.json": {
+    "bytes": 1490,
+    "sha256": "415f8c444d137c3333f052f1b38f75f7fcd56baccf62b6efaa60320de35258de"
+  },
+  "provider-observation-provenance.json": {
+    "bytes": 1716,
+    "sha256": "8ca628d4b4f6224015634941a5085823cd3b669104d6fe3c0d071f007bcb9a0e"
+  },
+  "smoke-summary.json": {
+    "bytes": 2410,
+    "sha256": "a80a64d8ec2f70b277dc336310588c6590012ee9058c29aad54ff12927490bb3"
+  },
+  "verifier-build.json": {
+    "bytes": 433,
+    "sha256": "dd5cd38d70ac511b365459d2b7b74d1af6e06a112dd7777fb407e524bb2c83dd"
+  },
+  "verifier-d997-build.json": {
+    "bytes": 1325,
+    "sha256": "566ec8251ecf34a8f8acc965159af344d9893aa84dea9dba1e59affa7a016fa3"
+  },
+  "verifier-merge-equivalence-4dd036a.json": {
+    "bytes": 5083,
+    "sha256": "da2d461a8417943ee85bcdfc64ceabbc995743430533b56a6ff1d3d3c6a9d33e"
+  },
+  "verifier.Cargo.lock": {
+    "bytes": 64291,
+    "sha256": "940f56123a159c66fcb0674bf3358dfa1138217baa70dca7f28711e2b942d863"
+  },
+  "verify-archive.py": {
+    "bytes": 5711,
+    "sha256": "4e64d4769e0e2198878724667dbf9c257a921416cca185fa90d70eef51035f8f"
+  },
+  "verify.rs": {
+    "bytes": 5300,
+    "sha256": "557c6b9815ddcf21e32808065aab513f67764c423d699291c8aec25b83a548cf"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "public_repo_url": "https://github.com/mizuki0x/percolator.git",
+  "original_commit": "81fabc86869d0a4db7da3fabc7eab5430b1f02c5",
+  "signed_repo_commit": "b3a59d131e8669d4b8a03e4cca6ce55be433b823",
+  "tree_hash": "6b2882d92ffad6e8df932acae4a0a3d356a1d372",
+  "tree_equality_checked": true,
+  "source_files": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "26cf3e9510aa9192b97c7244d6c61b29d919aa7fa216d29a166eef2e48e973b6"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "189914a39b7a41adfae9493479145e2f8d78d4e1f76e114766d433c274a3a7a7"
+    },
+    {
+      "path": "src/v16.rs",
+      "sha256": "3d0c68703b488e897a4c8beba51a16cd1e647e74521407176c7daf6a7401b37d"
+    },
+    {
+      "path": "tests/proofs_v16.rs",
+      "sha256": "391ed9a4b32aa60f9acbae63afe08be5d357714a86d768ca1264401c6a9e7ea2"
+    }
+  ],
+  "bundle_sha256": "bfa70b9683f2c433dd35ffa8d8649094641e9590ebefec03ee0a69cdaac9bd19"
+}

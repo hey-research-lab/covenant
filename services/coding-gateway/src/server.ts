@@ -1034,6 +1034,22 @@ export const server = createServer(async (req, res) => {
       });
     }
 
+    // Compatibility for legacy platform probes of this path: no credentials
+    // proves liveness only. Capability data still requires valid credentials.
+    if (
+      config.authToken &&
+      req.method === 'GET' &&
+      url.pathname === '/v1/capabilities' &&
+      req.headers.authorization === undefined
+    ) {
+      res.writeHead(204, {
+        'cache-control': 'private, no-store',
+        vary: 'Authorization',
+      });
+      res.end();
+      return;
+    }
+
     if (url.pathname.startsWith('/v1/') && !authorized(req, config.authToken)) {
       return json(res, 401, { error: 'unauthorized' });
     }

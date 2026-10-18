@@ -29,7 +29,8 @@ use covenant_compute_protocol::{
     JobEnvelopePayload, JobKind, ResponseFormat, TokenLogprob, ToolCall,
 };
 use covenant_mcp::Content;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::executor::{ChunkSink, ExecutionOutcome, ExecutorError, JobExecutor};
 
@@ -53,9 +54,78 @@ pub struct OpenAiCompatExecutor {
 
 #[derive(Debug, Deserialize)]
 struct Completion {
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    covenant_provider: Option<ProviderIdentity>,
     choices: Vec<Choice>,
     #[serde(default)]
     usage: Option<Usage>,
+}
+
+/// An operator-side proxy's bounded model report, covered by the result hash.
+/// These are provider assertions, not an independent attestation of model weights.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProviderIdentity {
+    #[serde(rename = "type")]
+    kind: String,
+    version: u32,
+    upstream: String,
+    requested_model: String,
+    upstream_requested_model: String,
+    reported_model: String,
+    model_mapping: String,
+    provider_pin: String,
+    provider_reported: Option<String>,
+    route_reported: Option<String>,
+    upstream_response_sha256: String,
+}
+
+impl ProviderIdentity {
+    fn into_output(
+        self,
+        requested: &str,
+        reported: Option<&str>,
+    ) -> Result<Content, ExecutorError> {
+        let mapped = self.reported_model == "anthropic/claude-haiku-4.5";
+        let valid = self.kind == "provider_identity"
+            && self.version == 1
+            && self.upstream == "usepod"
+            && requested == "claude-haiku-4.5"
+            && self.requested_model == requested
+            && self.upstream_requested_model == "anthropic/claude-haiku-4.5"
+            && reported == Some(self.reported_model.as_str())
+            && (self.reported_model == requested || mapped)
+            && self.model_mapping
+                == if mapped {
+                    "usepod-openrouter-haiku-4.5-v1"
+                } else {
+                    "exact"
+                }
+            && self.provider_pin == "openrouter"
+            && self
+                .provider_reported
+                .as_deref()
+                .is_none_or(|v| v == "openrouter")
+            && self
+                .route_reported
+                .as_deref()
+                .is_none_or(|v| v == "centralized")
+            && self.upstream_response_sha256.len() == 64
+            && self
+                .upstream_response_sha256
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
+        if !valid {
+            return Err(ExecutorError::Failed(
+                "backend provider identity mismatch".into(),
+            ));
+        }
+        serde_json::to_value(self)
+            .map(Content::json)
+            .map_err(|_| ExecutorError::Failed("encode provider identity".into()))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,6 +219,23 @@ struct ModelsResponse {
 #[derive(Debug, Deserialize)]
 struct ModelEntry {
     id: String,
+}
+
+/// Stable across retries and worker restarts, distinct for each buyer and job.
+/// Keeping the body out of the key makes a changed request for the same purchase
+/// conflict at the provider rather than authorize another bill. Benchmark jobs
+/// already have fresh UUIDs, so each new probe really exercises the provider.
+fn provider_idempotency_key(job: &JobEnvelopePayload) -> String {
+    let mut hash = Sha256::new();
+    hash.update(b"covenant-openai-provider-job-v1\0");
+    hash.update(job.buyer.pubkey);
+    hash.update(job.job_id.as_bytes());
+    let digest = hash
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("covenant-job-v1-{digest}")
 }
 
 impl OpenAiCompatExecutor {
@@ -423,8 +510,11 @@ impl OpenAiCompatExecutor {
                         .into(),
                 )
             })?;
+        let provider_key = provider_idempotency_key(job);
         if job.kind == JobKind::Embedding {
-            return self.embed(&model, &job.input, deadline).await;
+            return self
+                .embed(&model, &job.input, deadline, &provider_key)
+                .await;
         }
         // A chat-shaped job that fails to parse must fail here, not
         // fall through to the raw-prompt path with misread paid input —
@@ -486,9 +576,11 @@ impl OpenAiCompatExecutor {
         if let Some(params) = generation {
             apply_generation(&mut body, &params);
         }
-        let resp = self.post("/chat/completions", body, deadline).await?;
+        let resp = self
+            .post("/chat/completions", body, deadline, &provider_key)
+            .await?;
 
-        let (text, tokens_in, tokens_out, finish_reason, tool_calls, logprobs) =
+        let (text, tokens_in, tokens_out, finish_reason, tool_calls, logprobs, provider_identity) =
             match effective_sink {
                 None => {
                     let raw =
@@ -497,6 +589,10 @@ impl OpenAiCompatExecutor {
                     let completion: Completion = serde_json::from_slice(&raw).map_err(|e| {
                         ExecutorError::Failed(format!("decode /chat/completions: {e}"))
                     })?;
+                    let provider_identity = completion
+                        .covenant_provider
+                        .map(|identity| identity.into_output(&model, completion.model.as_deref()))
+                        .transpose()?;
                     let choice = completion.choices.into_iter().next().ok_or_else(|| {
                         ExecutorError::Failed("backend returned no choices".into())
                     })?;
@@ -534,12 +630,21 @@ impl OpenAiCompatExecutor {
                         finish_reason,
                         tool_calls,
                         logprobs,
+                        provider_identity,
                     )
                 }
                 Some(sink) => {
                     let (text, tokens_in, tokens_out, finish_reason) =
                         drain_sse(resp, sink, deadline).await?;
-                    (text, tokens_in, tokens_out, finish_reason, Vec::new(), None)
+                    (
+                        text,
+                        tokens_in,
+                        tokens_out,
+                        finish_reason,
+                        Vec::new(),
+                        None,
+                        None,
+                    )
                 }
             };
 
@@ -552,6 +657,9 @@ impl OpenAiCompatExecutor {
         let mut output = assistant_output(text, tool_calls);
         if let Some(logprobs) = logprobs {
             output.push(logprobs_block(logprobs));
+        }
+        if let Some(identity) = provider_identity {
+            output.push(identity);
         }
         Ok(ExecutionOutcome {
             output,
@@ -575,11 +683,14 @@ impl OpenAiCompatExecutor {
         model: &str,
         input: &[Content],
         deadline: Duration,
+        provider_key: &str,
     ) -> Result<ExecutionOutcome, ExecutorError> {
         let texts = embedding_texts(input).map_err(|e| ExecutorError::Failed(e.to_string()))?;
         let started = Instant::now();
         let body = serde_json::json!({ "model": model, "input": texts });
-        let resp = self.post("/embeddings", body, deadline).await?;
+        let resp = self
+            .post("/embeddings", body, deadline, provider_key)
+            .await?;
         let raw =
             crate::executor::read_body_capped(resp, MAX_STREAM_OUTPUT_BYTES, deadline).await?;
         let mut parsed: EmbeddingsResponse = serde_json::from_slice(&raw)
@@ -618,10 +729,12 @@ impl OpenAiCompatExecutor {
         path: &str,
         body: serde_json::Value,
         deadline: Duration,
+        provider_key: &str,
     ) -> Result<reqwest::Response, ExecutorError> {
         let mut req = self
             .http
             .post(format!("{}{path}", self.base_url))
+            .header("Idempotency-Key", provider_key)
             .timeout(deadline)
             .json(&body);
         if let Some(key) = &self.api_key {
@@ -855,6 +968,190 @@ mod tests {
             });
         }
         body.to_string()
+    }
+
+    fn provider_identity_fixture() -> serde_json::Value {
+        serde_json::json!({
+            "type": "provider_identity", "version": 1, "upstream": "usepod",
+            "requested_model": "claude-haiku-4.5", "upstream_requested_model": "anthropic/claude-haiku-4.5",
+            "reported_model": "anthropic/claude-haiku-4.5",
+            "model_mapping": "usepod-openrouter-haiku-4.5-v1", "provider_pin": "openrouter",
+            "provider_reported": "openrouter", "route_reported": "centralized",
+            "upstream_response_sha256": "a".repeat(64)
+        })
+    }
+
+    #[tokio::test]
+    async fn provider_identity_is_part_of_receipted_output_without_changing_requested_model() {
+        let identity = provider_identity_fixture();
+        let mut response: serde_json::Value =
+            serde_json::from_str(&completion_json("answer", Some((4, 3)))).unwrap();
+        response["model"] = serde_json::json!("anthropic/claude-haiku-4.5");
+        response["covenant_provider"] = identity.clone();
+        let seen: Captured = Arc::new(Mutex::new(None));
+        let base = spawn(capturing_completions(seen.clone(), response.to_string())).await;
+        let outcome = OpenAiCompatExecutor::new(base, None, None)
+            .execute(
+                &job("question", Some("claude-haiku-4.5")),
+                Duration::from_secs(2),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            seen.lock().await.as_ref().unwrap().1["model"],
+            "claude-haiku-4.5"
+        );
+        assert_eq!(
+            outcome.output,
+            vec![Content::text("answer"), Content::json(identity)]
+        );
+        assert_eq!(
+            covenant_compute_protocol::parse_assistant_output(&outcome.output).text,
+            "answer"
+        );
+    }
+
+    #[test]
+    fn provider_identity_rejects_model_or_route_substitution_and_future_schema() {
+        for (key, value) in [
+            ("version", serde_json::json!(2)),
+            ("requested_model", serde_json::json!("other")),
+            ("upstream_requested_model", serde_json::json!("other")),
+            (
+                "reported_model",
+                serde_json::json!("other/claude-haiku-4.5"),
+            ),
+            ("provider_pin", serde_json::json!("anthropic")),
+            ("provider_reported", serde_json::json!("anthropic")),
+            ("route_reported", serde_json::json!("marketplace")),
+            ("model_mapping", serde_json::json!("exact")),
+        ] {
+            let mut identity = provider_identity_fixture();
+            identity[key] = value;
+            let parsed: ProviderIdentity = serde_json::from_value(identity).unwrap();
+            assert!(
+                parsed
+                    .into_output("claude-haiku-4.5", Some("anthropic/claude-haiku-4.5"))
+                    .is_err(),
+                "{key}"
+            );
+        }
+        let parsed: ProviderIdentity = serde_json::from_value(provider_identity_fixture()).unwrap();
+        assert!(parsed
+            .into_output("claude-haiku-4.5", Some("other"))
+            .is_err());
+        let mut identity = provider_identity_fixture();
+        identity["provider_reported"] = serde_json::Value::Null;
+        identity["route_reported"] = serde_json::Value::Null;
+        let parsed: ProviderIdentity = serde_json::from_value(identity).unwrap();
+        assert!(parsed
+            .into_output("claude-haiku-4.5", Some("anthropic/claude-haiku-4.5"))
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn provider_idempotency_is_stable_across_restarts_and_unique_per_job() {
+        let keys = Arc::new(Mutex::new(Vec::<String>::new()));
+        let captured = keys.clone();
+        let base = spawn(Router::new().route(
+            "/chat/completions",
+            post(move |headers: axum::http::HeaderMap| {
+                let captured = captured.clone();
+                async move {
+                    captured.lock().await.push(
+                        headers
+                            .get("Idempotency-Key")
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                    );
+                    completion_json("a real response", Some((4, 3)))
+                }
+            }),
+        ))
+        .await;
+        let original = job("same prompt", Some("model"));
+        OpenAiCompatExecutor::new(base.clone(), None, None)
+            .execute(&original, Duration::from_secs(2))
+            .await
+            .unwrap();
+        let restarted = OpenAiCompatExecutor::new(base, None, None);
+        restarted
+            .execute(&original, Duration::from_secs(2))
+            .await
+            .unwrap();
+        restarted
+            .execute(&job("same prompt", Some("model")), Duration::from_secs(2))
+            .await
+            .unwrap();
+        let mut another_buyer = original.clone();
+        another_buyer.buyer.pubkey = [2u8; 32];
+        restarted
+            .execute(&another_buyer, Duration::from_secs(2))
+            .await
+            .unwrap();
+        let keys = keys.lock().await;
+        assert_eq!(keys[0], keys[1], "a retry belongs to the original purchase");
+        assert_ne!(
+            keys[0], keys[2],
+            "identical prompts in distinct jobs run independently"
+        );
+        assert_ne!(
+            keys[0], keys[3],
+            "another buyer cannot reuse a purchase identity"
+        );
+        assert!(keys[0].starts_with("covenant-job-v1-"));
+        assert_eq!(keys[0].len(), 80);
+    }
+
+    #[tokio::test]
+    async fn each_capability_probe_uses_a_distinct_provider_idempotency_key() {
+        let keys = Arc::new(Mutex::new(Vec::<String>::new()));
+        let captured = keys.clone();
+        let base = spawn(Router::new().route(
+            "/chat/completions",
+            post(move |headers: axum::http::HeaderMap| {
+                let captured = captured.clone();
+                async move {
+                    captured.lock().await.push(
+                        headers
+                            .get("Idempotency-Key")
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                    );
+                    completion_json("probe response", Some((4, 3)))
+                }
+            }),
+        ))
+        .await;
+        let executor = OpenAiCompatExecutor::new(base, None, None);
+        let operator = AgentId::new("operator", [3u8; 32]);
+        let spec = crate::benchmark::BenchmarkSpec {
+            input: vec![Content::text("probe")],
+            expect_contains: None,
+            per_model: true,
+            kind: JobKind::InferenceCall,
+        };
+        for _ in 0..2 {
+            let result = crate::benchmark::run_benchmark(
+                &executor,
+                &operator,
+                &["model".to_string()],
+                &spec,
+                Duration::from_secs(2),
+            )
+            .await;
+            assert!(result[0].passed());
+        }
+        let keys = keys.lock().await;
+        assert_eq!(keys.len(), 2);
+        assert_ne!(
+            keys[0], keys[1],
+            "a new paid probe must exercise the provider again"
+        );
     }
 
     #[tokio::test]

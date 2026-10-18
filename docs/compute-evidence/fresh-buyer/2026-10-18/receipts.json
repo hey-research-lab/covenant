@@ -1,0 +1,35 @@
+[
+  {
+    "job_id": "e996644b-b3a6-4762-a2ab-0abdc6bc0e29",
+    "status": "completed",
+    "refund_reason": null,
+    "price_micro_usdc": 50000,
+    "charged_micro_usdc": 50000,
+    "funding_source": "organic",
+    "issued_at_ms": 1792332689584,
+    "operator_pubkey_b58": "HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh",
+    "result_hash_hex": "3e7c14c8ef849dc74bb4ebedc7fb39bd6a383e6c1df96cbb17df8b238777c6c8",
+    "receipt_verified": true,
+    "verification_error": null,
+    "payout": {
+      "amount_micro_usdc": 45000,
+      "tx_signature": "47Q53b7E2wjmfBTB4UxhxuaPZxDCZR8dVHEmSVEmTRyEZfzsq3oykwBaRasxa5mpUhLeJhiqrTda6H8PPRxU7xB5",
+      "memo": "compute-payout:v1:e996644b-b3a6-4762-a2ab-0abdc6bc0e29:mpYurk9fAyAGePLR8BbDi3DoQMo3AijAYRZ9fc7RLh92yBDvpV3Znx4pvAkh69QrbGVbkRNFAP6tgnPvGCAa6R6",
+      "recorded_at_ms": 1792332693553
+    }
+  },
+  {
+    "job_id": "41fd7797-e963-4cab-bd5f-3e128b364e9a",
+    "status": "rejected",
+    "refund_reason": "operator_rejected",
+    "price_micro_usdc": 50000,
+    "charged_micro_usdc": 0,
+    "funding_source": "organic",
+    "issued_at_ms": 1792331740721,
+    "operator_pubkey_b58": null,
+    "result_hash_hex": null,
+    "receipt_verified": null,
+    "verification_error": null,
+    "payout": null
+  }
+]

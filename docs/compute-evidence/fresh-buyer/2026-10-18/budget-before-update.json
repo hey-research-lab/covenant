@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "status": {
+    "limit_micro_usdc": 50000,
+    "pending_jobs": [
+      "41fd7797-e963-4cab-bd5f-3e128b364e9a"
+    ],
+    "pending_micro_usdc": 50000,
+    "remaining_micro_usdc": 0,
+    "settled_24h_micro_usdc": 0
+  }
+}

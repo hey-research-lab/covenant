@@ -1,0 +1,8 @@
+{
+  "source_commit": "832210f8239cd5bd52f0451246d80e3355e9e916",
+  "public_fetch": "https://github.com/open-covenant/covenant.git",
+  "checkout_clean": true,
+  "binary_sha256": "28b5b7682698479d037384924888ff4ab9f1f9b5a277a4619158e41e4f27ba2b",
+  "build": "cargo +1.98.1 build --locked --manifest-path agent-os/Cargo.toml -p covenant-compute-buyer --bin covenant-compute",
+  "existing_isolated_dependency_cache": true
+}

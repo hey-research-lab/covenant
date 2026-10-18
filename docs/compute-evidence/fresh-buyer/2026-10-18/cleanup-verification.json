@@ -1,0 +1,8 @@
+{
+  "withdrawal_signature": "4KMW7k5vAEZGJW78cadPdeFdFGT6gyaReVFiKotD7gmxPS6U2RarZLpKaZCNmZpShPbnAKY6F2t3qQi3CykSV69w",
+  "finalized": true,
+  "expected_payer_usdc_delta_micro": 50000,
+  "observed_payer_usdc_delta_micro": 50000,
+  "coordinator_final_balance_micro_usdc": 0,
+  "coordinator_charged_micro_usdc": 50000
+}

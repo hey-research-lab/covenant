@@ -6,17 +6,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createPrivateKey, sign, randomUUID, createPublicKey, verify } from 'node:crypto';
 import { AgentKit } from '@coinbase/agentkit';
-import { Keypair, VersionedTransaction } from '@solana/web3.js';
+import { Keypair, VersionedTransaction, TransactionMessage, TransactionInstruction, ComputeBudgetProgram } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { CovenantX402Client, SOLANA_GENESIS, NETWORK, USDC } from '../index.mjs';
+import { CovenantX402Client, SOLANA_GENESIS, NETWORK, USDC, agentKitSvmSigner, PAYMENT_COMPUTE_UNITS } from '../index.mjs';
 import { covenantInferenceActionProvider, CovenantSolanaKeypairWalletProvider } from '../agentkit.mjs';
 import { sha256, stable, strictJson, verifyComputeResult } from '../proof.mjs';
 import { Journal } from '../journal.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { createKeyPairSignerFromBytes } from '@solana/kit';
+import { createKeyPairSignerFromBytes, getTransactionDecoder, getTransactionEncoder } from '@solana/kit';
 import { toFacilitatorSvmSigner } from '@x402/svm';
+import { x402Client, x402HTTPClient } from '@x402/core/client';
+import { ExactSvmScheme } from '@x402/svm/exact/client';
 
 const tokenProgram = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const encode = v => Buffer.from(JSON.stringify(v)).toString('base64');
@@ -60,6 +62,9 @@ async function fixture(options = {}) {
         const verified=await bridge.verify({paymentPayload:payment,paymentRequirements:payment.accepted,resourceUrl:base+'/v1/chat/completions'});
         assert.equal(verified.payer,key.publicKey.toBase58());assert.equal(verified.authorization_id,sha256(Buffer.from(payment.payload.transaction,'base64')));
       }
+      const limit=transaction.message.compiledInstructions[0];
+      assert.equal(transaction.message.staticAccountKeys[limit.programIdIndex].toBase58(),'ComputeBudget111111111111111111111111111111');
+      assert.equal(Buffer.from(limit.data).readUInt32LE(1),options.expectedUnits??PAYMENT_COMPUTE_UNITS);
       const keyIndex=transaction.message.staticAccountKeys.findIndex(k=>k.equals(key.publicKey));
       const publicKey=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),key.publicKey.toBuffer()]),format:'der',type:'spki'});
       assert.ok(verify(null,transaction.message.serialize(),publicKey,transaction.signatures[keyIndex]));
@@ -161,4 +166,59 @@ test('AgentKit official client payment is accepted by the actual gateway facilit
   const f=await fixture({verifyBridge:true});const c=new CovenantX402Client(f.config);
   try{assert.equal((await c.purchase(input())).status,'completed');assert.equal(f.counts().signatures,1);}
   finally{c.close();await f.cleanup();}
+});
+
+
+function unsignedSignerFixture({units=20000,duplicate=false,presigned=false,mutatingWallet=false}={}) {
+  const payer=Keypair.generate(),fee=Keypair.generate();let calls=0;
+  const instructions=[ComputeBudgetProgram.setComputeUnitLimit({units}),ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}),
+    new TransactionInstruction({programId:Keypair.generate().publicKey,keys:[{pubkey:payer.publicKey,isSigner:true,isWritable:false}],data:Buffer.from('unchanged-transfer-and-memo-fixture')})];
+  if(duplicate)instructions.push(ComputeBudgetProgram.setComputeUnitLimit({units:20000}));
+  const message=new TransactionMessage({payerKey:fee.publicKey,recentBlockhash:fee.publicKey.toBase58(),instructions}).compileToV0Message();
+  const transaction=new VersionedTransaction(message);if(presigned)transaction.sign([payer]);
+  const kit={...getTransactionDecoder().decode(transaction.serialize()),lifetimeConstraint:{blockhash:fee.publicKey.toBase58(),lastValidBlockHeight:123456789n}};
+  const wallet={getNetwork:()=>({protocolFamily:'svm',chainId:SOLANA_GENESIS}),getAddress:()=>payer.publicKey.toBase58(),signTransaction:async(tx)=>{
+    calls++;if(mutatingWallet)tx.message.recentBlockhash=Keypair.generate().publicKey.toBase58();tx.sign([payer]);return tx;
+  }};
+  return {kit,wallet,payer,calls:()=>calls};
+}
+
+test('official modifying signer returns the 60k message it signs and preserves every other transaction byte',async()=>{
+  const f=unsignedSignerFixture(),before=Buffer.from(getTransactionEncoder().encode(f.kit));
+  const [modified]=await agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]);
+  const result=VersionedTransaction.deserialize(getTransactionEncoder().encode(modified));
+  assert.equal(Buffer.from(result.message.compiledInstructions[0].data).readUInt32LE(1),60000);
+  assert.equal(f.calls(),1);assert.deepEqual(modified.lifetimeConstraint,f.kit.lifetimeConstraint);
+  const keyIndex=result.message.staticAccountKeys.findIndex(key=>key.equals(f.payer.publicKey));
+  const publicKey=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),f.payer.publicKey.toBuffer()]),format:'der',type:'spki'});
+  assert.ok(verify(null,result.message.serialize(),publicKey,result.signatures[keyIndex]));
+  const restored=Buffer.from(result.message.compiledInstructions[0].data);restored.writeUInt32LE(20000,1);result.message.compiledInstructions[0].data=restored;
+  assert.deepEqual(Buffer.from(result.message.serialize()),Buffer.from(f.kit.messageBytes));
+  assert.deepEqual(Buffer.from(getTransactionEncoder().encode(f.kit)),before,'original transaction remains untouched');
+});
+
+test('compute adjustment refuses pre-signed, duplicated or unexpected compute limits before wallet signing',async()=>{
+  for(const options of [{units:60000},{units:100000},{duplicate:true},{presigned:true}]){
+    const f=unsignedSignerFixture(options);await assert.rejects(agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]));assert.equal(f.calls(),0);
+  }
+});
+
+test('wallet message mutation remains forbidden after the explicit compute adjustment',async()=>{
+  const f=unsignedSignerFixture({mutatingWallet:true});await assert.rejects(agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]),/wallet_changed_payment_transaction/);assert.equal(f.calls(),1);
+});
+
+
+test('upgraded client reuses an existing 20k authorization without modifying or signing it again',async()=>{
+  const f=await fixture({dropFirst:true,expectedUnits:20000}),request=input();let c=new CovenantX402Client(f.config);
+  const legacySigner={address:f.walletProvider.getAddress(),signTransactions:async transactions=>Promise.all(transactions.map(async transaction=>{
+    const signed=await f.walletProvider.signTransaction(VersionedTransaction.deserialize(getTransactionEncoder().encode(transaction)));
+    const index=signed.message.staticAccountKeys.findIndex(key=>key.toBase58()===f.walletProvider.getAddress());
+    return {[f.walletProvider.getAddress()]:signed.signatures[index]};
+  }))};
+  c.http=new x402HTTPClient(new x402Client().register(NETWORK,new ExactSvmScheme(legacySigner,{rpcUrl:f.config.rpcUrl})));
+  try{
+    await assert.rejects(c.purchase(request),/authorization_retained/);const before=c.journal.get(request.requestId).payment;c.close();
+    c=new CovenantX402Client(f.config);assert.equal((await c.purchase(request)).status,'completed');
+    assert.equal(c.journal.get(request.requestId).payment,before);assert.equal(f.counts().payments[0],f.counts().payments[1]);assert.equal(f.counts().signatures,1);assert.equal(f.counts().quotes,1);
+  }finally{c.close();await f.cleanup();}
 });

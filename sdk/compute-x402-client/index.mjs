@@ -24,8 +24,10 @@ function url(value, local = false) {
   return u;
 }
 
-// All payment signatures pass through the exact wallet passed to AgentKit.
-// No private-key extraction, second wallet, direct CDP client or sendTransaction.
+// The request-bound memo needs more than the upstream client's default 20k CU.
+// Kit's modifying-signer contract returns the changed message as well as its
+// signature; returning signatures alone would invalidate the SDK's final wire.
+export const PAYMENT_COMPUTE_UNITS = 60_000;
 export function agentKitSvmSigner(wallet) {
   const network = wallet.getNetwork();
   assert(network.protocolFamily === 'svm' && network.chainId === SOLANA_GENESIS, 'agentkit_wallet_not_solana_mainnet');
@@ -33,21 +35,29 @@ export function agentKitSvmSigner(wallet) {
   assert(typeof wallet.signTransaction === 'function', 'agentkit_wallet_cannot_sign_transactions');
   return {
     address: address(publicKey),
-    async signTransactions(transactions) {
-      const signatures = [];
+    async modifyAndSignTransactions(transactions) {
+      const results = [];
       for (const transaction of transactions) {
         const wire = getTransactionEncoder().encode(transaction);
-        const original = VersionedTransaction.deserialize(wire);
-        const message = Buffer.from(original.message.serialize());
-        const signed = await wallet.signTransaction(original);
+        const unsigned = VersionedTransaction.deserialize(wire);
+        assert(unsigned.signatures.every(signature => signature.every(byte => byte === 0)), 'payment_must_be_unsigned_before_compute_limit_change');
+        const limits = unsigned.message.compiledInstructions.filter(instruction =>
+          unsigned.message.staticAccountKeys[instruction.programIdIndex].toBase58() === 'ComputeBudget111111111111111111111111111111' && instruction.data[0] === 2);
+        const limit = limits[0];
+        assert(limits.length === 1 && unsigned.message.compiledInstructions[0] === limit && limit.accountKeyIndexes.length === 0 && limit.data.length === 5 && Buffer.from(limit.data).readUInt32LE(1) === 20_000, 'unexpected_payment_compute_limit');
+        // No account, transfer, memo, priority fee or lifetime field is changed.
+        const data = Buffer.from(limit.data); data.writeUInt32LE(PAYMENT_COMPUTE_UNITS, 1); limit.data = data;
+        const message = Buffer.from(unsigned.message.serialize());
+        const signed = await wallet.signTransaction(unsigned);
         assert(Buffer.from(signed.message.serialize()).equals(message), 'wallet_changed_payment_transaction');
         const signerIndex = signed.message.staticAccountKeys.findIndex(key => key.toBase58() === publicKey);
         assert(signerIndex >= 0 && signerIndex < signed.message.header.numRequiredSignatures, 'wallet_not_required_signer');
         const signature = signed.signatures[signerIndex];
         assert(signature?.length === 64 && signature.some(byte => byte !== 0), 'wallet_returned_no_signature');
-        signatures.push({ [publicKey]: signature });
+        results.push({ ...transaction, messageBytes: Uint8Array.from(message),
+          signatures: { ...transaction.signatures, [publicKey]: Uint8Array.from(signature) } });
       }
-      return signatures;
+      return results;
     },
   };
 }

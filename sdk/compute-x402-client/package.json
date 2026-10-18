@@ -1,17 +1,20 @@
 {
   "name": "@covenant/compute-x402-client",
-  "version": "0.1.0",
-  "description": "Bounded x402 V2 Solana inference purchases through Coinbase AgentKit",
+  "version": "0.2.0",
+  "description": "Bounded x402 V2 Solana inference purchases for AgentKit, LangChain and LangGraph",
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "exports": {
     ".": "./index.mjs",
-    "./agentkit": "./agentkit.mjs"
+    "./agentkit": "./agentkit.mjs",
+    "./langchain": "./langchain.mjs",
+    "./langgraph-demo": "./langgraph-demo.mjs"
   },
   "files": [
     "*.mjs",
+    "examples",
     "README.md",
     "LICENSE",
     "npm-shrinkwrap.json"
@@ -23,11 +26,18 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@coinbase/agentkit": "0.10.4",
+    "@langchain/core": "1.2.18",
+    "@langchain/langgraph": "1.5.1",
     "@solana/kit": "8.5.0",
     "@solana/web3.js": "1.98.4",
     "@x402/core": "2.28.0",
     "@x402/svm": "2.28.0",
     "bs58": "6.0.0",
+    "langchain": "1.5.18",
     "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@langchain/langgraph-checkpoint-sqlite": "1.1.0",
+    "@langchain/openai": "1.6.2"
   }
 }

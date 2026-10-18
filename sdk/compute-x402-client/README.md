@@ -1,8 +1,8 @@
-# Covenant inference for Coinbase AgentKit
+# Covenant inference for AgentKit, LangChain and LangGraph
 
-An AgentKit action that buys inference from Covenant with Solana USDC using standard x402 V2. The wallet provided to `AgentKit.from` signs the actual SPL-token transfer through `walletProvider.signTransaction`. The package does not use a second wallet or a separate CDP client.
+Buy inference from Covenant with Solana USDC using standard x402 V2. The package provides a Coinbase AgentKit action and an official LangChain tool usable in LangGraph agents. Both use the same payment journal, spending limits and signed-result verification. The configured Solana wallet signs the actual SPL-token transfer through `walletProvider.signTransaction`.
 
-This client is a release candidate until the deployment evidence records a live purchase. Local tests use isolated, unfunded wallets and a local RPC fixture.
+Version 0.1.0 completed funded AgentKit acceptance and is available as an immutable [GitHub release](https://github.com/open-covenant/covenant/releases/tag/codex-compute-x402-client-v0.1.0). Version 0.2.0 adds LangChain/LangGraph support; its local framework tests are distinct from the new integration's funded production acceptance. Compatibility does not imply a partnership or endorsement.
 
 ## Install
 
@@ -12,21 +12,78 @@ Until a registry release is published, install the checked source package from
 this release branch:
 
 ```sh
-git clone --filter=blob:none --branch codex/compute-x402-release \
+git clone --filter=blob:none --branch codex/compute-langchain-release \
   https://github.com/open-covenant/covenant.git covenant-x402
 cd covenant-x402/sdk/compute-x402-client
 npm ci --ignore-scripts
 npm test
 npm pack
 
-# In the application that will use AgentKit:
-npm install /absolute/path/to/covenant-compute-x402-client-0.1.0.tgz
+# In the application that will use the client:
+npm install /absolute/path/to/covenant-compute-x402-client-0.2.0.tgz
 ```
 
 The packaged `demo.mjs` is also available at
 `node_modules/@covenant/compute-x402-client/demo.mjs` after installation.
 
 Direct dependencies and the complete dependency tree are locked. The Coinbase AgentKit dependency is `0.10.4`; official `@x402/core` and `@x402/svm` are `2.28.0`. AgentKit has a large dependency tree; its optional native bigint acceleration is not required.
+
+The framework versions are `@langchain/core` 1.2.18, `@langchain/langgraph` 1.5.1 and `langchain` 1.5.18. Only the optional example/test dependencies need `@langchain/openai` 1.6.2 and `@langchain/langgraph-checkpoint-sqlite` 1.1.0. A planner's own inference requests and credentials are separate from Covenant purchases and require their own spending controls.
+
+## Register with LangChain or LangGraph
+
+```js
+import { createAgent } from 'langchain';
+import { CovenantX402Client } from '@covenant/compute-x402-client';
+import { covenantInferenceTool } from '@covenant/compute-x402-client/langchain';
+
+const client = new CovenantX402Client({
+  gatewayUrl, rpcUrl, payTo, gatewayBuyer,
+  operators: [verifiedInferenceOperatorPublicKey],
+  walletProvider,
+  journalPath: '/private/persistent/path/purchases.sqlite',
+  maxPaymentMicroUsdc: 50_000,
+  maxTotalMicroUsdc: 500_000,
+});
+const inference = covenantInferenceTool({
+  client,
+  requestId: savedPurchaseUuid, // application persists this before the first run
+  model: enabledModel,
+  maxTokens: 2048,
+  temperature: 0.2,
+  systemPrompt: 'Draft only. You have no account access and have taken no actions. Do not claim refunds, escalation or account changes.',
+});
+const agent = createAgent({ model: planner, tools: [inference], checkpointer });
+try {
+  const result = await agent.invoke({ messages: [
+    { role: 'user', content: 'Use Covenant inference to draft a response to this example support ticket: ...' },
+  ] }, { configurable: { thread_id: savedThreadId } });
+  // A ToolMessage contains the verified answer/payment summary in content,
+  // and the full accepted client response (including receipt) in artifact.
+} finally {
+  client.close();
+}
+```
+
+The same tool works with `createReactAgent({ llm: planner, tools: [inference], checkpointSaver: checkpointer })` from `@langchain/langgraph/prebuilt`. Current LangChain applications can use `createAgent` above. Configure an appropriate persistent checkpointer in the application; `MemorySaver` alone does not survive process restart. A graph checkpoint and the payment journal serve different purposes and both must be retained.
+
+The model sees only a strict `{ prompt: string }` schema. The application fixes the model, token cap, temperature, purchase UUID, wallet, gateway, trusted identities and spending ceilings. One tool instance authorizes one logical purchase. The purchase UUID must not come from the model's tool-call ID, a graph attempt ID, or a fresh UUID generated during retry. To authorize another purchase, the application explicitly persists another UUID and constructs another tool. Each purchase still shares the wallet's existing cumulative journal ceiling.
+
+The optional application-controlled `systemPrompt` is sent as an exact system message before the tool's user prompt and included in the signed request/receipt binding. It is not a model-visible tool argument. Omitting it preserves the original user-only request. Changing or removing it under the same purchase UUID is refused; both messages count toward the client's UTF-8 input limit. Instructions help constrain the draft but do not guarantee factual accuracy or replace review.
+
+Recreating the tool with the same UUID and journal resumes the same authorization. A different prompt or generation setting under that UUID is refused before network access. Concurrent recovery attempts do not sign twice: an active claim returns `purchase_in_progress`; after the owning process exits unexpectedly, its claim can remain locked for up to five minutes. Do not respond to a pending result or error by changing the purchase UUID. A completed cached result makes no network request.
+
+Tool output is untrusted task data for the planner. A verified receipt authenticates the operator's answer and its binding to the request; it does not establish factual correctness or authorize execution of generated instructions. The tool never executes the answer. `ToolMessage.artifact` can contain the original prompt and response within signed evidence; apply the application's access and tracing policy to retained checkpoints.
+
+The optional `runSupportDemo` export from `@covenant/compute-x402-client/langgraph-demo` demonstrates a persistent support-ticket workflow. Install its optional dependencies explicitly:
+
+```sh
+npm install @langchain/openai@1.6.2 @langchain/langgraph-checkpoint-sqlite@1.1.0
+# If your installation disabled native dependency scripts:
+npm rebuild better-sqlite3 --ignore-scripts=false
+```
+
+The application supplies the bounded client and planner. Run `plan`, `purchase`, `replay` and `finish` with the same private output directory, trusted purchase UUID and graph thread ID. `plan` asks the model to choose whether to call the tool and checkpoints before payment. `purchase` resumes that selection. `replay` re-executes the saved tool call against the original payment journal and requires the same verified result. `finish` is permitted only after a completed purchase. Pending purchases resume the original pre-tool checkpoint; they cannot be presented as a finished answer. Each phase can run in a new process. The example uses a labeled sample ticket and does not contact a customer or issue refunds.
 
 ## Register with AgentKit
 

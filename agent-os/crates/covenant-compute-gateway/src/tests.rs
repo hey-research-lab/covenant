@@ -382,10 +382,11 @@ async fn uncertain_execution_retries_the_exact_saved_job_after_restart() {
             .unwrap(),
         GatewayReply::Complete { .. }
     ));
-    let seen = executor.seen.lock().unwrap();
-    assert_eq!(seen.len(), 2);
-    assert_eq!(seen[0], seen[1]);
-    drop(seen);
+    {
+        let seen = executor.seen.lock().unwrap();
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen[0], seen[1]);
+    }
     // Payment revenue never manufactures additional prefunded compute reserve.
     let GatewayReply::PaymentRequired(other) = gateway
         .handle(request.clone(), None, None, 103)

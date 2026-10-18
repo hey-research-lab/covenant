@@ -15,6 +15,7 @@ this is a source-install workflow, not a claim about those downloads.
 ## Install and isolate the buyer
 
 ```sh
+set -e
 KANI_GUIDE_ROOT="$(git rev-parse --show-toplevel)"
 KANI_TEST_ROOT=/absolute/path/to/a/new-kani-test
 mkdir -m 700 "$KANI_TEST_ROOT"
@@ -127,9 +128,12 @@ acceptance still pays for checker execution.
 
 ```sh
 KANI_PURCHASE_KEY=fresh-kani-smoke-v1
-"$KANI_CLI" "${kani_check_args[@]}" --idempotency-key "$KANI_PURCHASE_KEY" --json \
-  > check-result.json 2> check-stderr.txt
-KANI_CHECK_EXIT=$?
+if "$KANI_CLI" "${kani_check_args[@]}" --idempotency-key "$KANI_PURCHASE_KEY" --json \
+  > check-result.json 2> check-stderr.txt; then
+  KANI_CHECK_EXIT=0
+else
+  KANI_CHECK_EXIT=$?
+fi
 printf '%s\n' "$KANI_CHECK_EXIT" > check-exit.txt
 KANI_JOB_ID="$(python3 "$KANI_ADAPTER" purchase \
   --buyer-home "$COVENANT_COMPUTE_MCP_HOME" --buyer buyer.json \

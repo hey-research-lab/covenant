@@ -512,7 +512,7 @@ impl Gateway {
                 || disk
                     .used_reserve()
                     .checked_add(prepared.maximum_cost_micro_usdc)
-                    .map_or(true, |used| used > disk.journal.reserve_micro_usdc)
+                    .is_none_or(|used| used > disk.journal.reserve_micro_usdc)
             {
                 return Err(GatewayError::Unavailable(
                     "compute reserve exhausted or quote below execution ceiling".into(),

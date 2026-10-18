@@ -10,6 +10,8 @@ const ENV_KEYS = [
   "COVENANT_DAEMON_URL",
   "HATCHER_MESH_URL",
   "HATCHER_PAIRING_CODE",
+  "HATCHER_AGENT_ID",
+  "HATCHER_GPU_ENABLED",
   "PORT",
   "HATCHER_CONNECTOR_PORT",
   "HATCHER_MAX_CONCURRENT_DISPATCH",
@@ -32,7 +34,7 @@ async function loadConfig(): Promise<typeof import("./config.js")> {
 describe("loadConfig env validation", () => {
   beforeEach(() => {
     for (const k of ENV_KEYS) saved[k] = process.env[k];
-    for (const k of Object.keys(BASE)) delete process.env[k];
+    for (const k of ENV_KEYS) delete process.env[k];
     Object.assign(process.env, BASE);
   });
 
@@ -50,6 +52,17 @@ describe("loadConfig env validation", () => {
     expect(cfg.daemonUrl).toBe("http://127.0.0.1:8421");
     expect(cfg.usingConnectorPeer).toBe(false);
     expect(cfg.daemonToken).toBe(BASE.COVENANT_OPERATOR_TOKEN);
+    expect(cfg.gpuEnabled).toBe(false);
+  });
+
+  it('requires an exact agent configuration when GPU dispatches are enabled', async () => {
+    const { loadConfig: load } = await loadConfig();
+    process.env.HATCHER_GPU_ENABLED = 'true';
+    expect(() => load()).toThrow(/HATCHER_AGENT_ID/);
+    process.env.HATCHER_AGENT_ID = 'full-agent';
+    expect(load()).toMatchObject({ gpuEnabled: true, agentId: 'full-agent' });
+    process.env.HATCHER_GPU_ENABLED = 'maybe';
+    expect(() => load()).toThrow(/HATCHER_GPU_ENABLED/);
   });
 
   describe("HATCHER_CONNECTOR_TOKEN", () => {

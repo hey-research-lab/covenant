@@ -59,6 +59,13 @@ export class WsTransport implements HatcherTransport {
   // reset at the start of each dial so a failed redial can reschedule.
   private reconnecting = false;
   private firstOpen?: { resolve: () => void; reject: (e: unknown) => void };
+  private socketState: 'disconnected' | 'connecting' | 'open' | 'reconnecting' | 'closed' = 'disconnected';
+
+  get connectionState(): { socket: string; authentication: 'unverified'; reconnect_attempt: number } {
+    // No authentication acknowledgement is defined in our pinned mesh contract.
+    // Socket open/hello sent must never be advertised as authenticated or paired.
+    return { socket: this.socketState, authentication: 'unverified', reconnect_attempt: this.attempt };
+  }
 
   private readonly reconnect: boolean;
   private readonly backoffBaseMs: number;
@@ -95,6 +102,7 @@ export class WsTransport implements HatcherTransport {
 
   async close(): Promise<void> {
     this.closed = true;
+    this.socketState = 'closed';
     try {
       this.ws?.close();
     } finally {
@@ -104,6 +112,7 @@ export class WsTransport implements HatcherTransport {
 
   private dial(): void {
     if (this.closed) return;
+    this.socketState = 'connecting';
     this.reconnecting = false;
     let ws: WebSocketLike;
     try {
@@ -113,23 +122,30 @@ export class WsTransport implements HatcherTransport {
     }
     this.ws = ws;
     ws.addEventListener('open', () => {
+      if (this.ws !== ws || this.closed) return;
+      this.socketState = 'open';
       this.attempt = 0;
       this.announce();
       this.flush();
       this.firstOpen?.resolve();
       this.firstOpen = undefined;
-      this.log('mesh connected', { url: this.opts.url });
+      this.log('mesh socket open; hello sent (authentication unverified)');
     });
-    ws.addEventListener('message', (ev) => this.onMessage(ev.data));
+    ws.addEventListener('message', (ev) => { if (this.ws === ws && !this.closed) this.onMessage(ev.data); });
     // Some WebSocket impls fire `error` without a following `close`; reconnect on
     // either so the socket can never wedge half-open (scheduleReconnect dedupes).
     ws.addEventListener('error', (ev) => {
-      this.log('mesh socket error', { err: errText(ev) });
+      if (this.ws !== ws || this.closed) return;
+      this.log('mesh socket error');
       this.ws = null;
+      this.socketState = 'disconnected';
+      try { ws.close(); } catch { /* already disconnected */ }
       this.scheduleReconnect(new Error('socket error'));
     });
     ws.addEventListener('close', () => {
+      if (this.ws !== ws || this.closed) return;
       this.ws = null;
+      this.socketState = 'disconnected';
       this.scheduleReconnect(new Error('socket closed'));
     });
   }
@@ -153,7 +169,7 @@ export class WsTransport implements HatcherTransport {
     try {
       frame = JSON.parse(text);
     } catch {
-      return this.log('mesh sent non-JSON frame', { sample: text.slice(0, 120) });
+      return this.log('mesh sent non-JSON frame');
     }
     if (!frame || typeof (frame as { type?: unknown }).type !== 'string') return;
     this.handler?.(frame as InboundFrame);
@@ -164,7 +180,7 @@ export class WsTransport implements HatcherTransport {
       this.ws?.send(JSON.stringify(frame));
     } catch (err) {
       this.outbox.push(frame);
-      this.log('mesh send failed, queued', { err: errText(err) });
+      this.log('mesh send failed, queued');
     }
   }
 
@@ -181,6 +197,7 @@ export class WsTransport implements HatcherTransport {
     if (this.closed || !this.reconnect) return;
     if (this.reconnecting) return; // error + close both fire: schedule once per socket
     this.reconnecting = true;
+    this.socketState = 'reconnecting';
     const exp = Math.min(this.backoffMaxMs, this.backoffBaseMs * 2 ** this.attempt++);
     const delay = exp / 2 + this.random() * (exp / 2); // half-fixed + half-jitter
     this.log('mesh reconnect scheduled', { in_ms: Math.round(delay), attempt: this.attempt });
@@ -194,9 +211,4 @@ function toText(data: unknown): string | null {
   if (ArrayBuffer.isView(data)) return new TextDecoder().decode(data as Uint8Array);
   if (data && typeof (data as { toString?: unknown }).toString === 'function') return String(data);
   return null;
-}
-
-function errText(err: unknown): string {
-  if (err && typeof err === 'object' && 'message' in err) return String((err as { message: unknown }).message);
-  return String(err);
 }

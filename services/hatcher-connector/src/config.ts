@@ -17,6 +17,8 @@ export interface Config {
   // Outbound Hatcher mesh channel. Stubbed transport in v0 (see transport.ts).
   hatcherUrl: string;
   hatcherToken: string;
+  agentId?: string;
+  gpuEnabled: boolean;
   // Single-use pairing code minted by the Hatcher UI during `covenant hatcher pair`.
   pairingCode?: string;
   // Optional path to a covenant.hatcher-agent.v0 manifest whose capabilities the
@@ -49,6 +51,11 @@ function int(name: string, fallback: number, { min = 1 }: { min?: number } = {})
 export function loadConfig(): Config {
   const hatcherToken = required('HATCHER_CONNECTOR_TOKEN');
   if (hatcherToken.length < 24) throw new Error('HATCHER_CONNECTOR_TOKEN must be at least 24 chars');
+  const gpuFlag = optional('HATCHER_GPU_ENABLED') ?? 'false';
+  if (!['true', 'false', '1', '0'].includes(gpuFlag)) throw new Error('HATCHER_GPU_ENABLED must be true or false');
+  const gpuEnabled = gpuFlag === 'true' || gpuFlag === '1';
+  const agentId = optional('HATCHER_AGENT_ID');
+  if (gpuEnabled && !agentId) throw new Error('GPU enablement requires HATCHER_AGENT_ID');
 
   return {
     port: int('PORT', int('HATCHER_CONNECTOR_PORT', 8790)),
@@ -60,6 +67,8 @@ export function loadConfig(): Config {
     daemonRetries: int('COVENANT_DAEMON_RETRIES', 1, { min: 0 }),
     hatcherUrl: (process.env.HATCHER_MESH_URL ?? 'wss://mesh.hatcher.local/connector').replace(/\/+$/, ''),
     hatcherToken,
+    agentId,
+    gpuEnabled,
     pairingCode: optional('HATCHER_PAIRING_CODE'),
     manifestPath: optional('HATCHER_MANIFEST'),
     maxConcurrentDispatch: int('HATCHER_MAX_CONCURRENT_DISPATCH', 4),

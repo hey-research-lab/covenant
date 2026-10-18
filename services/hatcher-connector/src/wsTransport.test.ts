@@ -179,7 +179,7 @@ describe('WsTransport', () => {
     expect(got).toEqual([{ v: 1, type: 'ping', ts: 5 }]);
   });
 
-  it('logs a socket error preferring the error object message over its String() form', async () => {
+  it('reports socket state without claiming authentication or logging raw errors', async () => {
     const logs: Array<{ msg: string; extra?: Record<string, unknown> }> = [];
     const t = new WsTransport({
       url: 'wss://mesh',
@@ -191,10 +191,13 @@ describe('WsTransport', () => {
     const p = t.connect();
     FakeSocket.last!.fireOpen();
     await p;
+    expect(t.connectionState).toMatchObject({ socket: 'open', authentication: 'unverified' });
 
     FakeSocket.last!.fireError({ message: 'boom' });
     FakeSocket.last!.fireError('raw-error');
-    const errs = logs.filter((l) => l.msg === 'mesh socket error').map((l) => l.extra?.err);
-    expect(errs).toEqual(['boom', 'raw-error']);
+    const errs = logs.filter((l) => l.msg === 'mesh socket error');
+    expect(errs).toEqual([{ msg: 'mesh socket error', extra: undefined }]);
+    expect(JSON.stringify(logs)).not.toMatch(/boom|raw-error/);
+    expect(t.connectionState).toMatchObject({ socket: 'disconnected', authentication: 'unverified' });
   });
 });

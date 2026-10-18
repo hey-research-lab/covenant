@@ -39,6 +39,8 @@ async function main(): Promise<void> {
   const transport = new WsTransport({
     url: cfg.hatcherUrl,
     token: cfg.hatcherToken,
+    backoffBaseMs: cfg.hatcherReconnectBaseMs,
+    backoffMaxMs: cfg.hatcherReconnectMaxMs,
     pairingCode: cfg.pairingCode,
     agentId: cfg.agentId,
     connectorId: process.env.HATCHER_CONNECTOR_ID,

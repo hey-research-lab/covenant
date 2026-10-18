@@ -17,6 +17,8 @@ export interface Config {
   // Outbound Hatcher mesh channel. Stubbed transport in v0 (see transport.ts).
   hatcherUrl: string;
   hatcherToken: string;
+  hatcherReconnectBaseMs: number;
+  hatcherReconnectMaxMs: number;
   agentId?: string;
   gpuEnabled: boolean;
   // Single-use pairing code minted by the Hatcher UI during `covenant hatcher pair`.
@@ -42,9 +44,8 @@ function optional(name: string): string | undefined {
 
 function int(name: string, fallback: number, { min = 1 }: { min?: number } = {}): number {
   const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < min) throw new Error(`${name} must be an integer >= ${min}`);
+  const n = raw === undefined || raw === '' ? fallback : Number(raw);
+  if (!Number.isSafeInteger(n) || n < min) throw new Error(`${name} must be a safe integer >= ${min}`);
   return n;
 }
 
@@ -56,6 +57,8 @@ export function loadConfig(): Config {
   const gpuEnabled = gpuFlag === 'true' || gpuFlag === '1';
   const agentId = optional('HATCHER_AGENT_ID');
   if (gpuEnabled && !agentId) throw new Error('GPU enablement requires HATCHER_AGENT_ID');
+  const hatcherReconnectBaseMs = int('HATCHER_RECONNECT_BASE_MS', 30_000, { min: 30_000 });
+  const hatcherReconnectMaxMs = int('HATCHER_RECONNECT_MAX_MS', 300_000, { min: hatcherReconnectBaseMs });
 
   return {
     port: int('PORT', int('HATCHER_CONNECTOR_PORT', 8790)),
@@ -67,6 +70,8 @@ export function loadConfig(): Config {
     daemonRetries: int('COVENANT_DAEMON_RETRIES', 1, { min: 0 }),
     hatcherUrl: (process.env.HATCHER_MESH_URL ?? 'wss://mesh.hatcher.local/connector').replace(/\/+$/, ''),
     hatcherToken,
+    hatcherReconnectBaseMs,
+    hatcherReconnectMaxMs,
     agentId,
     gpuEnabled,
     pairingCode: optional('HATCHER_PAIRING_CODE'),

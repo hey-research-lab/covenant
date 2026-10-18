@@ -12,6 +12,8 @@ const ENV_KEYS = [
   "HATCHER_PAIRING_CODE",
   "HATCHER_AGENT_ID",
   "HATCHER_GPU_ENABLED",
+  "HATCHER_RECONNECT_BASE_MS",
+  "HATCHER_RECONNECT_MAX_MS",
   "PORT",
   "HATCHER_CONNECTOR_PORT",
   "HATCHER_MAX_CONCURRENT_DISPATCH",
@@ -53,6 +55,22 @@ describe("loadConfig env validation", () => {
     expect(cfg.usingConnectorPeer).toBe(false);
     expect(cfg.daemonToken).toBe(BASE.COVENANT_OPERATOR_TOKEN);
     expect(cfg.gpuEnabled).toBe(false);
+    expect(cfg.hatcherReconnectBaseMs).toBe(30_000);
+    expect(cfg.hatcherReconnectMaxMs).toBe(300_000);
+  });
+
+  it('accepts slower reconnect bounds and rejects unsafe or inverted bounds', async () => {
+    const { loadConfig: load } = await loadConfig();
+    process.env.HATCHER_RECONNECT_BASE_MS = '60000';
+    process.env.HATCHER_RECONNECT_MAX_MS = '600000';
+    expect(load()).toMatchObject({ hatcherReconnectBaseMs: 60_000, hatcherReconnectMaxMs: 600_000 });
+    process.env.HATCHER_RECONNECT_BASE_MS = '29999';
+    expect(() => load()).toThrow(/HATCHER_RECONNECT_BASE_MS/);
+    process.env.HATCHER_RECONNECT_BASE_MS = '60000';
+    process.env.HATCHER_RECONNECT_MAX_MS = '59999';
+    expect(() => load()).toThrow(/HATCHER_RECONNECT_MAX_MS/);
+    process.env.HATCHER_RECONNECT_MAX_MS = '9007199254740992';
+    expect(() => load()).toThrow(/HATCHER_RECONNECT_MAX_MS/);
   });
 
   it('requires an exact agent configuration when GPU dispatches are enabled', async () => {

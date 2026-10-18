@@ -218,11 +218,24 @@ export class RunStore {
 function isStoredRun(value: unknown): value is StoredRun {
   if (!value || typeof value !== 'object') return false;
   const run = value as Partial<StoredRun>;
-  try { parseGpuPolicy(run.gpu); } catch { return false; }
+  try {
+    parseGpuPolicy(run.gpu);
+  } catch {
+    return false;
+  }
   if (run.gpu && !run.sessionId) return false;
-  if (run.desiredStatus !== undefined && !['completed', 'failed', 'cancelled'].includes(run.desiredStatus)) return false;
-  if (run.nonComputeUsd !== undefined && (!Number.isFinite(run.nonComputeUsd) || run.nonComputeUsd < 0)) return false;
-  if (run.compute !== undefined && (!run.gpu || !validCleanupReport(run.compute, run.sessionId!))) return false;
+  if (
+    run.desiredStatus !== undefined &&
+    !['completed', 'failed', 'cancelled'].includes(run.desiredStatus)
+  )
+    return false;
+  if (
+    run.nonComputeUsd !== undefined &&
+    (!Number.isFinite(run.nonComputeUsd) || run.nonComputeUsd < 0)
+  )
+    return false;
+  if (run.compute !== undefined && (!run.gpu || !validCleanupReport(run.compute, run.sessionId!)))
+    return false;
   const reservationValid =
     (run.reservationId === undefined && run.reservedMax === undefined) ||
     (typeof run.reservationId === 'string' &&
@@ -273,18 +286,35 @@ function isStoredRun(value: unknown): value is StoredRun {
 function validCleanupReport(value: unknown, sessionId: string): boolean {
   if (!value || typeof value !== 'object') return false;
   const r = value as ComputeCleanupReport;
-  const identifiers = (v: unknown): v is string[] => Array.isArray(v) && v.length <= 20 &&
+  const identifiers = (v: unknown): v is string[] =>
+    Array.isArray(v) &&
+    v.length <= 20 &&
     v.every((id) => typeof id === 'string' && /^[A-Za-z0-9:_-]{1,128}$/.test(id));
-  if (r.runKey !== sessionId || !identifiers(r.pendingJobIds) || !identifiers(r.pendingLaunchKeys) ||
-    typeof r.complete !== 'boolean' || r.complete !== (r.pendingJobIds.length + r.pendingLaunchKeys.length === 0) ||
-    !Array.isArray(r.settled) || r.settled.length > 1) return false;
+  if (
+    r.runKey !== sessionId ||
+    !identifiers(r.pendingJobIds) ||
+    !identifiers(r.pendingLaunchKeys) ||
+    typeof r.complete !== 'boolean' ||
+    r.complete !== (r.pendingJobIds.length + r.pendingLaunchKeys.length === 0) ||
+    !Array.isArray(r.settled) ||
+    r.settled.length > 1
+  )
+    return false;
   return r.settled.every((job) => {
     const receipt = job?.receipt;
-    return typeof job?.job_id === 'string' && /^[A-Za-z0-9:_-]{1,128}$/.test(job.job_id) &&
+    return (
+      typeof job?.job_id === 'string' &&
+      /^[A-Za-z0-9:_-]{1,128}$/.test(job.job_id) &&
       ['completed', 'failed', 'cancelled'].includes(job.status) &&
-      Number.isSafeInteger(job.maximum_usdc_micros) && job.maximum_usdc_micros > 0 && job.maximum_usdc_micros <= 200000 &&
-      receipt && [receipt.runtime_secs, receipt.charged_usdc_micros, receipt.refunded_usdc_micros].every((n) => Number.isSafeInteger(n) && n >= 0) &&
-      receipt.charged_usdc_micros + receipt.refunded_usdc_micros === job.maximum_usdc_micros;
+      Number.isSafeInteger(job.maximum_usdc_micros) &&
+      job.maximum_usdc_micros > 0 &&
+      job.maximum_usdc_micros <= 200000 &&
+      receipt &&
+      [receipt.runtime_secs, receipt.charged_usdc_micros, receipt.refunded_usdc_micros].every(
+        (n) => Number.isSafeInteger(n) && n >= 0,
+      ) &&
+      receipt.charged_usdc_micros + receipt.refunded_usdc_micros === job.maximum_usdc_micros
+    );
   });
 }
 

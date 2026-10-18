@@ -1,4 +1,14 @@
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -11,14 +21,25 @@ export class ComputeJournal<T> {
   private memory: Record<string, T> = {};
   readonly path?: string;
 
-  constructor(path: string | undefined, private readonly validate: (value: unknown) => value is T) {
+  constructor(
+    path: string | undefined,
+    private readonly validate: (value: unknown) => value is T,
+  ) {
     this.path = path ? resolve(path) : undefined;
   }
 
   entries(): Record<string, T> {
     if (!this.path || !existsSync(this.path)) return structuredClone(this.memory);
-    const data = JSON.parse(readFileSync(this.path, 'utf8')) as { version?: unknown; runs?: unknown };
-    if (data?.version !== 1 || !data.runs || typeof data.runs !== 'object' || Array.isArray(data.runs)) {
+    const data = JSON.parse(readFileSync(this.path, 'utf8')) as {
+      version?: unknown;
+      runs?: unknown;
+    };
+    if (
+      data?.version !== 1 ||
+      !data.runs ||
+      typeof data.runs !== 'object' ||
+      Array.isArray(data.runs)
+    ) {
       throw new Error('invalid GPU journal; refusing new bookings');
     }
     const runs = data.runs as Record<string, T>;
@@ -49,7 +70,11 @@ export class ComputeJournal<T> {
       }
       renameSync(temp, this.path);
       const dir = openSync(dirname(this.path), 'r');
-      try { fsyncSync(dir); } finally { closeSync(dir); }
+      try {
+        fsyncSync(dir);
+      } finally {
+        closeSync(dir);
+      }
       return structuredClone(value);
     } finally {
       if (existsSync(temp)) unlinkSync(temp);

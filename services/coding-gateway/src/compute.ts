@@ -211,7 +211,12 @@ export interface ComputeCleanupReport {
 
 interface Reservation {
   key: string;
-  plan: { app: typeof GPU_WORKSPACE_APP; offer: Offer; duration_secs: number; maximum_usdc_micros: number };
+  plan: {
+    app: typeof GPU_WORKSPACE_APP;
+    offer: Offer;
+    duration_secs: number;
+    maximum_usdc_micros: number;
+  };
   deadline: number;
   jobId?: string;
   status?: string;
@@ -230,28 +235,45 @@ interface JournalRun {
 
 const quoteMaximum = (ratePerHour: number, durationSecs: number): number =>
   Math.ceil((ratePerHour * durationSecs) / 3_600);
-const whole = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+const whole = (n: unknown): n is number =>
+  typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
 const validOffer = (o: unknown): o is Offer => {
   const v = o as Offer | null;
-  return !!v && typeof v === 'object' && typeof v.id === 'string' && JOB_ID.test(v.id)
-    && typeof v.online === 'boolean' && whole(v.rate_usdc_micros_per_hour)
-    && !!v.gpu && typeof v.gpu.model === 'string' && whole(v.gpu.vram_mib);
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    typeof v.id === 'string' &&
+    JOB_ID.test(v.id) &&
+    typeof v.online === 'boolean' &&
+    whole(v.rate_usdc_micros_per_hour) &&
+    !!v.gpu &&
+    typeof v.gpu.model === 'string' &&
+    whole(v.gpu.vram_mib)
+  );
 };
 
 function validReceipt(receipt: unknown, maximum: number, jobId: string): receipt is ComputeReceipt {
   const r = receipt as ComputeReceipt | null;
-  return !!r && typeof r === 'object' && whole(r.runtime_secs)
-    && whole(r.charged_usdc_micros) && whole(r.refunded_usdc_micros)
-    && r.charged_usdc_micros <= maximum && r.refunded_usdc_micros <= maximum
-    && r.charged_usdc_micros + r.refunded_usdc_micros === maximum
-    && (r.job_id === undefined || r.job_id === jobId)
-    && ['id', 'app_id', 'provider', 'commitment'].every((key) => {
+  return (
+    !!r &&
+    typeof r === 'object' &&
+    whole(r.runtime_secs) &&
+    whole(r.charged_usdc_micros) &&
+    whole(r.refunded_usdc_micros) &&
+    r.charged_usdc_micros <= maximum &&
+    r.refunded_usdc_micros <= maximum &&
+    r.charged_usdc_micros + r.refunded_usdc_micros === maximum &&
+    (r.job_id === undefined || r.job_id === jobId) &&
+    ['id', 'app_id', 'provider', 'commitment'].every((key) => {
       const value = (r as unknown as Record<string, unknown>)[key];
       return value === undefined || (typeof value === 'string' && value.length <= 512);
-    })
-    && (r.transaction === undefined || r.transaction === null || (typeof r.transaction === 'string' && r.transaction.length <= 512))
-    && (r.provisioning_secs === undefined || whole(r.provisioning_secs))
-    && (r.provisioning_usdc_micros === undefined || whole(r.provisioning_usdc_micros));
+    }) &&
+    (r.transaction === undefined ||
+      r.transaction === null ||
+      (typeof r.transaction === 'string' && r.transaction.length <= 512)) &&
+    (r.provisioning_secs === undefined || whole(r.provisioning_secs)) &&
+    (r.provisioning_usdc_micros === undefined || whole(r.provisioning_usdc_micros))
+  );
 }
 
 /** Persist only receipt fields that cannot contain workspace access credentials. */
@@ -261,7 +283,16 @@ function safeReceipt(receipt: ComputeReceipt): ComputeReceipt {
     charged_usdc_micros: receipt.charged_usdc_micros,
     refunded_usdc_micros: receipt.refunded_usdc_micros,
   };
-  for (const key of ['id', 'job_id', 'app_id', 'provider', 'commitment', 'transaction', 'provisioning_secs', 'provisioning_usdc_micros'] as const) {
+  for (const key of [
+    'id',
+    'job_id',
+    'app_id',
+    'provider',
+    'commitment',
+    'transaction',
+    'provisioning_secs',
+    'provisioning_usdc_micros',
+  ] as const) {
     const value = receipt[key];
     if (value !== undefined) Object.assign(result, { [key]: value });
   }
@@ -270,34 +301,66 @@ function safeReceipt(receipt: ComputeReceipt): ComputeReceipt {
 
 function validRun(value: unknown): value is JournalRun {
   const v = value as JournalRun | null;
-  return !!v && typeof v === 'object' && typeof v.runKey === 'string'
-    && typeof v.closed === 'boolean' && whole(v.maxUsdcMicros) && v.maxUsdcMicros > 0
-    && whole(v.maxDurationSecs) && v.maxDurationSecs >= MIN_DURATION_SECS
-    && whole(v.maxLaunches) && v.maxLaunches > 0 && Array.isArray(v.reservations)
-    && v.reservations.length <= v.maxLaunches
-    && v.reservations.every((r) => typeof r.key === 'string' && whole(r.deadline)
-      && (r.rejected === undefined || typeof r.rejected === 'boolean')
-      && !!r.plan && validOffer(r.plan.offer) && whole(r.plan.duration_secs)
-      && r.plan.duration_secs >= MIN_DURATION_SECS && r.plan.duration_secs <= v.maxDurationSecs
-      && whole(r.plan.maximum_usdc_micros)
-      && r.plan.maximum_usdc_micros === quoteMaximum(r.plan.offer.rate_usdc_micros_per_hour, r.plan.duration_secs)
-      && (r.jobId === undefined || (typeof r.jobId === 'string' && JOB_ID.test(r.jobId)))
-      && (r.receipt === undefined || (!!r.jobId && TERMINAL.has(r.status ?? '') && validReceipt(r.receipt, r.plan.maximum_usdc_micros, r.jobId))))
-    && v.reservations.reduce((sum, r) => sum + r.plan.maximum_usdc_micros, 0) <= v.maxUsdcMicros;
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    typeof v.runKey === 'string' &&
+    typeof v.closed === 'boolean' &&
+    whole(v.maxUsdcMicros) &&
+    v.maxUsdcMicros > 0 &&
+    whole(v.maxDurationSecs) &&
+    v.maxDurationSecs >= MIN_DURATION_SECS &&
+    whole(v.maxLaunches) &&
+    v.maxLaunches > 0 &&
+    Array.isArray(v.reservations) &&
+    v.reservations.length <= v.maxLaunches &&
+    v.reservations.every(
+      (r) =>
+        typeof r.key === 'string' &&
+        whole(r.deadline) &&
+        (r.rejected === undefined || typeof r.rejected === 'boolean') &&
+        !!r.plan &&
+        validOffer(r.plan.offer) &&
+        whole(r.plan.duration_secs) &&
+        r.plan.duration_secs >= MIN_DURATION_SECS &&
+        r.plan.duration_secs <= v.maxDurationSecs &&
+        whole(r.plan.maximum_usdc_micros) &&
+        r.plan.maximum_usdc_micros ===
+          quoteMaximum(r.plan.offer.rate_usdc_micros_per_hour, r.plan.duration_secs) &&
+        (r.jobId === undefined || (typeof r.jobId === 'string' && JOB_ID.test(r.jobId))) &&
+        (r.receipt === undefined ||
+          (!!r.jobId &&
+            TERMINAL.has(r.status ?? '') &&
+            validReceipt(r.receipt, r.plan.maximum_usdc_micros, r.jobId))),
+    ) &&
+    v.reservations.reduce((sum, r) => sum + r.plan.maximum_usdc_micros, 0) <= v.maxUsdcMicros
+  );
 }
 
 export class ComputeError extends Error {
-  constructor(message: string, readonly code?: string) { super(message); }
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
 }
 
 function asJob(body: unknown): ComputeJob {
   const job = body as ComputeJob | null;
   if (!job || typeof job !== 'object') throw new ComputeError('control plane returned no job');
-  if (typeof job.id !== 'string' || !JOB_ID.test(job.id) || typeof job.status !== 'string'
-    || !['funding', 'provisioning', 'running', 'stopping', 'cancelling', ...TERMINAL].includes(job.status)
-    || typeof job.offer_id !== 'string' || !whole(job.maximum_usdc_micros)
-    || !(job.access_url === null || typeof job.access_url === 'string')
-    || !(job.error === null || typeof job.error === 'string')) {
+  if (
+    typeof job.id !== 'string' ||
+    !JOB_ID.test(job.id) ||
+    typeof job.status !== 'string' ||
+    !['funding', 'provisioning', 'running', 'stopping', 'cancelling', ...TERMINAL].includes(
+      job.status,
+    ) ||
+    typeof job.offer_id !== 'string' ||
+    !whole(job.maximum_usdc_micros) ||
+    !(job.access_url === null || typeof job.access_url === 'string') ||
+    !(job.error === null || typeof job.error === 'string')
+  ) {
     throw new ComputeError('control plane returned a malformed job');
   }
   return job;
@@ -315,7 +378,10 @@ export class ComputeSession {
   private readonly options: Omit<Required<ComputeSessionOptions>, 'signal'>;
   private readonly signal?: AbortSignal;
 
-  constructor(private readonly cfg: ComputeConfig, options?: ComputeSessionOptions) {
+  constructor(
+    private readonly cfg: ComputeConfig,
+    options?: ComputeSessionOptions,
+  ) {
     this.signal = options?.signal;
     this.options = {
       runKey: options?.runKey ?? randomUUID(),
@@ -324,23 +390,36 @@ export class ComputeSession {
       maxLaunches: options?.maxLaunches ?? cfg.maxLaunches,
     };
     for (const field of ['maxUsdcMicros', 'maxDurationSecs', 'maxLaunches'] as const) {
-      if (!whole(this.options[field]) || this.options[field] < 1 || this.options[field] > cfg[field]) {
+      if (
+        !whole(this.options[field]) ||
+        this.options[field] < 1 ||
+        this.options[field] > cfg[field]
+      ) {
         throw new ComputeError(`invalid per-run GPU ${field}`);
       }
     }
-    if (this.options.maxDurationSecs < MIN_DURATION_SECS) throw new ComputeError('GPU booking duration must be at least 300 seconds');
-    if (!this.options.runKey || this.options.runKey.length > 512) throw new ComputeError('invalid GPU run key');
+    if (this.options.maxDurationSecs < MIN_DURATION_SECS)
+      throw new ComputeError('GPU booking duration must be at least 300 seconds');
+    if (!this.options.runKey || this.options.runKey.length > 512)
+      throw new ComputeError('invalid GPU run key');
     this.journal = new ComputeJournal(cfg.journalPath, validRun);
     this.journalKey = createHash('sha256').update(this.options.runKey).digest('hex');
     this.lockKey = `${this.journal.path ?? 'memory'}:${this.journalKey}`;
-    this.journal.update(this.journalKey, (existing) => existing ?? {
-      ...this.options, closed: false, reservations: [],
-    });
+    this.journal.update(
+      this.journalKey,
+      (existing) =>
+        existing ?? {
+          ...this.options,
+          closed: false,
+          reservations: [],
+        },
+    );
   }
 
   private current(): JournalRun {
     const run = this.journal.entries()[this.journalKey];
-    if (!run || run.runKey !== this.options.runKey) throw new ComputeError('GPU journal run is missing');
+    if (!run || run.runKey !== this.options.runKey)
+      throw new ComputeError('GPU journal run is missing');
     return run;
   }
 
@@ -356,13 +435,18 @@ export class ComputeSession {
     const previous = sessionLocks.get(this.lockKey) ?? Promise.resolve();
     const result = previous.catch(() => {}).then(task);
     sessionLocks.set(this.lockKey, result);
-    try { return await result; } finally {
+    try {
+      return await result;
+    } finally {
       if (sessionLocks.get(this.lockKey) === result) sessionLocks.delete(this.lockKey);
     }
   }
 
   committedUsd(): number {
-    return this.current().reservations.reduce((sum, r) => sum + r.plan.maximum_usdc_micros, 0) / 1_000_000;
+    return (
+      this.current().reservations.reduce((sum, r) => sum + r.plan.maximum_usdc_micros, 0) /
+      1_000_000
+    );
   }
 
   inspect(): ComputeCleanupReport {
@@ -373,68 +457,131 @@ export class ComputeSession {
     for (const r of run.reservations) {
       if (r.rejected) continue;
       if (r.receipt && r.jobId && TERMINAL.has(r.status ?? '')) {
-        settled.push({ job_id: r.jobId, status: r.status!, maximum_usdc_micros: r.plan.maximum_usdc_micros, receipt: r.receipt });
+        settled.push({
+          job_id: r.jobId,
+          status: r.status!,
+          maximum_usdc_micros: r.plan.maximum_usdc_micros,
+          receipt: r.receipt,
+        });
       } else if (r.jobId) pendingJobIds.push(r.jobId);
       else pendingLaunchKeys.push(r.key);
     }
-    return { runKey: run.runKey, settled, pendingJobIds, pendingLaunchKeys, complete: pendingJobIds.length === 0 && pendingLaunchKeys.length === 0 };
+    return {
+      runKey: run.runKey,
+      settled,
+      pendingJobIds,
+      pendingLaunchKeys,
+      complete: pendingJobIds.length === 0 && pendingLaunchKeys.length === 0,
+    };
   }
 
-  private async api(path: string, init: { method?: string; body?: string; headers?: Record<string, string> } = {}, timeoutMs = API_TIMEOUT_MS): Promise<unknown> {
+  private async api(
+    path: string,
+    init: { method?: string; body?: string; headers?: Record<string, string> } = {},
+    timeoutMs = API_TIMEOUT_MS,
+  ): Promise<unknown> {
     const res = await fetch(`${this.cfg.apiUrl}${path}`, {
       ...init,
-      headers: { Authorization: `Bearer ${this.cfg.apiToken}`, ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...init.headers },
+      headers: {
+        Authorization: `Bearer ${this.cfg.apiToken}`,
+        ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...init.headers,
+      },
       signal: AbortSignal.timeout(Math.max(1, timeoutMs)),
     });
-    const body = await res.json().catch(() => null) as unknown;
+    const body = (await res.json().catch(() => null)) as unknown;
     if (res.ok) return body;
     const error = (body as { error?: { code?: unknown } } | null)?.error;
-    const code = error && typeof error === 'object' && typeof error.code === 'string' && /^[a-z0-9_]{1,80}$/.test(error.code) ? error.code : `http_${res.status}`;
+    const code =
+      error &&
+      typeof error === 'object' &&
+      typeof error.code === 'string' &&
+      /^[a-z0-9_]{1,80}$/.test(error.code)
+        ? error.code
+        : `http_${res.status}`;
     // Provider error messages may contain URLs or credentials; do not echo them.
     throw new ComputeError(`compute request failed: ${code}`, code);
   }
 
   private async offers(): Promise<Offer[]> {
     const body = await this.api('/v1/offers');
-    if (!Array.isArray(body) || body.some((o) => !validOffer(o))) throw new ComputeError('control plane returned a malformed offer list');
+    if (!Array.isArray(body) || body.some((o) => !validOffer(o)))
+      throw new ComputeError('control plane returned a malformed offer list');
     // The complete offer must match the control plane catalog. Reject credential-
     // shaped fields rather than accidentally persisting them in its immutable plan.
-    if (/"(?:access_url|authorization|api_token|token|password)"\s*:/i.test(JSON.stringify(body))) throw new ComputeError('control plane offer contains unexpected credentials');
-    return body.filter((o: Offer) => o.online && o.gpu.vram_mib >= GPU_WORKSPACE_APP.min_vram_mib)
+    if (/"(?:access_url|authorization|api_token|token|password)"\s*:/i.test(JSON.stringify(body)))
+      throw new ComputeError('control plane offer contains unexpected credentials');
+    return body
+      .filter((o: Offer) => o.online && o.gpu.vram_mib >= GPU_WORKSPACE_APP.min_vram_mib)
       .sort((a: Offer, b: Offer) => a.rate_usdc_micros_per_hour - b.rate_usdc_micros_per_hour);
   }
 
   async launch(durationSecs?: number): Promise<ComputeJob> {
     const duration = this.bookingDuration(durationSecs);
     return this.locked(async () => {
-      if (this.signal?.aborted) throw new ComputeError('GPU run was aborted; no new booking is allowed');
+      if (this.signal?.aborted)
+        throw new ComputeError('GPU run was aborted; no new booking is allowed');
       let run = this.current();
       if (run.closed) throw new ComputeError('GPU run is closed; no further bookings are allowed');
       const uncertain = run.reservations.find((r) => !r.jobId && !r.rejected);
       if (uncertain) {
         const committed = run.reservations.reduce((sum, r) => sum + r.plan.maximum_usdc_micros, 0);
-        if (committed > this.options.maxUsdcMicros || run.reservations.length > this.options.maxLaunches) {
-          throw new ComputeError('GPU reservation exceeds the current run authorization; reconciliation is required');
+        if (
+          committed > this.options.maxUsdcMicros ||
+          run.reservations.length > this.options.maxLaunches
+        ) {
+          throw new ComputeError(
+            'GPU reservation exceeds the current run authorization; reconciliation is required',
+          );
         }
-        if (uncertain.deadline <= Date.now()) throw new ComputeError('GPU launch outcome is uncertain and its retry deadline has passed');
-        if (duration !== uncertain.plan.duration_secs) throw new ComputeError('GPU launch outcome is uncertain; only the original booking can be retried');
+        if (uncertain.deadline <= Date.now())
+          throw new ComputeError(
+            'GPU launch outcome is uncertain and its retry deadline has passed',
+          );
+        if (duration !== uncertain.plan.duration_secs)
+          throw new ComputeError(
+            'GPU launch outcome is uncertain; only the original booking can be retried',
+          );
         return this.submit(uncertain);
       }
       const maxLaunches = Math.min(run.maxLaunches, this.options.maxLaunches);
-      if (run.reservations.length >= maxLaunches) throw new ComputeError(`launch cap reached: this run may launch ${workspaceCount(maxLaunches)}`);
+      if (run.reservations.length >= maxLaunches)
+        throw new ComputeError(
+          `launch cap reached: this run may launch ${workspaceCount(maxLaunches)}`,
+        );
       const committed = run.reservations.reduce((sum, r) => sum + r.plan.maximum_usdc_micros, 0);
       const remaining = Math.min(run.maxUsdcMicros, this.options.maxUsdcMicros) - committed;
-      const offer = (await this.offers()).find((o) => quoteMaximum(o.rate_usdc_micros_per_hour, duration) <= remaining);
-      if (!offer) throw new ComputeError(`no offer fits the ${remaining} micro-USDC left in this run's GPU budget for ${duration}s`);
+      const offer = (await this.offers()).find(
+        (o) => quoteMaximum(o.rate_usdc_micros_per_hour, duration) <= remaining,
+      );
+      if (!offer)
+        throw new ComputeError(
+          `no offer fits the ${remaining} micro-USDC left in this run's GPU budget for ${duration}s`,
+        );
       let reservation!: Reservation;
       run = this.update((current) => {
         // Recheck atomically after the non-billable offer request.
-        if (this.signal?.aborted) throw new ComputeError('GPU run was aborted; no new booking is allowed');
-        if (current.closed || current.reservations.length >= maxLaunches) throw new ComputeError('GPU run is closed or its launch cap is reached');
+        if (this.signal?.aborted)
+          throw new ComputeError('GPU run was aborted; no new booking is allowed');
+        if (current.closed || current.reservations.length >= maxLaunches)
+          throw new ComputeError('GPU run is closed or its launch cap is reached');
         const maximum = quoteMaximum(offer.rate_usdc_micros_per_hour, duration);
-        const committed = current.reservations.reduce((sum, r) => sum + r.plan.maximum_usdc_micros, 0);
-        if (committed + maximum > Math.min(current.maxUsdcMicros, this.options.maxUsdcMicros)) throw new ComputeError('GPU run budget is fully committed');
-        reservation = { key: `gpu-${this.journalKey}-${current.reservations.length}`, plan: { app: GPU_WORKSPACE_APP, offer, duration_secs: duration, maximum_usdc_micros: maximum }, deadline: Date.now() + duration * 1_000 };
+        const committed = current.reservations.reduce(
+          (sum, r) => sum + r.plan.maximum_usdc_micros,
+          0,
+        );
+        if (committed + maximum > Math.min(current.maxUsdcMicros, this.options.maxUsdcMicros))
+          throw new ComputeError('GPU run budget is fully committed');
+        reservation = {
+          key: `gpu-${this.journalKey}-${current.reservations.length}`,
+          plan: {
+            app: GPU_WORKSPACE_APP,
+            offer,
+            duration_secs: duration,
+            maximum_usdc_micros: maximum,
+          },
+          deadline: Date.now() + duration * 1_000,
+        };
         current.reservations.push(reservation);
       });
       // The disk transaction above completes (including fsync) before this POST.
@@ -443,31 +590,58 @@ export class ComputeSession {
   }
 
   private async submit(reservation: Reservation): Promise<ComputeJob> {
-    if (this.signal?.aborted) throw new ComputeError('GPU run was aborted; no new booking is allowed');
+    if (this.signal?.aborted)
+      throw new ComputeError('GPU run was aborted; no new booking is allowed');
     try {
-      const raw = await this.api('/v1/jobs', { method: 'POST', body: JSON.stringify(reservation.plan), headers: { 'Idempotency-Key': reservation.key } });
+      const raw = await this.api('/v1/jobs', {
+        method: 'POST',
+        body: JSON.stringify(reservation.plan),
+        headers: { 'Idempotency-Key': reservation.key },
+      });
       // Preserve a syntactically valid ID even when another response field is
       // malformed: cleanup must still have a chance to locate the paid job.
       const id = (raw as { id?: unknown } | null)?.id;
-      if (typeof id === 'string' && JOB_ID.test(id)) this.update((run) => { run.reservations.find((r) => r.key === reservation.key)!.jobId = id; });
+      if (typeof id === 'string' && JOB_ID.test(id))
+        this.update((run) => {
+          run.reservations.find((r) => r.key === reservation.key)!.jobId = id;
+        });
       const job = this.observe(reservation.key, raw);
-      if (TERMINAL.has(job.status) && !job.receipt) throw new ComputeError('GPU job is terminal but its final receipt is still pending');
+      if (TERMINAL.has(job.status) && !job.receipt)
+        throw new ComputeError('GPU job is terminal but its final receipt is still pending');
       return job;
     } catch (error) {
       // Only documented pre-submit failures prove no booking exists. Any timeout,
       // 5xx, malformed success or unknown error retains the reservation forever.
-      if (error instanceof ComputeError && ['stale_offer', 'insufficient_funds', 'invalid_maximum_usdc_micros', 'invalid_duration'].includes(error.code ?? '')) {
-        this.update((run) => { const r = run.reservations.find((r) => r.key === reservation.key)!; if (!r.jobId) r.rejected = true; });
+      if (
+        error instanceof ComputeError &&
+        [
+          'stale_offer',
+          'insufficient_funds',
+          'invalid_maximum_usdc_micros',
+          'invalid_duration',
+        ].includes(error.code ?? '')
+      ) {
+        this.update((run) => {
+          const r = run.reservations.find((r) => r.key === reservation.key)!;
+          if (!r.jobId) r.rejected = true;
+        });
       }
       throw error;
     }
   }
 
   private bookingDuration(requested?: number): number {
-    if (requested === undefined) return Math.min(defaultDurationSecs(this.cfg), this.options.maxDurationSecs, this.current().maxDurationSecs);
-    if (!Number.isFinite(requested) || requested <= 0) throw new ComputeError('duration_secs must be a positive number of seconds');
+    if (requested === undefined)
+      return Math.min(
+        defaultDurationSecs(this.cfg),
+        this.options.maxDurationSecs,
+        this.current().maxDurationSecs,
+      );
+    if (!Number.isFinite(requested) || requested <= 0)
+      throw new ComputeError('duration_secs must be a positive number of seconds');
     const secs = Math.floor(requested);
-    if (secs < MIN_DURATION_SECS) throw new ComputeError(`duration_secs must be at least ${MIN_DURATION_SECS} seconds`);
+    if (secs < MIN_DURATION_SECS)
+      throw new ComputeError(`duration_secs must be at least ${MIN_DURATION_SECS} seconds`);
     return Math.min(secs, this.options.maxDurationSecs, this.current().maxDurationSecs);
   }
 
@@ -481,8 +655,14 @@ export class ComputeSession {
   private observe(key: string, raw: unknown): ComputeJob {
     const job = asJob(raw);
     const r = this.current().reservations.find((r) => r.key === key)!;
-    if ((r.jobId && r.jobId !== job.id) || job.offer_id !== r.plan.offer.id || job.maximum_usdc_micros !== r.plan.maximum_usdc_micros) throw new ComputeError('control plane job does not match this booking');
-    if (job.receipt !== null && !validReceipt(job.receipt, r.plan.maximum_usdc_micros, job.id)) throw new ComputeError('control plane returned an invalid GPU receipt');
+    if (
+      (r.jobId && r.jobId !== job.id) ||
+      job.offer_id !== r.plan.offer.id ||
+      job.maximum_usdc_micros !== r.plan.maximum_usdc_micros
+    )
+      throw new ComputeError('control plane job does not match this booking');
+    if (job.receipt !== null && !validReceipt(job.receipt, r.plan.maximum_usdc_micros, job.id))
+      throw new ComputeError('control plane returned an invalid GPU receipt');
     this.update((run) => {
       const entry = run.reservations.find((r) => r.key === key)!;
       entry.jobId = job.id;
@@ -495,7 +675,8 @@ export class ComputeSession {
   async status(jobId: string): Promise<ComputeJob> {
     const r = this.owned(jobId);
     const job = this.observe(r.key, await this.api(`/v1/jobs/${encodeURIComponent(jobId)}`));
-    if (TERMINAL.has(job.status) && !job.receipt) throw new ComputeError('GPU job is terminal but its final receipt is still pending');
+    if (TERMINAL.has(job.status) && !job.receipt)
+      throw new ComputeError('GPU job is terminal but its final receipt is still pending');
     return job;
   }
 
@@ -517,7 +698,9 @@ export class ComputeSession {
   async reap(timeoutMs = REAP_TIMEOUT_MS): Promise<ComputeCleanupReport> {
     // Close before waiting for an in-flight launch. It cannot start another
     // booking while cleanup waits for the first POST to reveal its job ID.
-    this.update((run) => { run.closed = true; });
+    this.update((run) => {
+      run.closed = true;
+    });
     return this.locked(async () => {
       const jobs = this.inspect().pendingJobIds;
       await Promise.allSettled(jobs.map((id) => this.cancel(id, timeoutMs)));

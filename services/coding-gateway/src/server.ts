@@ -16,7 +16,13 @@ import { selectBackend } from './backends/index.js';
 import { LocalSandboxProvider } from './sandbox/local.js';
 import { E2bSandboxProvider } from './sandbox/e2b.js';
 import { config } from './config.js';
-import { ComputeSession, computeConfig, computeSummary, probeComputeControlPlane, type ComputeCleanupReport } from './compute.js';
+import {
+  ComputeSession,
+  computeConfig,
+  computeSummary,
+  probeComputeControlPlane,
+  type ComputeCleanupReport,
+} from './compute.js';
 import { gpuAvailable, parseGpuPolicy, smokeComputeConfig } from './gpu-policy.js';
 import { SpendLedger, modelCostUsd, sandboxCostUsd } from './budget.js';
 import { IpBucket } from './ip-bucket.js';
@@ -313,7 +319,10 @@ function startRun(
       // microVM provisions skips it entirely (no spend), and a kill mid-create
       // tears the microVM down in `finally` without running a backend turn.
       if (request.gpu && computeConfig) {
-        compute = new ComputeSession(smokeComputeConfig(computeConfig), { runKey: request.session_id, signal: run.abort.signal });
+        compute = new ComputeSession(smokeComputeConfig(computeConfig), {
+          runKey: request.session_id,
+          signal: run.abort.signal,
+        });
       }
       if (run.abort.signal.aborted) throw new Error('aborted before sandbox create');
       sandboxCreateAttempted = true;
@@ -337,7 +346,9 @@ function startRun(
         sandbox,
         signal: run.abort.signal,
         // Only the gateway emits terminal events, after durable GPU settlement.
-        emit: (e) => { if (e.type !== 'run.completed' && e.type !== 'run.failed') publish(run, e); },
+        emit: (e) => {
+          if (e.type !== 'run.completed' && e.type !== 'run.failed') publish(run, e);
+        },
         maxProviderCostUsd: providerBudgetUsd(reservedMax, request.gpu?.max_usdc_micros ?? 0),
         computeSession: compute,
         computeConfig: compute && computeConfig ? smokeComputeConfig(computeConfig) : undefined,
@@ -468,11 +479,18 @@ let recoveredCompute = false;
 let reconciliationBusy = false;
 
 function gpuEnabled(): boolean {
-  return gpuAvailable({
-    backend: config.backend, authToken: config.authToken, compute: computeConfig,
-    persistentRuns: runStore.persistent,
-    recovered: recoveredCompute && pendingCompute.size === 0 && orphanCompute.size === 0,
-  }) && provider.id === 'e2b' && runStore.persistenceReady && ledger.snapshot().persistenceReady;
+  return (
+    gpuAvailable({
+      backend: config.backend,
+      authToken: config.authToken,
+      compute: computeConfig,
+      persistentRuns: runStore.persistent,
+      recovered: recoveredCompute && pendingCompute.size === 0 && orphanCompute.size === 0,
+    }) &&
+    provider.id === 'e2b' &&
+    runStore.persistenceReady &&
+    ledger.snapshot().persistenceReady
+  );
 }
 
 export function computeChargedUsd(report: ComputeCleanupReport): number {
@@ -485,18 +503,20 @@ function finishRun(run: Run): void {
   const live = run;
   run = { ...run, events: [...run.events] };
   run.status = run.desiredStatus ?? 'failed';
-  run.costUsd = run.nonComputeUsd === undefined
-    ? run.reservedMax // Crash recovery retains conservative total accounting.
-    : run.nonComputeUsd + (run.compute ? computeChargedUsd(run.compute) : 0);
+  run.costUsd =
+    run.nonComputeUsd === undefined
+      ? run.reservedMax // Crash recovery retains conservative total accounting.
+      : run.nonComputeUsd + (run.compute ? computeChargedUsd(run.compute) : 0);
   if (run.compute?.settled.length) {
     // Only fixed receipt fields are included; workspace access URLs are never journaled here.
     const suffix = `\n[gpu_workspace final receipts: ${JSON.stringify(run.compute.settled)}]`;
     if (!run.output?.endsWith(suffix)) run.output = `${run.output ?? ''}${suffix}`;
   }
   run.updatedAt = new Date().toISOString();
-  const event: GatewayEvent = run.status === 'completed'
-    ? { type: 'run.completed', output: run.output ?? '' }
-    : { type: 'run.failed', error: run.error ?? run.status };
+  const event: GatewayEvent =
+    run.status === 'completed'
+      ? { type: 'run.completed', output: run.output ?? '' }
+      : { type: 'run.failed', error: run.error ?? run.status };
   // Replace a previously prepared terminal event if persistence is retried.
   run.events = run.events.filter((e) => e.type !== 'run.completed' && e.type !== 'run.failed');
   const terminal = recordEvent(run, event);
@@ -535,17 +555,28 @@ export async function recoverCompute(): Promise<void> {
         throw new Error('GPU journal record is missing for a previously observed booking');
       }
       run.compute = reports.get(run.sessionId) ?? {
-        runKey: run.sessionId, settled: [], pendingJobIds: [], pendingLaunchKeys: [], complete: true,
+        runKey: run.sessionId,
+        settled: [],
+        pendingJobIds: [],
+        pendingLaunchKeys: [],
+        complete: true,
       };
       reports.delete(run.sessionId);
       if (run.compute.complete) finishRun(run);
       else {
-        pendingCompute.set(run.id, new ComputeSession(smokeComputeConfig(computeConfig), { runKey: run.sessionId }));
+        pendingCompute.set(
+          run.id,
+          new ComputeSession(smokeComputeConfig(computeConfig), { runKey: run.sessionId }),
+        );
         persistRun(run);
       }
     }
     for (const report of reports.values()) {
-      if (!report.complete) orphanCompute.set(report.runKey, new ComputeSession(computeConfig, { runKey: report.runKey }));
+      if (!report.complete)
+        orphanCompute.set(
+          report.runKey,
+          new ComputeSession(computeConfig, { runKey: report.runKey }),
+        );
     }
     recoveredCompute = true;
   } catch (cause) {
@@ -565,7 +596,9 @@ export async function reconcileCompute(): Promise<void> {
       const report = await session.reap().catch(() => undefined);
       if (report?.complete) orphanCompute.delete(key);
     }
-  } finally { reconciliationBusy = false; }
+  } finally {
+    reconciliationBusy = false;
+  }
 }
 
 function modelProbeConfig(): { expectedModel: string; check: () => Promise<void> } {
@@ -774,9 +807,14 @@ export function readBody(req: IncomingMessage, maxBytes = MAX_REQUEST_BODY_BYTES
 type ParsedRun = { ok: true; value: RunRequest } | { ok: false; error: string };
 
 export function parseRunRequest(body: Partial<RunRequest>): ParsedRun {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false, error: 'request must be an object' };
+  if (!body || typeof body !== 'object' || Array.isArray(body))
+    return { ok: false, error: 'request must be an object' };
   let gpu: RunRequest['gpu'];
-  try { gpu = parseGpuPolicy(body.gpu); } catch (e) { return { ok: false, error: (e as Error).message }; }
+  try {
+    gpu = parseGpuPolicy(body.gpu);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
   if (
     typeof body.session_id !== 'string' ||
     !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(body.session_id)
@@ -1009,7 +1047,9 @@ export const server = createServer(async (req, res) => {
           run_approval_response: false,
           gpu_workspace: gpuEnabled(),
         },
-        compute: computeSummary(gpuEnabled() && computeConfig ? smokeComputeConfig(computeConfig) : null),
+        compute: computeSummary(
+          gpuEnabled() && computeConfig ? smokeComputeConfig(computeConfig) : null,
+        ),
         sandbox: { provider: provider.id },
       });
     }
@@ -1052,10 +1092,20 @@ export const server = createServer(async (req, res) => {
       if (replay) return json(res, 200, { run_id: replay.id });
       const readinessReport = await readiness.check();
       if (!readinessReport.ready) {
-        return json(res, 503, { error: 'gateway dependencies are not ready', failed: readinessReport.failed });
+        return json(res, 503, {
+          error: 'gateway dependencies are not ready',
+          failed: readinessReport.failed,
+        });
       }
-      if (computeConfig && provider.id === 'local') return json(res, 503, { error: 'an isolated sandbox is required while compute credentials are configured' });
-      if (parsed.value.gpu && !gpuEnabled()) return json(res, 503, { error: 'GPU dispatch requires enabled Anthropic backend, authentication, durable storage and completed recovery' });
+      if (computeConfig && provider.id === 'local')
+        return json(res, 503, {
+          error: 'an isolated sandbox is required while compute credentials are configured',
+        });
+      if (parsed.value.gpu && !gpuEnabled())
+        return json(res, 503, {
+          error:
+            'GPU dispatch requires enabled Anthropic backend, authentication, durable storage and completed recovery',
+        });
       if (
         parsed.value.repository_url &&
         provider.id === 'local' &&
@@ -1098,9 +1148,17 @@ export const server = createServer(async (req, res) => {
       return json(res, 200, { run_id: run.id });
     }
 
-    if (req.method === 'GET' && parts[0] === 'v1' && parts[1] === 'run-sessions' && parts[2] && parts.length === 3) {
+    if (
+      req.method === 'GET' &&
+      parts[0] === 'v1' &&
+      parts[1] === 'run-sessions' &&
+      parts[2] &&
+      parts.length === 3
+    ) {
       const run = runStore.findSession(decodeURIComponent(parts[2]));
-      return run ? json(res, 200, { run_id: run.id }) : json(res, 404, { error: 'session not found' });
+      return run
+        ? json(res, 200, { run_id: run.id })
+        : json(res, 404, { error: 'session not found' });
     }
 
     if (parts[0] === 'v1' && parts[1] === 'runs' && parts[2]) {
@@ -1133,7 +1191,8 @@ export const server = createServer(async (req, res) => {
       }
       if (req.method === 'GET' && parts[3] === 'events') return streamEvents(run, req, res);
       if (req.method === 'POST' && parts[3] === 'stop') {
-        if (['completed', 'failed', 'cancelled'].includes(run.status)) return json(res, 200, { status: run.status });
+        if (['completed', 'failed', 'cancelled'].includes(run.status))
+          return json(res, 200, { status: run.status });
         run.abort.abort();
         if (pendingCompute.has(run.id)) run.desiredStatus = 'cancelled';
         run.status = 'stopping';
@@ -1173,7 +1232,9 @@ function authorized(req: IncomingMessage, expected: string | undefined): boolean
 
 if (process.env.NODE_ENV !== 'test') {
   void recoverCompute();
-  const cleanupTimer = setInterval(() => { void reconcileCompute(); }, 15_000);
+  const cleanupTimer = setInterval(() => {
+    void reconcileCompute();
+  }, 15_000);
   cleanupTimer.unref();
   process.on('SIGTERM', () => {
     ledger.kill();

@@ -10,7 +10,16 @@ export class Ledger {
   this.config=config;fs.mkdirSync(path.dirname(config.dbPath),{recursive:true,mode:0o700});
   if(fs.existsSync(config.dbPath)&&!fs.lstatSync(config.dbPath).isFile())throw new Error('unsafe database file');
   this.db=new DatabaseSync(config.dbPath);fs.chmodSync(config.dbPath,0o600);
-  this.db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;');
+  this.db.exec('PRAGMA busy_timeout=5000;');
+  // Concurrent fresh connections can deadlock upgrading journal mode; SQLite skips its busy handler then.
+  // Retry only this idempotent startup PRAGMA. No reservation, dispatch or monetary transition is retried.
+  const deadline=performance.now()+5000,wait=new Int32Array(new SharedArrayBuffer(4));
+  for(;;){try{this.db.exec('PRAGMA journal_mode=WAL;');break;}catch(error){
+   const remaining=deadline-performance.now();
+   if(![5,6].includes(error.errcode&255)||remaining<=0)throw error;
+   Atomics.wait(wait,0,0,Math.min(25,remaining));
+  }}
+  this.db.exec('PRAGMA synchronous=FULL;');
   this.db.exec(`CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS calls(id TEXT PRIMARY KEY,digest TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('reserved','unknown','complete')),
    reserved INTEGER NOT NULL,accounted INTEGER NOT NULL,created_ms INTEGER NOT NULL,finished_ms INTEGER,input_price INTEGER NOT NULL,output_price INTEGER NOT NULL,

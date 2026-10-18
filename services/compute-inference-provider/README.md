@@ -34,7 +34,9 @@ qualified. All of these variables are mandatory when enabled:
 Optional: `COVENANT_INFERENCE_PROVIDER_PORT` (default `4044`) and
 `COVENANT_INFERENCE_PROVIDER_UPSTREAM_TIMEOUT_MS` (default `60000`, maximum `120000`).
 Malformed policy refuses startup without printing secret-bearing input.
-Concurrency is fixed at one across all processes sharing the SQLite file.
+Concurrency is fixed at one across all processes sharing the SQLite file. A bounded
+startup retry handles only SQLite journal-mode contention; it cannot retry a paid
+request or a financial transition.
 
 The input-byte limit is not a tokenizer. The full configured input-token allowance
 is reserved for every call, including benchmark probes. Qualification must confirm
@@ -42,6 +44,15 @@ that this allowance bounds the model's context input capacity, that UsePod honor
 both price headers, and that `max_tokens` bounds billable completion tokens. Local
 code cannot enforce an external provider's billing implementation. A returned usage
 count beyond either allowance is treated as unresolved and blocks further spending.
+
+## Canonical model identity
+
+The configured model must match the provider's response exactly. Qualification of a
+dated catalog identifier returned a model hash matching `claude-haiku-4.5`; that
+mismatch was refused and its full reservation retained. Use `claude-haiku-4.5` as the
+explicit request and advertised model when qualifying that provider route. The
+response name does not prove a dated model revision. No alias acceptance, automatic
+fallback, or rewriting of provider model identity is enabled.
 
 ## Existing Rust operator
 

@@ -109,8 +109,13 @@ spend the daily cap. The gateway logs a warning at boot when the token is unset.
 Deploy it as a private service. In the Blueprint it is a Render `pserv` with no
 public URL, reachable only as `covenant-coding-gateway:10000` from the daemon.
 If you expose it any other way, set `CODER_AUTH_TOKEN` (production refuses to
-boot without one of at least 32 characters) and keep `/healthz` as the only
-unauthenticated path.
+boot without one of at least 32 characters). `/healthz` exposes liveness only.
+For legacy deployment probes, exact `GET /v1/capabilities` with no Authorization
+header returns an empty, non-cacheable HTTP 204 when authentication is configured.
+This response proves only process liveness; capability data still requires the
+configured token. Empty or incorrect credentials return 401, as do anonymous
+requests to `/readyz` and all run routes. Verify readiness and capabilities with
+authenticated requests and validate the returned JSON, not just a 2xx status.
 
 ## Operator controls
 

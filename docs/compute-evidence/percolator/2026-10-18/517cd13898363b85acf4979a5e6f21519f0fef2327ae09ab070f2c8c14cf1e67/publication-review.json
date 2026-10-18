@@ -1,0 +1,41 @@
+{
+  "archive_inventory_sha256": "517cd13898363b85acf4979a5e6f21519f0fef2327ae09ab070f2c8c14cf1e67",
+  "reviewed_all_source_patch_and_raw_logs": true,
+  "credentials_and_private_assets_absent": true,
+  "contains_no_private_credentials_or_capabilities": true,
+  "expiry_gate_pending": false,
+  "root_export_clearance_pending": false,
+  "envelope_expires_at_ms": 1792289651607,
+  "review_scope": "All exact signed source objects, raw artifact bytes, plan, image, resources, receipt and provenance reviewed. Three packed blobs and one history-free commit were inspected. No personal paths or credentials found. Private budget, journals and full provider audits excluded; reviewed provider summary is explicitly unsigned. Tiny accepted canary is not a Percolator proof or a claim that Percolator fits retained capacity.",
+  "source_bundle_objects_reviewed": [
+    {
+      "oid": "0b813fae41bdc7ea92755da5aafd1b92749d6883",
+      "type": "blob",
+      "bytes": 366,
+      "sha256": "5219e10dc3a9bf672d376dec7fe651f24ac4e6c34400ba6381eefba780f9e924"
+    },
+    {
+      "oid": "a7e00663027cb65503994cb313a429765283958a",
+      "type": "blob",
+      "bytes": 68,
+      "sha256": "67af75bb2f718dc707c033966ddb036fe9b950960779fabe1c174c09760bb0ee"
+    },
+    {
+      "oid": "c441cb62c506ef4e2921ab4944a87149320977f5",
+      "type": "commit",
+      "bytes": 207,
+      "sha256": "542e104f8451ac7d589ec9a9358faa6b807acde47ed6291d142f82e147579586"
+    },
+    {
+      "oid": "d0fd7c31af093a42875c991696417e4bbcc113e9",
+      "type": "blob",
+      "bytes": 163,
+      "sha256": "655f87147dca214309d19dec3fe50eecd6478b2767e028a444ad3fc45d1329bc"
+    }
+  ],
+  "reviewed_at": "2026-10-18T02:10:06.073442+00:00",
+  "published": false,
+  "export_authorization": "Coordinating parent task authorized local public-only staging of the reviewed final batch after its latest signed-order expiry. Remote publication is separate.",
+  "expiry_gate_completed_at": "2026-10-18T02:26:02.030103+00:00",
+  "publication_status": "Local public-only staging, no remote publication."
+}

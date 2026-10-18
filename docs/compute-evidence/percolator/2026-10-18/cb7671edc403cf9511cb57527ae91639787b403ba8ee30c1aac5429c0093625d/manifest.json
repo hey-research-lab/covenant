@@ -1,0 +1,38 @@
+{
+  "schema": "covenant.percolator.frozen-source-supplement.v1",
+  "status": "UNSIGNED_LOCAL_PREPARATION_NOT_A_PROOF_RECEIPT",
+  "authorship_job": "f79b455b-09e8-4a82-a971-fa00a3248100",
+  "authorship_archive_inventory": "9542384342c68fcbfa6ff3b7ac5d2d69e961bcc3232018ed337d787b79983beb",
+  "patch_sha256": "8a1f74112d4097729afc18b2f83e9e7984e79fc55ead5dfcd4922ded261ac95b",
+  "variants": {
+    "corrected": {
+      "base_commit": "81fabc86869d0a4db7da3fabc7eab5430b1f02c5",
+      "base_tree": "6b2882d92ffad6e8df932acae4a0a3d356a1d372",
+      "frozen_commit": "ea72a05d351207ce2eded5b517b049e186fed3aa",
+      "frozen_tree": "5703a742d9b3fca8038ae4f93ec74e0be2b7fc46",
+      "snapshot_commit": "895f9a8f0164d199584a1035297d7f5e0d00f8d4",
+      "bundle": "corrected-source.bundle",
+      "bundle_sha256": "d05075704f9fc84b176cf5fa97ce577df9fd5ea7e0840ab8eecd08c123cb3c0d",
+      "bundle_origin": "byte-identical signed source bundle from public forfeit OOM archive",
+      "proof_prefix_bytes": 790518,
+      "proof_prefix_sha256": "391ed9a4b32aa60f9acbae63afe08be5d357714a86d768ca1264401c6a9e7ea2"
+    },
+    "buggy": {
+      "base_commit": "4db11a8cb0053815e23a35d3a7d3edc265d8d866",
+      "base_tree": "8e02f621e2f8b800c3bd81ccaca30889ec165975",
+      "frozen_commit": "d51c9cd89aebc33842d1048e822b96c06cf47da8",
+      "frozen_tree": "6d0fc1d3af8a192a04bff97eb21e923dc05e42b7",
+      "snapshot_commit": "9e8a17aa181d06916396cff0b8a0c6ffb46a9bb8",
+      "bundle": "buggy-source.bundle",
+      "bundle_sha256": "f41e4233ca56e583d65e6cd21d0e9e8da1c7f17b05befe3b9eb2fceb60e44925",
+      "bundle_origin": "new unsigned local snapshot bundle; never submitted as a buggy control",
+      "proof_prefix_bytes": 790038,
+      "proof_prefix_sha256": "9c632476fe18705db8e1c21713bf51440cd23c4d05506b7ada3d0897f2491729"
+    }
+  },
+  "identical_appendix_sha256": "6a74fdd839ad0a3c76a4afb9f5d50124b497263db705f2dbc64c436cd361a3a3",
+  "identical_domain_sha256": "a7cc9baaa442d3d41abed9bd67368d653545df52e4b52fc076322f6bd45617ec",
+  "proof_acceptance_established": false,
+  "buggy_control_submitted": false,
+  "trust_boundary": "This supplement records local freeze preparation and permits independent Git reconstruction. It adds no operator signature or successful proof claim. Verify the author archive separately to authenticate the exact returned patch."
+}

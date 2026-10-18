@@ -1,0 +1,37 @@
+{
+  "schema": "covenant.public-data-supplement.review.v1",
+  "inventory_sha256": "cb7671edc403cf9511cb57527ae91639787b403ba8ee30c1aac5429c0093625d",
+  "reviewed_at_utc": "2026-10-18T01:54:45.363081+00:00",
+  "all_payload_bytes_unchanged": true,
+  "readme_commands_repeated_offline": true,
+  "all_packed_source_objects_scanned": [
+    {
+      "variant": "corrected",
+      "all_packed_blobs_scanned": 30,
+      "packed_commits": 1,
+      "history_free": true,
+      "raw_commits_verified": true,
+      "reverse_apply_full_base_tree": true,
+      "reapply_full_frozen_tree": true,
+      "exact_prefix_appendix_and_domain": true
+    },
+    {
+      "variant": "buggy",
+      "all_packed_blobs_scanned": 30,
+      "packed_commits": 1,
+      "history_free": true,
+      "raw_commits_verified": true,
+      "reverse_apply_full_base_tree": true,
+      "reapply_full_frozen_tree": true,
+      "exact_prefix_appendix_and_domain": true
+    }
+  ],
+  "credential_and_personal_home_path_scan_passed": true,
+  "signed_author_patch_byte_identity_verified": true,
+  "corrected_bundle_byte_identical_to_signed_oom_source": true,
+  "buggy_bundle_unsigned_local_preparation": true,
+  "no_live_capabilities_in_supplement": true,
+  "proof_or_control_result_established": false,
+  "trust_boundary": "Unsigned local source preparation only. Existing signed authorship and failed check archives remain unchanged. Original operator signatures do not authenticate this supplement.",
+  "published": false
+}

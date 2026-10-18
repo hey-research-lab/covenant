@@ -1,0 +1,61 @@
+{
+  "label": "native-kani-post-stepdown-canary",
+  "role": "verification",
+  "origin": "Locally authored tiny canary, executed as a paid native Covenant Kani check; not Covenant-authored Percolator code.",
+  "purpose": "Verify retained 12288MiB/6CPU/4096MiB Kani receipt path after provider stepdown. This tiny harness does not establish that Percolator proofs fit retained capacity.",
+  "source_mapping": {
+    "public_repo_url": null,
+    "original_commit": "64b353b47a9549259c14ddb00e2e81bb91fc1936",
+    "signed_repo_commit": "c441cb62c506ef4e2921ab4944a87149320977f5",
+    "tree_hash": "8c2ba88ee1f50b53462940d3f9f5e5457b319c6b",
+    "tree_equality_checked": true,
+    "source_files": [
+      {
+        "path": "Cargo.toml",
+        "sha256": "67af75bb2f718dc707c033966ddb036fe9b950960779fabe1c174c09760bb0ee"
+      },
+      {
+        "path": "Cargo.lock",
+        "sha256": "655f87147dca214309d19dec3fe50eecd6478b2767e028a444ad3fc45d1329bc"
+      },
+      {
+        "path": "src/lib.rs",
+        "sha256": "5219e10dc3a9bf672d376dec7fe651f24ac4e6c34400ba6381eefba780f9e924"
+      }
+    ],
+    "bundle_sha256": "11b3300ac6df43fb529608c502f0b1afe153976c9718719d24d40c8baeda27d2"
+  },
+  "job_id": "56f8bab8-d1e6-4231-9e76-7137574a3fa4",
+  "signed_price_micro_usdc": 50000,
+  "receipt_price_micro_usdc": 50000,
+  "issued_at_ms": 1792289051607,
+  "envelope_expires_at_ms": 1792289651607,
+  "verifier": {
+    "acceptance_passed": true,
+    "agent_final_patch_accepted": null,
+    "buyer_pubkey": "5jhfhR4THAkC8GVJZDTP579KCdSnMdejw2oEcXZoZGnJ",
+    "envelope_signature_verified": true,
+    "exact_envelope_output_hashes_verified": true,
+    "inventory_completeness_verified": false,
+    "job_id": "56f8bab8-d1e6-4231-9e76-7137574a3fa4",
+    "kani": {
+      "accepted": true,
+      "cpus": 6,
+      "harness": "receipt_smoke",
+      "image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+      "image_id": "sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+      "memory_mib": 12288,
+      "outcome": "proven",
+      "scratch_mib": 4096,
+      "tool_pin": {
+        "cbmc": "6.11.0",
+        "kani": "0.68.0",
+        "rust_toolchain": "nightly-2026-08-21-x86_64-unknown-linux-gnu"
+      }
+    },
+    "receipt_execution_status": "ok",
+    "receipt_signature_verified": true,
+    "settlement_verified": false
+  },
+  "published": false
+}

@@ -1,0 +1,262 @@
+diff --git a/docs/proofs/pr239-route-domains.md b/docs/proofs/pr239-route-domains.md
+new file mode 100644
+index 0000000..e347575
+--- /dev/null
++++ b/docs/proofs/pr239-route-domains.md
+@@ -0,0 +1,43 @@
++# PR #239 public-route proof appendix: reduced domains
++
++Base: `81fabc86869d0a4db7da3fabc7eab5430b1f02c5`. Appendix lives at the end of `tests/proofs_v16.rs`.
++
++## Provenance
++
++The PR #239 engine fix and the two original reference harnesses
++(`proof_v16_public_recovery_forfeit_of_last_leg_resets_legless_asset`,
++`proof_v16_public_auto_crank_release_of_last_obligation_resets_legless_asset`)
++predate this job and were authored locally. This appendix only authors the
++new reduced harnesses below. No production code was edited.
++
++## Status
++
++At the authorship checkpoint, Kani results were not yet established; later native receipt evidence is recorded separately.
++No timeout or compile-only success is a proof. Prior 32GB runs: auto-crank timed out at 30 minutes; the forfeit run lost its connection without a confirmed outcome. Concrete sweeps are not proofs of the symbolic harnesses.
++
++## Narrowed slice
++
++These are narrowed slices, not the original full size/weight domain. Short-side and live-position forfeit cases, and short-side/variable-weight auto-crank cases, are deferred coverage and are not claimed.
++
++### `proof_v16_public_forfeit_long_flat_residue`
++- Fixed: Long side, flat basis=0 (pending obligation), loss_weight=POS_SCALE, Recovery lifecycle.
++- Symbolic: `long_residue: u8` and `short_residue: u8`, each 0..=3, independent.
++- Public call: `forfeit_recovery_leg_not_atomic`.
++- Covers (after the call, require `result.is_ok()`): "pr239 forfeit zero residue", "pr239 forfeit long-only residue", "pr239 forfeit short-only residue", "pr239 forfeit two-sided residue".
++- Single final assertion message: `PR239_FORFEIT_LONG_FLAT_RELEASE_INVARIANTS`.
++
++### `proof_v16_public_auto_crank_long_residue`
++- Fixed: Long side, weight=POS_SCALE, barrier-free flat obligation (`install_flat_pending_obligation`).
++- Symbolic: `residue: u8` in 0..=3, shared on both Live sides.
++- Public call: `permissionless_auto_crank_not_atomic` with the reference workload.
++- Covers (after the call, require `result.is_ok()`): "pr239 auto-crank zero residue", "pr239 auto-crank two-sided residue".
++- Single final assertion message: `PR239_AUTO_CRANK_LONG_RELEASE_INVARIANTS`.
++
++Both assertions conjoin the expected public result, both-side OI zero, zero weights, zero stored/pending counts, ResetPending modes, risk_epoch+2, detached account bitmap, zero payout blocker, and no movement of vault/c_tot/insurance/account capital/pnl. Both use `#[kani::unwind(24)]`.
++
++## Intended acceptance
++
++- Ordinary: `cargo test --offline --locked --features fuzz --test v16_spec_tests` passes; structural buyer check of prefix, names, labels.
++- Later native Kani (each harness separately): `cargo kani --tests --features fuzz --harness <name>`. `fuzz` is required by declared integration-test targets, adds no dependency, and leaves the relevant production cfg gates unchanged under cfg(kani), matching the original host wrapper.
++- Regression control: the identical harness source is transplanted onto buggy base `4db11a8cb0053815e23a35d3a7d3edc265d8d866` without changing assertions; the named assertion must be the only failure, and covers must remain reachable.
++- Green native runs and buggy-base refutation are mandatory before publishing.
+diff --git a/tests/proofs_v16.rs b/tests/proofs_v16.rs
+index c210b00..a5047df 100644
+--- a/tests/proofs_v16.rs
++++ b/tests/proofs_v16.rs
+@@ -19792,3 +19792,208 @@ fn proof_v16_resolved_foreign_expiry_provider_retirement_acceptance_is_exact() {
+     );
+     assert_eq!(result.is_ok(), accepted);
+ }
++
++// PR #239 reduced public-route appendix: Long side, flat obligation, fixed weight.
++fn pr239_cover_forfeit(ok: bool, long_residue: u8, short_residue: u8) {
++    kani::cover!(
++        ok && long_residue == 0 && short_residue == 0,
++        "pr239 forfeit zero residue"
++    );
++    kani::cover!(
++        ok && long_residue > 0 && short_residue == 0,
++        "pr239 forfeit long-only residue"
++    );
++    kani::cover!(
++        ok && long_residue == 0 && short_residue > 0,
++        "pr239 forfeit short-only residue"
++    );
++    kani::cover!(
++        ok && long_residue > 0 && short_residue > 0,
++        "pr239 forfeit two-sided residue"
++    );
++}
++
++fn pr239_cover_auto_crank(ok: bool, residue: u8) {
++    kani::cover!(ok && residue == 0, "pr239 auto-crank zero residue");
++    kani::cover!(ok && residue > 0, "pr239 auto-crank two-sided residue");
++}
++
++#[kani::proof]
++#[kani::unwind(24)]
++#[kani::solver(cadical)]
++fn proof_v16_public_forfeit_long_flat_residue() {
++    use percolator::v16::DeadLegForfeitOutcomeV16;
++
++    let long_residue: u8 = kani::any();
++    let short_residue: u8 = kani::any();
++    kani::assume(long_residue <= 3 && short_residue <= 3);
++    let weight = POS_SCALE;
++
++    let (mut header, mut markets, mut account_header) = one_market_view_fixture();
++    let market_id = markets[0].engine.asset.market_id.get();
++    header.vault = V16PodU128::new(7 * POS_SCALE);
++    header.c_tot = V16PodU128::new(5 * POS_SCALE);
++    header.insurance = V16PodU128::new(2 * POS_SCALE);
++    header.resolved_payout_blocker_count = V16PodU64::new(1);
++    header.materialized_portfolio_count = V16PodU64::new(1);
++    account_header.capital = V16PodU128::new(5 * POS_SCALE);
++    let mut asset = markets[0].engine.asset.try_to_runtime().unwrap();
++    asset.lifecycle = AssetLifecycleV16::Recovery;
++    asset.a_long = 999_999_940_959_838;
++    asset.a_short = 999_999_952_247_457;
++    asset.oi_eff_long_q = long_residue as u128;
++    asset.oi_eff_short_q = short_residue as u128;
++    asset.stored_pos_count_long = 1;
++    asset.pending_obligation_count_long = 1;
++    asset.loss_weight_sum_long = weight;
++    markets[0].engine.asset = AssetStateV16Account::from_runtime(&asset);
++    account_header.legs[0] = PortfolioLegV16Account::from_runtime(&PortfolioLegV16 {
++        active: true,
++        asset_index: 0,
++        market_id,
++        side: SideV16::Long,
++        basis_pos_q: 0,
++        a_basis: ADL_ONE,
++        k_snap: 0,
++        f_snap: 0,
++        kf_epoch_snap: 0,
++        epoch_snap: 0,
++        loss_weight: weight,
++        b_snap: 0,
++        b_rem: 0,
++        b_epoch_snap: 0,
++        b_stale: false,
++        stale: false,
++    });
++    let mut bitmap = account_header.active_bitmap.map(V16PodU64::get);
++    active_bitmap_set(&mut bitmap, 0).unwrap();
++    account_header.active_bitmap = bitmap.map(V16PodU64::new);
++    let risk_epoch_before = header.risk_epoch.get();
++    let vault_before = header.vault;
++    let c_tot_before = header.c_tot;
++    let insurance_before = header.insurance;
++    let capital_before = account_header.capital;
++    let pnl_before = account_header.pnl;
++
++    let mut market = MarketGroupV16ViewMut::new(&mut header, &mut markets);
++    let mut account = PortfolioV16ViewMut::new(&mut account_header);
++    let result = market.forfeit_recovery_leg_not_atomic(&mut account, 0, u128::MAX);
++    let after = market.markets[0].engine.asset.try_to_runtime().unwrap();
++
++    pr239_cover_forfeit(result.is_ok(), long_residue, short_residue);
++    assert!(
++        result
++            == Ok(DeadLegForfeitOutcomeV16 {
++                detached: true,
++                positive_pnl_forfeited: 0,
++                loss_settled: 0,
++                support_consumed: 0,
++                junior_face_burned: 0,
++                principal_used: 0,
++                insurance_used: 0,
++                residual_booked: 0,
++                explicit_loss: 0,
++            })
++            && active_bitmap_is_empty(account.header.active_bitmap.map(V16PodU64::get))
++            && after.oi_eff_long_q == 0
++            && after.oi_eff_short_q == 0
++            && after.loss_weight_sum_long == 0
++            && after.loss_weight_sum_short == 0
++            && after.stored_pos_count_long == 0
++            && after.stored_pos_count_short == 0
++            && after.pending_obligation_count_long == 0
++            && after.pending_obligation_count_short == 0
++            && after.mode_long == SideModeV16::ResetPending
++            && after.mode_short == SideModeV16::ResetPending
++            && market.header.risk_epoch.get() == risk_epoch_before + 2
++            && market.header.resolved_payout_blocker_count.get() == 0
++            && market.header.vault == vault_before
++            && market.header.c_tot == c_tot_before
++            && market.header.insurance == insurance_before
++            && account.header.capital == capital_before
++            && account.header.pnl == pnl_before,
++        "PR239_FORFEIT_LONG_FLAT_RELEASE_INVARIANTS"
++    );
++}
++
++#[kani::proof]
++#[kani::unwind(24)]
++#[kani::solver(cadical)]
++fn proof_v16_public_auto_crank_long_residue() {
++    use percolator::v16::{AutoCrankOutcomeV16, AutoCrankResultV16, AutoCrankWorkV16};
++
++    let residue: u8 = kani::any();
++    kani::assume(residue <= 3);
++    let weight = POS_SCALE;
++
++    let (mut header, mut markets, mut account_header) = one_market_view_fixture();
++    install_flat_pending_obligation(
++        &mut header,
++        &mut markets,
++        &mut account_header,
++        SideV16::Long,
++        weight,
++        false,
++    );
++    header.vault = V16PodU128::new(7 * POS_SCALE);
++    header.c_tot = V16PodU128::new(5 * POS_SCALE);
++    header.insurance = V16PodU128::new(2 * POS_SCALE);
++    account_header.capital = V16PodU128::new(5 * POS_SCALE);
++    let mut asset = markets[0].engine.asset.try_to_runtime().unwrap();
++    asset.a_long = 999_999_940_959_838;
++    asset.a_short = 999_999_952_247_457;
++    asset.oi_eff_long_q = residue as u128;
++    asset.oi_eff_short_q = residue as u128;
++    markets[0].engine.asset = AssetStateV16Account::from_runtime(&asset);
++    let risk_epoch_before = header.risk_epoch.get();
++    let vault_before = header.vault;
++    let c_tot_before = header.c_tot;
++    let insurance_before = header.insurance;
++    let capital_before = account_header.capital;
++    let pnl_before = account_header.pnl;
++
++    let mut market = MarketGroupV16ViewMut::new(&mut header, &mut markets);
++    let mut account = PortfolioV16ViewMut::new(&mut account_header);
++    let now_slot = market.header.current_slot.get();
++    let result = market.permissionless_auto_crank_not_atomic(
++        &mut account,
++        AutoCrankWorkV16 {
++            now_slot,
++            observations: &[],
++            resolved_close_fee_rate_per_slot: 0,
++        },
++    );
++    let after = market.markets[0].engine.asset.try_to_runtime().unwrap();
++
++    pr239_cover_auto_crank(result.is_ok(), residue);
++    assert!(
++        result
++            == Ok(AutoCrankResultV16 {
++                selected: AutoCrankPlanV16::RefreshAccount {
++                    asset_index: Some(0)
++                },
++                outcome: AutoCrankOutcomeV16::Progressed(
++                    PermissionlessProgressOutcomeV16::AccountCurrent
++                ),
++            })
++            && active_bitmap_is_empty(account.header.active_bitmap.map(V16PodU64::get))
++            && after.oi_eff_long_q == 0
++            && after.oi_eff_short_q == 0
++            && after.loss_weight_sum_long == 0
++            && after.loss_weight_sum_short == 0
++            && after.stored_pos_count_long == 0
++            && after.stored_pos_count_short == 0
++            && after.pending_obligation_count_long == 0
++            && after.pending_obligation_count_short == 0
++            && after.mode_long == SideModeV16::ResetPending
++            && after.mode_short == SideModeV16::ResetPending
++            && market.header.risk_epoch.get() == risk_epoch_before + 2
++            && market.header.resolved_payout_blocker_count.get() == 0
++            && market.header.vault == vault_before
++            && market.header.c_tot == c_tot_before
++            && market.header.insurance == insurance_before
++            && account.header.capital == capital_before
++            && account.header.pnl == pnl_before,
++        "PR239_AUTO_CRANK_LONG_RELEASE_INVARIANTS"
++    );
++}

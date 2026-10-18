@@ -1,0 +1,10 @@
+tree 6d0fc1d3af8a192a04bff97eb21e923dc05e42b7
+parent 4db11a8cb0053815e23a35d3a7d3edc265d8d866
+author Covenant receipt integration <receipts@opencovenant.org> 1792284003 +0000
+committer Covenant receipt integration <receipts@opencovenant.org> 1792284003 +0000
+
+Freeze exact Covenant-authored PR239 proof appendix
+
+Authorship job: f79b455b-09e8-4a82-a971-fa00a3248100
+Patch SHA256: 8a1f74112d4097729afc18b2f83e9e7984e79fc55ead5dfcd4922ded261ac95b
+Independent Kani evidence is recorded separately.

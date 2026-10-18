@@ -1,0 +1,23 @@
+{
+  "schema": "covenant.operator-interruption.v1",
+  "job_id": "0bd8b774-78e7-44bd-a52d-40286b63efba",
+  "signal": "SIGTERM",
+  "target_pid": 3455,
+  "target_starttime_ticks": 39870,
+  "reason": "Operator ends memory-saturated experiment after sustained reclaim pressure and negligible observed log progress; not a proof, timeout, OOM, or counterexample.",
+  "phase": "signal_syscall_returned",
+  "intent_at_unix": 1792287700.4085248,
+  "signal_syscall_returned_at_unix": 1792287700.439055,
+  "terminal_receipt_required": true,
+  "source": "Separately collected operator/controller audit; not part of the signed receipt or Kani report.",
+  "cryptographically_authenticated_by_job_receipt": false,
+  "original_execution_audit_sha256": "67614f0b36e152b8d079da3be27b3e37678a3b5067a1bb08d69e8a523cafe97e",
+  "private_companion_inventory_sha256": "76d7d54ea8b6e4b0b6b140183d435c35ed41140dc471ee04894d4c686de1ed32",
+  "remote_helper_sha256": "4d32bce70fa1b68acf5b7a37576477a4eb06a8bced1649770285cac621c03ece",
+  "controller_sha256": "291cf24e220e9ad221f62da6ba9e1904a2c076488417f6e2d4b2d2b841fdf92f",
+  "scope": "One SIGTERM through a pidfd to the exact CBMC process. No signal to the driver, container or node. Exact originals remain private because they contain local paths and buyer state.",
+  "observations": {
+    "resource_jsonl_sha256": "2da9d14f9a1edb1888f8535bcc6f8e3a87d1a068f51a3853eefbb9f385d0c94e",
+    "phase_jsonl_sha256": "3ad8e06b7617724d694b189c3d89e81fcbe7d6417110b83333300327d87e6bc6"
+  }
+}

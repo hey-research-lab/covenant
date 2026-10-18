@@ -1,0 +1,71 @@
+{
+  "job_id": "56f8bab8-d1e6-4231-9e76-7137574a3fa4",
+  "purpose": "Paid native Kani transport smoke after provider stepdown; locally authored tiny source, not Percolator proof or Covenant source authorship.",
+  "outcome": "proven",
+  "accepted": true,
+  "harness": "receipt_smoke",
+  "checks": [
+    {
+      "id": 1,
+      "function": "receipt_smoke",
+      "status": "Satisfied",
+      "description": "smoke reachable",
+      "location": {
+        "file": "src/lib.rs",
+        "line": "6",
+        "column": "5"
+      },
+      "category": "cover"
+    },
+    {
+      "id": 2,
+      "function": "receipt_smoke",
+      "status": "Success",
+      "description": "assertion failed: value < 10",
+      "location": {
+        "file": "src/lib.rs",
+        "line": "7",
+        "column": "5"
+      },
+      "category": "assertion"
+    }
+  ],
+  "duration_ms": 2152,
+  "export_duration_ms": 135,
+  "outer_check_command_duration_ms": 3021,
+  "raw_bytes": 7354,
+  "plan": {
+    "expected_assertion": null,
+    "expected_outcome": "proven",
+    "features": [],
+    "harness": "receipt_smoke",
+    "manifest_path": "Cargo.toml",
+    "required_covers": [
+      "smoke reachable"
+    ],
+    "schema": "covenant.kani.plan.v1",
+    "tests": false,
+    "timeout_secs": 30,
+    "unwind": null
+  },
+  "image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+  "image_id": "sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+  "tool_pin": {
+    "cbmc": "6.11.0",
+    "kani": "0.68.0",
+    "rust_toolchain": "nightly-2026-08-21-x86_64-unknown-linux-gnu"
+  },
+  "memory_mib": 12288,
+  "cpus": 6,
+  "scratch_mib": 4096,
+  "signed_model_requirement": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+  "original_commit": "64b353b47a9549259c14ddb00e2e81bb91fc1936",
+  "signed_snapshot_commit": "c441cb62c506ef4e2921ab4944a87149320977f5",
+  "tree_hash": "8c2ba88ee1f50b53462940d3f9f5e5457b319c6b",
+  "source_bundle_sha256": "11b3300ac6df43fb529608c502f0b1afe153976c9718719d24d40c8baeda27d2",
+  "signed_price_micro_usdc": 50000,
+  "coordinator_reported_charge_micro_usdc": 50000,
+  "coordinator_reported_payout": null,
+  "settlement_verified": false,
+  "capacity_limit": "This tiny smoke does not establish that the larger Percolator harnesses fit retained capacity. Live capacity may subsequently change."
+}

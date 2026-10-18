@@ -1,0 +1,54 @@
+{
+  "README.md": {
+    "bytes": 4125,
+    "sha256": "ecc3351942e296a43b81cd05f792f4b12a0d680980340c832b48b31d1785b507"
+  },
+  "SHA256SUMS": {
+    "bytes": 1041,
+    "sha256": "d0a4306313907b7897980a7a3d0694f49ffb5933d639da9d0d4f5de73558edf0"
+  },
+  "buggy-base-commit.raw": {
+    "bytes": 266,
+    "sha256": "b088124534a7169b73d4c36720384f6dafad1f810290016866c1dae9d83b565b"
+  },
+  "buggy-frozen-commit.raw": {
+    "bytes": 495,
+    "sha256": "5a214615c60b491421dac04e19e0783c075c907cb7c769f7d65793694370e20d"
+  },
+  "buggy-source.bundle": {
+    "bytes": 453412,
+    "sha256": "f41e4233ca56e583d65e6cd21d0e9e8da1c7f17b05befe3b9eb2fceb60e44925"
+  },
+  "corrected-base-commit.raw": {
+    "bytes": 1588,
+    "sha256": "d63a28d6c8ef0d309d318a434876cc0470535a928f19bb52fb34f57d82535fd2"
+  },
+  "corrected-frozen-commit.raw": {
+    "bytes": 495,
+    "sha256": "fe35bdb66bdb55ed3922a34e2ddae2c601f2cca6a55f60bf4e81f0c3bc716949"
+  },
+  "corrected-source.bundle": {
+    "bytes": 462295,
+    "sha256": "d05075704f9fc84b176cf5fa97ce577df9fd5ea7e0840ab8eecd08c123cb3c0d"
+  },
+  "identical-appendix.rs": {
+    "bytes": 8218,
+    "sha256": "6a74fdd839ad0a3c76a4afb9f5d50124b497263db705f2dbc64c436cd361a3a3"
+  },
+  "manifest.json": {
+    "bytes": 2346,
+    "sha256": "b2e503cd6c89537eabab21c36ac96551c3245de384d1640d6bdf243c57b343e2"
+  },
+  "reconstruction-review.json": {
+    "bytes": 1173,
+    "sha256": "2a99b8dc9eef7b5da8c65c8478eb9ee9b7af797b2f5892b8edb051d35da3d088"
+  },
+  "returned.patch": {
+    "bytes": 12172,
+    "sha256": "8a1f74112d4097729afc18b2f83e9e7984e79fc55ead5dfcd4922ded261ac95b"
+  },
+  "route-domains.md": {
+    "bytes": 3207,
+    "sha256": "a7cc9baaa442d3d41abed9bd67368d653545df52e4b52fc076322f6bd45617ec"
+  }
+}

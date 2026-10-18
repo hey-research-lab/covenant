@@ -1,0 +1,6 @@
+tree 8e02f621e2f8b800c3bd81ccaca30889ec165975
+parent 94979ede7db934545e53a8f210dd063a9ea3ea63
+author Anatoly <anatoly@solana.com> 1789663924 +0000
+committer Anatoly <anatoly@solana.com> 1789663924 +0000
+
+fix(v16): retain last claimant receipts until backing expires

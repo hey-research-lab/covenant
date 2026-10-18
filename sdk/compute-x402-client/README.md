@@ -8,10 +8,23 @@ This client is a release candidate until the deployment evidence records a live 
 
 Requires Node.js 24 or later (the durable journal uses Node's SQLite implementation).
 
+Until a registry release is published, install the checked source package from
+this release branch:
+
 ```sh
+git clone --filter=blob:none --branch codex/compute-x402-release \
+  https://github.com/open-covenant/covenant.git covenant-x402
+cd covenant-x402/sdk/compute-x402-client
 npm ci --ignore-scripts
 npm test
+npm pack
+
+# In the application that will use AgentKit:
+npm install /absolute/path/to/covenant-compute-x402-client-0.1.0.tgz
 ```
+
+The packaged `demo.mjs` is also available at
+`node_modules/@covenant/compute-x402-client/demo.mjs` after installation.
 
 Direct dependencies and the complete dependency tree are locked. The Coinbase AgentKit dependency is `0.10.4`; official `@x402/core` and `@x402/svm` are `2.28.0`. AgentKit has a large dependency tree; its optional native bigint acceleration is not required.
 
@@ -25,8 +38,8 @@ const provider = covenantInferenceActionProvider({
   gatewayUrl, rpcUrl, payTo, gatewayBuyer,
   operators: [verifiedInferenceOperatorPublicKey],
   journalPath: '/private/persistent/path/purchases.sqlite',
-  maxPaymentMicroUsdc: 10_000, // example: $0.01 USDC per purchase
-  maxTotalMicroUsdc: 50_000,   // example: $0.05 USDC cumulative ceiling
+  maxPaymentMicroUsdc: 50_000, // launch ceiling: 0.05 USDC per purchase
+  maxTotalMicroUsdc: 500_000,  // example: 0.50 USDC cumulative ceiling
 });
 const kit = await AgentKit.from({ walletProvider, actionProviders: [provider] });
 const action = kit.getActions().find(a => a.name === 'covenant_inference');

@@ -11,14 +11,23 @@ on:
       - sdk/compute-x402-client/**
       - agent-os/**
   workflow_dispatch:
+    inputs:
+      smoke_image:
+        description: Existing immutable image for smoke only; leave empty to build
+        required: false
+        type: string
+      smoke_revision:
+        description: Full source revision embedded in the existing image
+        required: false
+        type: string
 concurrency:
-  group: compute-x402-image-${{ github.ref }}
+  group: compute-x402-${{ github.event_name == 'workflow_dispatch' && inputs.smoke_image != '' && 'smoke' || 'image' }}-${{ github.ref }}
   cancel-in-progress: false
 permissions:
   contents: read
 jobs:
   image:
-    if: github.repository == 'open-covenant/covenant'
+    if: github.repository == 'open-covenant/covenant' && (github.event_name != 'workflow_dispatch' || inputs.smoke_image == '')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -77,3 +86,24 @@ jobs:
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: echo "ghcr.io/open-covenant/covenant/compute-node-public@${IMAGE_DIGEST}" >> "$GITHUB_STEP_SUMMARY"
+
+  smoke-existing:
+    if: github.repository == 'open-covenant/covenant' && github.event_name == 'workflow_dispatch' && inputs.smoke_image != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24.20.0
+      - name: Verify isolated smoke harness
+        run: node --test deploy/compute-x402/smoke.test.mjs
+      - name: Qualify existing immutable image without rebuilding
+        env:
+          SMOKE_IMAGE: ${{ inputs.smoke_image }}
+          SMOKE_REVISION: ${{ inputs.smoke_revision }}
+        run: node deploy/compute-x402/smoke.mjs

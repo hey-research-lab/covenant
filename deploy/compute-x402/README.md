@@ -115,7 +115,9 @@ coordinator request. It has no forwarding path. The check verifies the image and
 HTTP revision, disabled admissions, a refused inference request, private file
 permissions, zero jobs/reservations and unchanged buyer/fee/seal keys and journal
 identity after restart. Only the recovery clock may advance. No key bytes, private
-fingerprints, journal contents or Docker logs are printed.
+fingerprints, journal contents or app Docker logs are printed. On failure, bounded
+logs and process state are printed only for the separate RPC fixture, which has
+never received keys or credentials.
 
 Run it on a Linux Docker host with Node 24 and an accessible immutable image:
 
@@ -127,3 +129,10 @@ SMOKE_REVISION=<full-source-revision> node deploy/compute-x402/smoke.mjs
 This is a startup and empty-volume continuity check. Funded settlement recovery,
 real provider/operator readiness and memory usage with all workers enabled remain
 separate acceptance checks.
+
+To retest an already-published image without rebuilding Rust, dispatch the existing
+`compute-x402-image` workflow with `smoke_image` set to its full immutable package
+reference and `smoke_revision` set to its embedded 40-character source revision.
+This runs only the `smoke-existing` job; the build job is skipped. The harness is
+checked out from the dispatched ref, so fixture fixes can qualify an older image.
+Smoke-only runs use a separate concurrency group from image builds.

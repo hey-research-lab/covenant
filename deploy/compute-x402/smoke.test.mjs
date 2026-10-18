@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSmokeRpc,MAINNET_GENESIS} from './smoke-rpc.mjs';
-import {validateImage,smokeEnvironment,verifyHealth} from './smoke.mjs';
+import {validateImage,smokeEnvironment,verifyHealth,fixtureDiagnostics} from './smoke.mjs';
 const revision='a'.repeat(40),image=`ghcr.io/open-covenant/covenant/compute-node-public@sha256:${'b'.repeat(64)}`;
 test('container qualification requires immutable package and exact revision',()=>{
  validateImage(image,revision);
@@ -31,4 +31,9 @@ test('isolated RPC permits only genesis and counts forbidden dispatch attempts',
  for(const method of ['sendTransaction','simulateTransaction','getLatestBlockhash']){const refused=await rpc(method);assert.equal(refused.status,403);await refused.arrayBuffer();}
  const coordinator=await fetch(url+'/coordinator/federation/jobs',{method:'POST',body:'{}'});assert.equal(coordinator.status,503);await coordinator.arrayBuffer();
  assert.deepEqual(counts,{genesis:1,refused:3,coordinator:1});
+});
+
+test('diagnostics refuse to inspect or log the private app container',async()=>{
+ await assert.rejects(fixtureDiagnostics('covenant-gateway-012345abcdef'),/Fixture-only/);
+ await assert.rejects(fixtureDiagnostics('arbitrary-container'),/Fixture-only/);
 });

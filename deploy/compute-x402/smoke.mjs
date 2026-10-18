@@ -45,6 +45,28 @@ async function docker(args,label){
   try{return (await exec('docker',args,{timeout:180_000,maxBuffer:2*1024*1024})).stdout.trim();}
   catch{throw Error(`Container smoke failed during ${label}`);}
 }
+function diagnosticText(value){return String(value??'').slice(0,16_384).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,'?');}
+export async function fixtureDiagnostics(container){
+  // This container receives only the public genesis hash, never app secrets.
+  assert(/^covenant-rpc-[a-f0-9]{12}$/.test(container),'Fixture-only diagnostics required');
+  for(const [stage,args] of [
+    ['rpc_fixture_state',['inspect','--format','{{json .State}}',container]],
+    ['rpc_fixture_logs',['logs','--tail','80',container]],
+  ]){
+    try{const result=await exec('docker',args,{timeout:10_000,maxBuffer:32_768});
+      const detail=stage==='rpc_fixture_state'?JSON.parse(result.stdout):{stdout:diagnosticText(result.stdout),stderr:diagnosticText(result.stderr)};
+      console.error(JSON.stringify({stage,detail}));
+    }catch(error){console.error(JSON.stringify({stage,diagnostic_unavailable:true,exit_code:typeof error.code==='number'?error.code:null}));}
+  }
+}
+async function waitForFixture(container){
+  const script=`let ready=false,last={};for(let i=0;i<40;i++){try{const r=await fetch('http://127.0.0.1:4045/audit',{signal:AbortSignal.timeout(1000)});last={http_status:r.status};if(r.ok){ready=true;break;}}catch(error){last={error:error.name,code:error.cause?.code};}await new Promise(r=>setTimeout(r,100));}if(!ready){process.stderr.write(JSON.stringify({probe:'rpc_fixture_loopback',...last})+'\\n');process.exit(1);}`;
+  try{await exec('docker',['exec',container,'node','--input-type=module','-e',script],{timeout:60_000,maxBuffer:32_768});}
+  catch(error){
+    console.error(JSON.stringify({stage:'rpc_fixture_probe',exit_code:typeof error.code==='number'?error.code:null,stdout:diagnosticText(error.stdout),stderr:diagnosticText(error.stderr)}));
+    throw Error('Container smoke failed during RPC fixture readiness');
+  }
+}
 async function mainnetObservation(){
   const response=await fetch('https://api.mainnet-beta.solana.com',{method:'POST',redirect:'error',signal:AbortSignal.timeout(15_000),headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'getGenesisHash',params:[]})});
   assert(response.ok,'Read-only mainnet genesis RPC unavailable');const result=await response.json();
@@ -75,8 +97,7 @@ export async function smoke(image,revision){
     await docker(['volume','create',volume],'persistent volume creation');
     await docker(['run','--detach','--name',rpc,'--network',network,'--network-alias','smoke-rpc','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges',
       '--env',`SMOKE_GENESIS=${genesis}`,'--mount',`type=bind,source=${path.join(here,'smoke-rpc.mjs')},target=/smoke/rpc.mjs,readonly`,'--entrypoint','node',image,'/smoke/rpc.mjs'],'read-only RPC fixture');
-    await docker(['exec',rpc,'node','--input-type=module','-e',
-      "let ready=false;for(let i=0;i<40;i++){try{const r=await fetch('http://127.0.0.1:4045/audit');if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}if(!ready)process.exit(1);"],'RPC fixture readiness');
+    await waitForFixture(rpc);
     await docker(['run','--detach','--name',app,'--memory','512m','--network',network,'--mount',`type=volume,source=${volume},target=/data`,'--mount',`type=bind,source=${path.join(here,'smoke-state.mjs')},target=/smoke/state.mjs,readonly`,'--env-file',envFile,image],'actual image entrypoint');
     await ready();
     const refused=await http('http://127.0.0.1:10000/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'claude-haiku-4.5',messages:[{role:'user',content:'Never dispatch this smoke test'}],max_tokens:1})});
@@ -90,8 +111,11 @@ export async function smoke(image,revision){
     const result={image,revision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,restart_state_preserved:true,job_entries:0,paid_dispatches:0};
     if(process.env.GITHUB_STEP_SUMMARY)await fs.appendFile(process.env.GITHUB_STEP_SUMMARY,`\nContainer smoke passed: \`${image}\`\n\nExpected revision \`${revision}\`; 512MiB gateway cap; admissions disabled; persistent keys, seal and journal preserved across restart; zero paid dispatches.\n`);
     return result;
+  }catch(error){
+    await fixtureDiagnostics(rpc);
+    throw error;
   }finally{
-    // Never dump docker logs, environment, identities or journal contents.
+    // Never dump app logs, environment, identities or journal contents.
     for(const name of [app,rpc])await docker(['rm','--force',name],'cleanup').catch(()=>{});
     await docker(['volume','rm','--force',volume],'volume cleanup').catch(()=>{});
     await docker(['network','rm',network],'network cleanup').catch(()=>{});

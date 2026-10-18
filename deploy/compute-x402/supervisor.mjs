@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,ProcessGroup,waitFor} from './runtime.mjs';
+import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,startInferenceOperator,ProcessGroup,waitFor} from './runtime.mjs';
 
 process.umask(0o077);
 let group;
@@ -48,7 +48,7 @@ try{
       const pubkey=operatorPubkey(fs.readFileSync(path.join(operator,'identity.json')));
       if(!env.COVENANT_GATEWAY_APPROVED_OPERATOR_PUBKEYS?.split(',').map(x=>x.trim()).includes(pubkey))throw Error('Local operator must be approved');
       const started=Date.now();
-      group.start('inference operator','covenant-compute-node',['serve'],env,true);
+      startInferenceOperator(group,env);
       const reputation=new URL(`/federation/operators/${pubkey}/reputation`,env.COVENANT_COMPUTE_COORDINATOR_URL);
       await waitFor(reputation,{group,attempts:180,predicate:body=>body.operator_pubkey_b58===pubkey&&body.matchable===true&&Number.isSafeInteger(body.seen_ms_ago)&&body.seen_ms_ago<=Date.now()-started});
       if(!group.optionalFailed&&!group.stopping)clearStartingLatch(starting);

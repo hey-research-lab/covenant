@@ -6,9 +6,14 @@ import path from 'node:path';
 import {EventEmitter} from 'node:events';
 import {createRequire} from 'node:module';
 const {getBase58Encoder}=createRequire(new URL('../../services/compute-x402-facilitator/package.json',import.meta.url))('@solana/kit');
-import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,ProcessGroup,waitFor} from './runtime.mjs';
+import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,startInferenceOperator,ProcessGroup,waitFor} from './runtime.mjs';
 
 function fixture(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'covenant-supervisor-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
+test('operator launch uses the default serving command and optional-worker recovery',()=>{
+ const env={COVENANT_COMPUTE_NODE_EXECUTOR:'openai-compat'},calls=[];
+ const child=startInferenceOperator({start:(...args)=>{calls.push(args);return 'child';}},env);
+ assert.equal(child,'child');assert.deepEqual(calls,[['inference operator','covenant-compute-node',[],env,true]]);
+});
 test('identity and seal secrets survive restart and reject rotation, malformed base64 and symlinks',t=>{
  const dir=fixture(t),key=path.join(dir,'key'),bytes=Buffer.alloc(32,7),encoded=bytes.toString('base64');
  privateDirectory(dir);seed(key,encoded,32);seed(key,undefined,32);seed(key,encoded,32);

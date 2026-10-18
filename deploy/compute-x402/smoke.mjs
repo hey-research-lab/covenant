@@ -100,6 +100,7 @@ export async function smoke(image,revision){
     await waitForFixture(rpc);
     await docker(['run','--detach','--name',app,'--memory','512m','--network',network,'--mount',`type=volume,source=${volume},target=/data`,'--mount',`type=bind,source=${path.join(here,'smoke-state.mjs')},target=/smoke/state.mjs,readonly`,'--env-file',envFile,image],'actual image entrypoint');
     await ready();
+    await docker(['exec','--user','node',app,'node','deploy/compute-x402/operator-cli-check.mjs'],'packaged operator serving command');
     const refused=await http('http://127.0.0.1:10000/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'claude-haiku-4.5',messages:[{role:'user',content:'Never dispatch this smoke test'}],max_tokens:1})});
     assert.equal(refused.status,503);assert.equal(refused.paymentRequired,false);
     await docker(['exec','--user','node',app,'node','/smoke/state.mjs','record'],'private state recording');
@@ -108,7 +109,7 @@ export async function smoke(image,revision){
     await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'private state continuity');
     const audit=await http('http://smoke-rpc:14045/audit');
     assert.equal(audit.status,200);assert(audit.body.genesis>=2);assert.equal(audit.body.refused,0);assert.equal(audit.body.coordinator,0);
-    const result={image,revision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,restart_state_preserved:true,job_entries:0,paid_dispatches:0};
+    const result={image,revision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,operator_cli_contract_verified:true,restart_state_preserved:true,job_entries:0,paid_dispatches:0};
     if(process.env.GITHUB_STEP_SUMMARY)await fs.appendFile(process.env.GITHUB_STEP_SUMMARY,`\nContainer smoke passed: \`${image}\`\n\nExpected revision \`${revision}\`; 512MiB gateway cap; admissions disabled; persistent keys, seal and journal preserved across restart; zero paid dispatches.\n`);
     return result;
   }catch(error){

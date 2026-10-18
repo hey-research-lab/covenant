@@ -33,6 +33,10 @@ export function latch(file,reason){
 export function missing(file){try{fs.lstatSync(file);return false;}catch(error){return error.code==='ENOENT';}}
 export function clearStartingLatch(file){fs.unlinkSync(file);syncDirectory(file);}
 export function explicitBoolean(env,name){if(!['true','false'].includes(env[name]))throw Error(`Explicit ${name} required`);return env[name]==='true';}
+export function startInferenceOperator(group,env){
+  // The node's serving mode is the default command; `serve` is not a subcommand.
+  return group.start('inference operator','covenant-compute-node',[],env,true);
+}
 export function operatorPubkey(seedBytes){
   const key=crypto.createPrivateKey({key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),seedBytes]),format:'der',type:'pkcs8'});
   const bytes=crypto.createPublicKey(key).export({format:'der',type:'spki'}).subarray(-32);

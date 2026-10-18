@@ -1,0 +1,118 @@
+{
+  "README.md": {
+    "bytes": 5015,
+    "sha256": "6175a1ef30520c6eaadd67607e6ba71e4df4c6df7e03b6d3108aaf7528a265fb"
+  },
+  "authorship-summary.json": {
+    "bytes": 3155,
+    "sha256": "9246a6e8ce96833961911f20673b9e1e13a43db950f2810c84a7a1ab29941edf"
+  },
+  "build-verifier.py": {
+    "bytes": 1383,
+    "sha256": "1ea6b75c8880de07f2c127f58d29202bab9d594dea791831777b7184a12aa21f"
+  },
+  "hidden_disclosure.py": {
+    "bytes": 4715,
+    "sha256": "89805307ab55fcf51a2fdb9db3fcfed9a18d04e7d3d3985d078a9f25948019ff"
+  },
+  "jobs/pr239-authorship-v2/agent-evidence.json": {
+    "bytes": 2598342,
+    "sha256": "421c97160bb75e434d001b0fb41b38a40f5b94748974be858ffcb58b2d60d1cb"
+  },
+  "jobs/pr239-authorship-v2/authored.patch": {
+    "bytes": 12172,
+    "sha256": "8a1f74112d4097729afc18b2f83e9e7984e79fc55ead5dfcd4922ded261ac95b"
+  },
+  "jobs/pr239-authorship-v2/coordinator-metadata.json": {
+    "bytes": 622,
+    "sha256": "8e9f89ba76cedd3148cbb13eb77c301da4264fab1ba122c16a053a01de81be83"
+  },
+  "jobs/pr239-authorship-v2/disclosed-hidden/.covenant-pr239/acceptance.py": {
+    "bytes": 6998,
+    "sha256": "1b67e2b98d9286c697066994cb72563b62a54b77eecf3ff16ed51122bb572c18"
+  },
+  "jobs/pr239-authorship-v2/envelope.json": {
+    "bytes": 1274870,
+    "sha256": "632bb2443910801b2de6b0f17fc68c2268e1bbddcc2bc042a7f99eccb151a0e2"
+  },
+  "jobs/pr239-authorship-v2/hidden-disclosure.json": {
+    "bytes": 690,
+    "sha256": "685394014a4a1cfe55481cddcb009b6370601bb6fe373c9574378ce56c261683"
+  },
+  "jobs/pr239-authorship-v2/original-commit.raw": {
+    "bytes": 1588,
+    "sha256": "d63a28d6c8ef0d309d318a434876cc0470535a928f19bb52fb34f57d82535fd2"
+  },
+  "jobs/pr239-authorship-v2/output.json": {
+    "bytes": 18560,
+    "sha256": "2b7f449f0631f06195ff2b92f8727a5dd9668199c28ec03e2085a4e73a3fcf4e"
+  },
+  "jobs/pr239-authorship-v2/provenance.json": {
+    "bytes": 2687,
+    "sha256": "5f423bc03ca3f6b3417b4497cc50daea810ad89407e48191eedd159bbb46b43e"
+  },
+  "jobs/pr239-authorship-v2/receipt.json": {
+    "bytes": 1543,
+    "sha256": "7d05e651ed3d3708c8ca3bb508e5f2d5bd7b6ae1c624f1f45ce54d0ac0dedb36"
+  },
+  "jobs/pr239-authorship-v2/record.json": {
+    "bytes": 3895007,
+    "sha256": "899e9ed44fc04721f1f70cc0e628acd313a6a12d0a1d83e772f434858b8c805e"
+  },
+  "jobs/pr239-authorship-v2/source/Cargo.lock": {
+    "bytes": 9152,
+    "sha256": "189914a39b7a41adfae9493479145e2f8d78d4e1f76e114766d433c274a3a7a7"
+  },
+  "jobs/pr239-authorship-v2/source/Cargo.toml": {
+    "bytes": 1554,
+    "sha256": "26cf3e9510aa9192b97c7244d6c61b29d919aa7fa216d29a166eef2e48e973b6"
+  },
+  "jobs/pr239-authorship-v2/source/src/v16.rs": {
+    "bytes": 870016,
+    "sha256": "3d0c68703b488e897a4c8beba51a16cd1e647e74521407176c7daf6a7401b37d"
+  },
+  "jobs/pr239-authorship-v2/source/tests/proofs_v16.rs": {
+    "bytes": 790518,
+    "sha256": "391ed9a4b32aa60f9acbae63afe08be5d357714a86d768ca1264401c6a9e7ea2"
+  },
+  "jobs/pr239-authorship-v2/source-mapping.json": {
+    "bytes": 911,
+    "sha256": "7a72468932d89878d74213e0123952fe92ee8a83bad55f9f3b9dc9657b10916b"
+  },
+  "jobs/pr239-authorship-v2/source.bundle": {
+    "bytes": 463636,
+    "sha256": "bfa70b9683f2c433dd35ffa8d8649094641e9590ebefec03ee0a69cdaac9bd19"
+  },
+  "jobs/pr239-authorship-v2/verification.json": {
+    "bytes": 442,
+    "sha256": "66df7b6c81ffc89230ad020b529893c03e8bec96362f038a0e86336fd690c460"
+  },
+  "ledger.json": {
+    "bytes": 3437,
+    "sha256": "960c219c59a5c97e6c73c17743ffb2bdc747f009b1caeb339c926f7ac452d1ff"
+  },
+  "verifier-build.json": {
+    "bytes": 433,
+    "sha256": "dd5cd38d70ac511b365459d2b7b74d1af6e06a112dd7777fb407e524bb2c83dd"
+  },
+  "verifier-d997-build.json": {
+    "bytes": 1325,
+    "sha256": "566ec8251ecf34a8f8acc965159af344d9893aa84dea9dba1e59affa7a016fa3"
+  },
+  "verifier-merge-equivalence-4dd036a.json": {
+    "bytes": 5083,
+    "sha256": "da2d461a8417943ee85bcdfc64ceabbc995743430533b56a6ff1d3d3c6a9d33e"
+  },
+  "verifier.Cargo.lock": {
+    "bytes": 64291,
+    "sha256": "940f56123a159c66fcb0674bf3358dfa1138217baa70dca7f28711e2b942d863"
+  },
+  "verify-archive.py": {
+    "bytes": 5711,
+    "sha256": "4e64d4769e0e2198878724667dbf9c257a921416cca185fa90d70eef51035f8f"
+  },
+  "verify.rs": {
+    "bytes": 5300,
+    "sha256": "557c6b9815ddcf21e32808065aab513f67764c423d699291c8aec25b83a548cf"
+  }
+}

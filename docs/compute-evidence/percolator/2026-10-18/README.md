@@ -12,6 +12,10 @@ This record connects actual Covenant jobs to the code and proof results they pro
 
 The #241 orders are `b7a20990-a245-486e-ac4b-44d1331c272a` and `0425f25b-83bc-45ee-8fb9-cdcbc94d7b09`, each offering 50,000 micro-USDC. Both request the immutable Kani image and 27,648 MiB / 6 CPU / 8,192 MiB scratch profile recorded in their signed plans. Each fixes expiry at slot 10 and current slot at 10 or 11, with backing 1 through 8, withdrawal 1 through backing, and claim 0 through backing minus withdrawal.
 
+## Percolator #239 authorship
+
+The [reduced route harnesses were authored through Covenant](9542384342c68fcbfa6ff3b7ac5d2d69e961bcc3232018ed337d787b79983beb/README.md) in job `f79b455b-09e8-4a82-a971-fa00a3248100`. Its linked checker accepted the returned patch after 159 ordinary specification tests and the exact buyer acceptance contract passed. The archive preserves the signed parent and checker records, source, task, returned patch and disclosed acceptance contract. This establishes authorship and ordinary acceptance; it does not establish a Kani proof. The original engine fix and earlier harnesses predate this job. The full #239 proof workflow remains incomplete, and its source PR has not been amended.
+
 ## Failed executions retained
 
 The [first #241 attempt](e45e484093bd11eda6784f3b13b73b4d352bdf77263a9512f457ea25cface48d/README.md) exposed a non-executable scratch mount. The [second attempt](97e7fd29b7390e08298e6ec24d86e4e6ef4e3cb93f1dd189835d21fd41d3196d/README.md) exposed a missing required test feature. Both produced signed `tool_error` results, not proofs. The corrected executor and explicit `fuzz` plan were used by the distinct successful jobs above; the failure records remain unchanged.

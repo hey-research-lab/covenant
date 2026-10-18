@@ -1,0 +1,60 @@
+{
+  "label": "pr239-authorship-v2",
+  "role": "authorship",
+  "origin": "Covenant authoring job for exactly the returned patch; buyer prepared the input task and acceptance contract locally. No source freeze or Kani proof is implied by checker acceptance. Later integration changes require separate explicit provenance.",
+  "purpose": "Author reduced public forfeit-route and auto-crank proofs for Percolator PR #239 and a domain explanation, using the fixed input base. Paid Kani validation is a later step on frozen returned source.",
+  "source_mapping": {
+    "public_repo_url": "https://github.com/mizuki0x/percolator.git",
+    "original_commit": "81fabc86869d0a4db7da3fabc7eab5430b1f02c5",
+    "signed_repo_commit": "b3a59d131e8669d4b8a03e4cca6ce55be433b823",
+    "tree_hash": "6b2882d92ffad6e8df932acae4a0a3d356a1d372",
+    "tree_equality_checked": true,
+    "source_files": [
+      {
+        "path": "Cargo.toml",
+        "sha256": "26cf3e9510aa9192b97c7244d6c61b29d919aa7fa216d29a166eef2e48e973b6"
+      },
+      {
+        "path": "Cargo.lock",
+        "sha256": "189914a39b7a41adfae9493479145e2f8d78d4e1f76e114766d433c274a3a7a7"
+      },
+      {
+        "path": "src/v16.rs",
+        "sha256": "3d0c68703b488e897a4c8beba51a16cd1e647e74521407176c7daf6a7401b37d"
+      },
+      {
+        "path": "tests/proofs_v16.rs",
+        "sha256": "391ed9a4b32aa60f9acbae63afe08be5d357714a86d768ca1264401c6a9e7ea2"
+      }
+    ],
+    "bundle_sha256": "bfa70b9683f2c433dd35ffa8d8649094641e9590ebefec03ee0a69cdaac9bd19"
+  },
+  "job_id": "f79b455b-09e8-4a82-a971-fa00a3248100",
+  "signed_price_micro_usdc": 2000000,
+  "receipt_price_micro_usdc": 2000000,
+  "issued_at_ms": 1792283747362,
+  "envelope_expires_at_ms": 1792285547362,
+  "verifier": {
+    "acceptance_passed": null,
+    "agent_final_patch_accepted": true,
+    "buyer_pubkey": "5jhfhR4THAkC8GVJZDTP579KCdSnMdejw2oEcXZoZGnJ",
+    "envelope_signature_verified": true,
+    "exact_envelope_output_hashes_verified": true,
+    "inventory_completeness_verified": false,
+    "job_id": "f79b455b-09e8-4a82-a971-fa00a3248100",
+    "kani": null,
+    "receipt_execution_status": "ok",
+    "receipt_signature_verified": true,
+    "settlement_verified": false
+  },
+  "published": false,
+  "hidden_disclosure": {
+    "policy_id": "percolator-pr239-buyer-acceptance-v1",
+    "original_commit": "81fabc86869d0a4db7da3fabc7eab5430b1f02c5",
+    "path": ".covenant-pr239/acceptance.py",
+    "bytes": 6998,
+    "content_sha256": "1b67e2b98d9286c697066994cb72563b62a54b77eecf3ff16ed51122bb572c18",
+    "command": "python3 .covenant-pr239/acceptance.py",
+    "hidden_bundle_sha256": "8558d8bb1f3725cee29fc71757797199882d6c577523f430c24f15f3830e07cb"
+  }
+}

@@ -1,0 +1,28 @@
+tree 6b2882d92ffad6e8df932acae4a0a3d356a1d372
+parent 4db11a8cb0053815e23a35d3a7d3edc265d8d866
+author Mizuki Hayashi <mizuki@kamiyo.ai> 1792123919 +0200
+committer Mizuki Hayashi <mizuki@kamiyo.ai> 1792161943 +0200
+
+fix(v16): start the side resets when an asset is left with no legs
+
+Unilateral reduces subtract the opposite side's OI exactly but floor its
+A index, so a side's OI can sit one or more units above its legs'
+effective quantities, and Recovery forfeits never start the zero-OI side
+reset. Once a side has no stored leg, its leftover OI carries no loss
+weight (spec.md:953) and the leg clear cannot remove it, since it
+refuses more than a leg's raw basis; the side never resets, and
+retire_empty_asset and restart refuse the empty asset, also after
+resolution when no leg is left to detach. begin_zero_oi_residue_resets
+now first drops that OI: before resolution only when the whole asset is
+legless and neither side has a pending loss barrier, so both sides reach
+zero together and Live OI stays equal, and after resolution from each
+legless side without a barrier. The trade close-out, rebalance,
+liquidation and resolved detach paths already call it; Recovery forfeit
+clears and the auto-crank release of a pending obligation now call it
+too, and so do the close ledger advance and the cure once they clear a
+barrier on a legless asset. An asset that an older engine already left
+legless with leftover OI is out of scope. Neither the resolved payout
+path nor bankruptcy booking reads OI, so payouts do not change. The
+zero-OI reset harness now models the drop.
+
+Fixes #238.

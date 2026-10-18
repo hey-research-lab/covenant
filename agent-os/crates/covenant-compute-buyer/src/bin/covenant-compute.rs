@@ -72,6 +72,7 @@ Usage:
   covenant-compute cancel <job-id>              refund a job no operator took yet
   covenant-compute check --repo <path|url> --price <micro-usdc> --accept <cmd>  buy a signed verification run
   covenant-compute budget status|reconcile       inspect the persistent spend ceiling
+  covenant-compute budget set-limit <new> --expect-limit <old>  change the ceiling, retaining all holds
   covenant-compute agent --repo <path|url> --accept <cmd> <task>   hire a coding agent; pay only if its work passes
   covenant-compute fix --repo <path|url> --accept <cmd> <bug>      hire a crew to reproduce and fix a bug; pay only if the fix passes
   covenant-compute lease open --minutes N --rate R    rent a whole GPU for a window
@@ -596,19 +597,37 @@ async fn main() -> anyhow::Result<()> {
         }
         "check" => cmd_check(&load_ctx()?, &mut args, json_out).await,
         "budget" => {
-            let reconcile = args.first().map(String::as_str) == Some("reconcile");
-            anyhow::ensure!(
-                args.is_empty() || args == ["status"] || args == ["reconcile"],
-                "use budget status|reconcile"
-            );
+            // Refuse malformed updates before resolving a home or identity.
+            let action = parse_budget_action(&args)?;
             let ctx = load_ctx()?;
-            let v = covenant_compute_buyer::durable_budget::describe(
-                &ctx.http,
-                &ctx.config,
-                &ctx.identity,
-                reconcile,
-            )
-            .await?;
+            let v = match action {
+                BudgetAction::SetLimit { new, expected } => {
+                    let budget =
+                        covenant_compute_buyer::durable_budget::DurableBudget::open_with_env_root(
+                            &ctx.identity.agent_id().pubkey_base58(),
+                            &ctx.config.coordinator_url,
+                            expected,
+                        )?;
+                    let status = budget.set_limit(new, epoch_ms())?;
+                    serde_json::json!({
+                        "enabled": true,
+                        "previous_limit_micro_usdc": expected,
+                        "status": status,
+                        "required_environment": {
+                            "COVENANT_COMPUTE_DAILY_BUDGET_MICRO_USDC": new.to_string()
+                        }
+                    })
+                }
+                BudgetAction::Status | BudgetAction::Reconcile => {
+                    covenant_compute_buyer::durable_budget::describe(
+                        &ctx.http,
+                        &ctx.config,
+                        &ctx.identity,
+                        action == BudgetAction::Reconcile,
+                    )
+                    .await?
+                }
+            };
             println!("{}", serde_json::to_string_pretty(&v)?);
             Ok(())
         }
@@ -719,6 +738,43 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         other => anyhow::bail!("unknown command {other:?} — run `--help` for usage"),
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum BudgetAction {
+    Status,
+    Reconcile,
+    SetLimit { new: u64, expected: u64 },
+}
+
+fn parse_budget_action(args: &[String]) -> anyhow::Result<BudgetAction> {
+    fn amount(value: &str) -> anyhow::Result<u64> {
+        anyhow::ensure!(
+            !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()),
+            "budget limits must be positive whole numbers of micro-USDC"
+        );
+        let value: u64 = value
+            .parse()
+            .context("budget limit exceeds u64 micro-USDC")?;
+        anyhow::ensure!(value > 0, "budget limits must be positive");
+        Ok(value)
+    }
+    match args {
+        [] => Ok(BudgetAction::Status),
+        [action] if action == "status" => Ok(BudgetAction::Status),
+        [action] if action == "reconcile" => Ok(BudgetAction::Reconcile),
+        [action, new, expected_flag, expected]
+            if action == "set-limit" && expected_flag == "--expect-limit" =>
+        {
+            Ok(BudgetAction::SetLimit {
+                new: amount(new)?,
+                expected: amount(expected)?,
+            })
+        }
+        _ => anyhow::bail!(
+            "use budget status|reconcile, or budget set-limit <new> --expect-limit <old>"
+        ),
     }
 }
 
@@ -3490,6 +3546,54 @@ fn unit_label(unit: PriceUnit) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn budget_set_limit_requires_exact_positive_bounded_arguments() {
+        let parse = |args: &[&str]| {
+            super::parse_budget_action(&args.iter().map(|v| v.to_string()).collect::<Vec<_>>())
+        };
+        assert_eq!(
+            parse(&["set-limit", "100000", "--expect-limit", "50000"]).unwrap(),
+            super::BudgetAction::SetLimit {
+                new: 100000,
+                expected: 50000
+            }
+        );
+        for args in [
+            vec!["set-limit"],
+            vec!["set-limit", "100000"],
+            vec!["set-limit", "100000", "--expect-limit"],
+            vec!["set-limit", "0", "--expect-limit", "50000"],
+            vec!["set-limit", "100000", "--expect-limit", "0"],
+            vec!["set-limit", "-1", "--expect-limit", "50000"],
+            vec!["set-limit", "+1", "--expect-limit", "50000"],
+            vec![
+                "set-limit",
+                "18446744073709551616",
+                "--expect-limit",
+                "50000",
+            ],
+            vec![
+                "set-limit",
+                "100000",
+                "--expect-limit",
+                "18446744073709551616",
+            ],
+            vec!["set-limit", "1.5", "--expect-limit", "50000"],
+            vec!["set-limit", "100000", "--expect-limt", "50000"],
+            vec!["set-limit", "100000", "--expect-limit", "50000", "--force"],
+            vec![
+                "set-limit",
+                "100000",
+                "--expect-limit",
+                "50000",
+                "--expect-limit",
+                "50000",
+            ],
+            vec!["status", "--expect-limit", "50000"],
+        ] {
+            assert!(parse(&args).is_err(), "accepted {args:?}");
+        }
+    }
     use super::with_funding_hint;
     use covenant_compute_buyer::BuyerError;
 

@@ -667,6 +667,21 @@ statement. Verified error receipts with a reported zero charge release their
 holds; unsigned refund/rejection statuses do not. This conservative budget
 accounting is separate from the actual charge shown by `balance`.
 
+To explicitly change an existing positive daily ceiling, use
+`budget set-limit NEW --expect-limit OLD`, with both amounts in micro-USDC.
+The update refuses if the persisted limit differs from `OLD` and requires
+a positive `NEW` value. It preserves every pending and settled entry; it
+does not reset spending, release reservations, or authorize a retry or new
+purchase. After the update, every process sharing this budget must set
+`COVENANT_COMPUTE_DAILY_BUDGET_MICRO_USDC` to the new persisted limit before
+submitting work. For example:
+
+```sh
+covenant-compute budget set-limit 6000000 --expect-limit 5000000
+export COVENANT_COMPUTE_DAILY_BUDGET_MICRO_USDC=6000000
+covenant-compute budget status
+```
+
 `check` buys verification of pinned source, optionally with `--patch FILE`.
 It is a direct `agent_check` job: no model-authored patch is required.
 The signed receipt pays for checker execution, including a failed property.

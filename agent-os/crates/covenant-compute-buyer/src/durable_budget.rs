@@ -124,6 +124,11 @@ impl DurableBudget {
                 ))
             }
         };
+        Self::open_with_env_root(buyer, endpoint, limit).map(Some)
+    }
+    /// Resolve the shared namespace without changing the process environment.
+    /// Explicit limit changes use the caller's expected persisted limit here.
+    pub fn open_with_env_root(buyer: &str, endpoint: &str, limit: u64) -> Result<Self> {
         // Common to CLI/MCP/gateway homes: identities sharing an endpoint must
         // share a budget namespace even if they have distinct session homes.
         let root = match std::env::var("COVENANT_COMPUTE_BUDGET_HOME") {
@@ -139,9 +144,17 @@ impl DurableBudget {
         if !root.is_absolute() {
             return Err(BudgetError::Refused("budget home must be absolute".into()));
         }
-        Self::open(&root, buyer, endpoint, limit).map(Some)
+        Self::open(&root, buyer, endpoint, limit)
     }
     fn transact<T>(&self, now: u64, change: impl FnOnce(&mut State) -> Result<T>) -> Result<T> {
+        self.transact_inner(now, false, change)
+    }
+    fn transact_inner<T>(
+        &self,
+        now: u64,
+        limit_update: bool,
+        change: impl FnOnce(&mut State) -> Result<T>,
+    ) -> Result<T> {
         let lock_path = self.directory.join("lock");
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true);
@@ -155,7 +168,7 @@ impl DurableBudget {
         let path = self.directory.join("budget.json");
         let mut state = match std::fs::read(&path) {
             Ok(bytes) => serde_json::from_slice::<State>(&bytes)?,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => State {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound && !limit_update => State {
                 version: 1,
                 buyer: self.buyer.clone(),
                 endpoint: self.endpoint.clone(),
@@ -171,6 +184,12 @@ impl DurableBudget {
             ));
         }
         if state.limit_micro_usdc != self.limit {
+            if limit_update {
+                return Err(BudgetError::Refused(format!(
+                    "expected limit {}, but persisted limit is {}; re-read the budget before changing it",
+                    self.limit, state.limit_micro_usdc
+                )));
+            }
             return Err(BudgetError::Refused(
                 "processes sharing a buyer/endpoint must use the same persisted daily ceiling"
                     .into(),
@@ -182,7 +201,9 @@ impl DurableBudget {
             ));
         }
         let value = change(&mut state)?;
-        state.watermark_ms = now;
+        if !limit_update {
+            state.watermark_ms = now;
+        }
         let mut file = tempfile::NamedTempFile::new_in(&self.directory)?;
         serde_json::to_writer(file.as_file_mut(), &state)?;
         file.write_all(b"\n")?;
@@ -288,20 +309,46 @@ impl DurableBudget {
         })
     }
     pub fn status(&self, now: u64) -> Result<BudgetStatus> {
-        self.transact(now, |state| {
+        self.transact(now, |state| Self::status_of(state, now))
+    }
+    fn status_of(state: &State, now: u64) -> Result<BudgetStatus> {
+        let (pending, spent) = Self::totals(state, now)?;
+        Ok(BudgetStatus {
+            limit_micro_usdc: state.limit_micro_usdc,
+            settled_24h_micro_usdc: spent,
+            pending_micro_usdc: pending,
+            remaining_micro_usdc: state
+                .limit_micro_usdc
+                .saturating_sub(pending.saturating_add(spent)),
+            pending_jobs: state
+                .entries
+                .values()
+                .filter(|r| r.state == ReservationState::Pending)
+                .map(|r| r.job_id)
+                .collect(),
+        })
+    }
+    /// Compare-and-set the persisted limit using this handle's current limit
+    /// as the expectation. Every reservation and the clock watermark survive.
+    /// Old handles refuse further operations after a successful change.
+    pub fn set_limit(&self, new_limit: u64, now: u64) -> Result<BudgetStatus> {
+        if new_limit == 0 {
+            return Err(BudgetError::Refused(
+                "budget must be a positive integer".into(),
+            ));
+        }
+        self.transact_inner(now, true, |state| {
             let (pending, spent) = Self::totals(state, now)?;
-            Ok(BudgetStatus {
-                limit_micro_usdc: self.limit,
-                settled_24h_micro_usdc: spent,
-                pending_micro_usdc: pending,
-                remaining_micro_usdc: self.limit.saturating_sub(pending.saturating_add(spent)),
-                pending_jobs: state
-                    .entries
-                    .values()
-                    .filter(|r| r.state == ReservationState::Pending)
-                    .map(|r| r.job_id)
-                    .collect(),
-            })
+            let committed = pending
+                .checked_add(spent)
+                .ok_or_else(|| BudgetError::Refused("committed total overflow".into()))?;
+            if new_limit < committed {
+                return Err(BudgetError::Refused(format!(
+                    "new limit {new_limit} is below {pending} pending + {spent} settled"
+                )));
+            }
+            state.limit_micro_usdc = new_limit;
+            Self::status_of(state, now)
         })
     }
 }
@@ -507,6 +554,86 @@ mod tests {
         book.reserve(&env, 106).unwrap();
         assert_eq!(book.status(107).unwrap().settled_24h_micro_usdc, 20);
         assert_eq!(book.status(107).unwrap().pending_micro_usdc, 0);
+    }
+    #[test]
+    fn set_limit_preserves_every_entry_and_watermark_and_invalidates_old_handles() {
+        let dir = tempfile::tempdir().unwrap();
+        let identity = LocalIdentity::generate("budget@local");
+        let buyer = identity.agent_id().pubkey_base58();
+        let book = DurableBudget::open(dir.path(), &buyer, "https://compute.example", 100).unwrap();
+        let expired = envelope(&identity, 30);
+        book.reserve(&expired, 1).unwrap();
+        book.settle(expired.payload.job_id, 30, 2).unwrap();
+        let pending = envelope(&identity, 40);
+        book.reserve(&pending, 3).unwrap();
+        let settled = envelope(&identity, 20);
+        book.reserve(&settled, DAY_MS + 3).unwrap();
+        book.settle(settled.payload.job_id, 20, DAY_MS + 4).unwrap();
+        let unsubmitted = envelope(&identity, 10);
+        book.reserve(&unsubmitted, DAY_MS + 5).unwrap();
+        book.submit_refused(unsubmitted.payload.job_id, DAY_MS + 6)
+            .unwrap();
+        let path = book.directory.join("budget.json");
+        let before: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let status = book.set_limit(200, DAY_MS + 10).unwrap();
+        let after: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let mut expected = before;
+        expected["limit_micro_usdc"] = 200.into();
+        assert_eq!(after, expected, "only the persisted ceiling may change");
+        assert_eq!(status.pending_micro_usdc, 40);
+        assert_eq!(status.settled_24h_micro_usdc, 20);
+        assert_eq!(status.remaining_micro_usdc, 140);
+        assert_eq!(status.pending_jobs, vec![pending.payload.job_id]);
+        let bytes = std::fs::read(&path).unwrap();
+        assert!(
+            book.set_limit(300, DAY_MS + 11).is_err(),
+            "stale expectation"
+        );
+        assert!(
+            book.status(DAY_MS + 11).is_err(),
+            "old process configuration"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        let updated =
+            DurableBudget::open(dir.path(), &buyer, "https://compute.example", 200).unwrap();
+        assert!(
+            updated.set_limit(300, DAY_MS + 5).is_err(),
+            "clock rollback"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert_eq!(updated.status(DAY_MS + 11).unwrap().pending_micro_usdc, 40);
+    }
+    #[test]
+    fn set_limit_refuses_zero_missing_state_and_reductions_below_commitments() {
+        let dir = tempfile::tempdir().unwrap();
+        let identity = LocalIdentity::generate("budget@local");
+        let book = DurableBudget::open(
+            dir.path(),
+            &identity.agent_id().pubkey_base58(),
+            "https://compute.example",
+            100,
+        )
+        .unwrap();
+        let path = book.directory.join("budget.json");
+        assert!(book.set_limit(200, 1).is_err());
+        assert!(!path.exists(), "an expected limit must already exist");
+        let pending = envelope(&identity, 40);
+        let settled = envelope(&identity, 30);
+        book.reserve(&pending, 1).unwrap();
+        book.reserve(&settled, 2).unwrap();
+        book.settle(settled.payload.job_id, 20, 3).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        for limit in [0, 39, 59] {
+            assert!(book.set_limit(limit, 4).is_err());
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        }
+        let status = book.set_limit(60, 4).unwrap();
+        assert_eq!(status.limit_micro_usdc, 60);
+        assert_eq!(status.remaining_micro_usdc, 0);
+        assert_eq!(status.pending_micro_usdc, 40);
+        assert_eq!(status.settled_24h_micro_usdc, 20);
     }
     #[test]
     fn subprocess_reservation() {

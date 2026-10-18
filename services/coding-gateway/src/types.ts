@@ -9,12 +9,21 @@
  *
  */
 
+import type { ComputeCleanupReport, ComputeConfig, ComputeSession } from './compute.js';
+
+export interface GpuPolicy {
+  max_usdc_micros: 200000;
+  duration_secs: 300;
+  max_launches: 1;
+}
+
 // Hermes /v1 wire contract consumed by covenantd.
 
 export interface RunRequest {
   input: string;
   session_id: string;
   max_cost_usd: number;
+  gpu?: GpuPolicy;
   repository_url?: string;
   base_sha?: string;
   validation_commands?: string[];
@@ -41,6 +50,7 @@ export interface RunState {
   usage?: TokenUsage;
   costUsd?: number;
   providerReceipts?: ProviderReceipt[];
+  compute?: ComputeCleanupReport;
 }
 
 /** GET /v1/capabilities: the three features the daemon gates on plus the
@@ -125,6 +135,9 @@ export interface CodingBackend {
     signal: AbortSignal; // aborts on wall-clock budget or POST /stop
     emit: (e: GatewayEvent) => void;
     maxProviderCostUsd: number;
+    /** Only constructed after an authenticated, explicit dispatch grant. */
+    computeSession?: ComputeSession;
+    computeConfig?: ComputeConfig;
     recordProviderRequest?: () => void | Promise<void>;
     recordProviderReceipt?: (receipt: ProviderReceipt) => void | Promise<void>;
     /**

@@ -1,9 +1,0 @@
-{
-  "name": "covenant-compute-inference",
-  "main": "worker.mjs",
-  "compatibility_date": "2026-10-18",
-  "workers_dev": false,
-  "preview_urls": false,
-  "routes": [{ "pattern": "compute-inference.opencovenant.org", "custom_domain": true }],
-  "observability": { "enabled": false }
-}

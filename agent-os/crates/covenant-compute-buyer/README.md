@@ -635,6 +635,9 @@ its checks. Nothing is charged unless the fix passes.
 
 ## Authorship and Kani verification with receipts
 
+For a complete example with a fresh identity, funding before submission and
+independent offline verification, follow the [Kani smoke walkthrough](../../../docs/compute-kani-smoke.md).
+
 `agent --dry-run` and `check --dry-run` prepare and validate the order
 locally. A large local repository is packed, but no bundle is uploaded,
 no order is signed, and no money is reserved or spent. Unknown flags fail

@@ -53,6 +53,22 @@ part of this release allowance. Reconcile unknown outcomes before any retry or
 budget increase. Unspent gateway balance remains owned by Covenant; the gateway
 does not automatically recycle customer receipts into a fresh spending ceiling.
 
+Customer authorization sponsorship is capped at two signatures, 60,000 compute
+units and 1,000 microlamports per unit: at most 10,060 lamports per transaction.
+The installed client uses 60,000 units because the full request-bound memo
+consumed 43,642 units in a read-only mainnet simulation. The official SDK's default
+20,000 units cannot execute that memo. Do not shorten the binding, bypass
+simulation, alter an existing authorization, or raise the priority fee to work
+around a rejected payment.
+
+After a rejected authorization, retain the original client and gateway records.
+Before a separate acceptance attempt, verify the original gateway entry is still
+quoted (no admitted job/payment), its blockhash is expired, its fully signed
+transaction ID has no historical signature status, and customer balances are
+unchanged. A diagnostic simulation with `replaceRecentBlockhash` and signature
+verification disabled is useful for diagnosis only; it is not payment acceptance
+and must never be broadcast or substituted into the original purchase.
+
 ## Promotion
 
 1. Verify the image revision, dependency locks, private bridge tests, installed

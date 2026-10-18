@@ -22,7 +22,7 @@ async function setup() {
       m => setTransactionMessageFeePayer(facilitator.address, m),
       m => setTransactionMessageLifetimeUsingBlockhash({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 1000n }, m),
       m => appendTransactionMessageInstructions([
-        getSetComputeUnitLimitInstruction({ units: overrides.units ?? 20_000 }),
+        getSetComputeUnitLimitInstruction({ units: overrides.units ?? 60_000 }),
         getSetComputeUnitPriceInstruction({ microLamports: overrides.priority ?? 1n }),
         getTransferCheckedInstruction({ source, mint: config.asset, destination, authority: payer, amount: overrides.amount ?? 1200n, decimals: 6 }),
         { programAddress: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr', accounts: [], data: new TextEncoder().encode(overrides.memo ?? terms.extra.memo) },
@@ -47,13 +47,15 @@ async function setup() {
 
 test('official verifier checks signed memo, amount and fee sponsorship before signing', async () => {
   const f = await setup();
-  for (const override of [{ memo: 'copied payment for other request' }, { amount: 1201n }, { units: 50_000 }, { priority: 1001n }]) {
+  for (const override of [{ memo: 'copied payment for other request' }, { amount: 1201n }, { units: 60_001 }, { priority: 1001n }]) {
     await assert.rejects(f.verify(override), Rejected);
   }
   assert.equal(f.state.sends.length, 0);
-  const payment = await f.verify();
+  assert.equal(f.simulations(), 0, 'invalid static policies cannot reach RPC simulation');
+  const payment = await f.verify({ units: 60_000, priority: 1000n });
   assert.equal(payment.authorization_id.length, 64);
   assert.ok(payment.transaction_id);
+  assert.equal(f.simulations(), 1, 'the exact 60k/1000 ceiling still requires official simulation');
   assert.equal(f.state.sends.length, 0, 'verify must never broadcast');
 });
 

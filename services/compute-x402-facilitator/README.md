@@ -67,8 +67,16 @@ inside the signed payment transaction. The gateway verifies it, signs stable
 native Compute job IDs, then fsyncs the payment and jobs before dispatch. The
 verifier signs the fee-payer slot locally during admission; it never broadcasts
 from `/verify`. Static validation caps each sponsored transaction at two required
-signatures, 40,000 compute units and 1,000 microlamports per CU (at most 10,040
+signatures, 60,000 compute units and 1,000 microlamports per CU (at most 10,060
 lamports). Smart-wallet/CPI payments are disabled for this release.
+
+The full quote/request memo consumed 43,642 compute units in a read-only mainnet
+simulation. The installed Covenant client raises the official SDK's unsigned
+20,000-unit instruction to a fixed 60,000 before AgentKit signs; every other
+instruction and the blockhash remain unchanged. The bridge still runs the
+official signature, memo, transfer and live simulation checks. A transaction
+above 60,000 units or 1,000 microlamports per unit is rejected before simulation
+or fee-payer signing.
 
 Only output whose native operator receipt verifies can trigger customer
 settlement. `/settle` always queries historical signature state before sending

@@ -31,9 +31,10 @@ function decode(wire) {
 export function createBridge({ signer, config, rpc, now = Date.now, verifier }) {
   const { network, asset, payTo, feePayer, resourceUrl, secret } = config;
   if (!RAILS[network] || asset !== RAILS[network].asset || secret.length < 32) throw new Error('invalid rail configuration');
-  // Bound sponsorship: <= 2 signatures, 40k CU and 1000 microlamports/CU.
-  // This bounds fees to 10,040 lamports per admitted authorization.
-  verifier ??= new ExactSvmScheme(signer, undefined, { enableSmartWalletVerification: false, maxRequiredSignatures: 2, maxComputeUnits: 40_000, maxPriorityFeeMicroLamports: 1_000 });
+  // The request-bound memo consumed 43,642 CU in a read-only mainnet simulation.
+  // Bound sponsorship: <= 2 signatures, 60k CU and 1000 microlamports/CU.
+  // This bounds fees to 10,060 lamports per admitted authorization.
+  verifier ??= new ExactSvmScheme(signer, undefined, { enableSmartWalletVerification: false, maxRequiredSignatures: 2, maxComputeUnits: 60_000, maxPriorityFeeMicroLamports: 1_000 });
   function requirements(terms, fresh) {
     const extra = terms?.extra;
     if (terms?.scheme !== 'exact' || terms.network !== network || terms.asset !== asset || terms.payTo !== payTo || extra?.feePayer !== feePayer || !/^[1-9][0-9]*$/.test(terms.amount) || BigInt(terms.amount) !== BigInt(config.priceAtomic) || terms.maxTimeoutSeconds !== 90) throw new Rejected('payment rail or amount mismatch');

@@ -38,15 +38,22 @@ The new operator's stake was explicitly approved and submitted on Solana mainnet
 - Lock expiry: 2026-11-17 00:01 UTC.
 - [Confirmed stake transaction](https://solscan.io/tx/nNT9c5vT2NdGWNPR8nZdm8RNNbc1ezApkg89S6Mgb2N4sC8UfD1ow35XfbrbVM1L5JqSyca6WGEpqejpqcivSUj)
 
-The first capped provider qualification request received an upstream HTTP200 but
-failed strict response validation. No customer transaction was involved. The full
-0.300240 USDC maximum reservation remains retained; the provider-account balance
-decreased by 0.000010 USDC, which is not sufficient by itself to attribute an exact
-request cost. This result is not provider acceptance.
+Provider qualification passed for the exact canonical model `claude-haiku-4.5`
+on 2026-10-18. The response returned the requested marker, used 15 input and
+8 output tokens, and completed in 1.194 seconds. Two earlier requests using a
+dated model identifier failed strict response-model validation. Their full
+0.600480 USDC combined reservations remain counted as immutable audited losses;
+the original request identities can never be retried. The successful call counts
+83 micro-USDC at the configured price ceilings. No customer payment was involved.
 
-Not yet evidenced: immutable public image, persistent service deployment, live
-inference matching, funded AgentKit payment, returned verified result, restart
-replay, public launch page/video and deployed sharing-card checks. Public
-admissions remain disabled until those gates pass.
+The dedicated gateway buyer was funded with 3 USDC and its credited balance was
+read back. The AgentKit test wallet holds 0.5 USDC; its associated token account,
+the merchant token account and a separately bounded fee-payer allowance are ready.
+The first immutable release image passed anonymous manifest and layer access.
+
+Not yet evidenced: persistent service deployment, live inference matching,
+funded AgentKit payment, returned verified result, restart replay, public launch
+page/video and deployed sharing-card checks. Public admissions remain disabled
+until those gates pass.
 
 Deployment and budget allocation: [release runbook](../deploy/compute-x402/README.md).

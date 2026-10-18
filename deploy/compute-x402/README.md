@@ -44,7 +44,7 @@ reserve. The proposed initial allocation is deliberately smaller:
 | Local provider qualification | 1 USDC |
 | Deployed provider lifetime ceiling | 1 USDC |
 | AgentKit test wallet/customer payments | 0.5 USDC |
-| Transaction fees and account creation | At most 1 USDC equivalent |
+| Transaction fees and account creation | At most 1.5 USDC equivalent |
 
 Local and deployed provider journals use separate allocations; their combined
 ceiling remains 2 USDC. Keep both as evidence. A response-usage upper bound is not

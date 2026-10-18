@@ -8,8 +8,7 @@ third-party runtime dependencies and is disabled by default.
 The upstream token is placed in UsePod's required URL path internally. The Rust
 operator receives only a local URL and a separate local bearer secret. The bridge
 never logs upstream URLs, headers, payloads, credentials or exception messages.
-Provider errors return fixed reason codes. A private diagnostic row records only HTTP status, response SHA-256 and byte length, model hash/match, choice count, fixed finish/content categories and integer usage. Invalid response bodies and provider-supplied strings are never retained in diagnostics. Successful OpenAI response bytes are retained
-and returned intact after validation; a response containing the upstream secret
+Provider errors return fixed reason codes. A private diagnostic row records only HTTP status, response SHA-256 and byte length, model hash/match, choice count, fixed finish/content categories and integer usage. Invalid response bodies and provider-supplied strings are never retained in diagnostics. Successful OpenAI responses are retained after validation, with the explicit model-identity metadata described below; a response containing the upstream secret
 is refused. Redirects are refused.
 
 ## Configuration
@@ -21,7 +20,7 @@ qualified. All of these variables are mandatory when enabled:
 |---|---|
 | `USEPOD_TOKEN` or `USEPOD_TOKEN_FILE` | Upstream token; `_FILE` names an absolute plain-text secret file, not JSON. Set exactly one. |
 | `COVENANT_INFERENCE_PROVIDER_BEARER_TOKEN` or `_BEARER_TOKEN_FILE` | Independent secret for local paid POSTs; same plain-file convention. |
-| `COVENANT_INFERENCE_PROVIDER_MODEL` | Exact accepted request and response model ID. |
+| `COVENANT_INFERENCE_PROVIDER_MODEL` | Exact accepted request model ID; only the documented Haiku pair below accepts a different response ID. |
 | `COVENANT_INFERENCE_PROVIDER_DB_PATH` | Absolute SQLite path on the persistent volume. Never use a temporary filesystem in production. |
 | `COVENANT_INFERENCE_PROVIDER_LIFETIME_BUDGET_MICRO_USDC` | Positive lifetime ceiling; includes unresolved reservations. |
 | `COVENANT_INFERENCE_PROVIDER_DAILY_BUDGET_MICRO_USDC` | Positive rolling 24-hour ceiling, at most the lifetime ceiling. |
@@ -47,12 +46,25 @@ count beyond either allowance is treated as unresolved and blocks further spendi
 
 ## Canonical model identity
 
-The configured model must match the provider's response exactly. Qualification of a
-dated catalog identifier returned a model hash matching `claude-haiku-4.5`; that
-mismatch was refused and its full reservation retained. Use `claude-haiku-4.5` as the
-explicit request and advertised model when qualifying that provider route. The
-response name does not prove a dated model revision. No alias acceptance, automatic
-fallback, or rewriting of provider model identity is enabled.
+Response models must match the configured model exactly, with one explicit pair:
+when the configured request model is `claude-haiku-4.5`, the response may also report
+`anthropic/claude-haiku-4.5`. [OpenRouter documents that exact model ID](https://openrouter.ai/anthropic/claude-haiku-4.5).
+The read-only UsePod model catalog also lists that exact slug with `owned_by: openrouter`.
+For this configured model, the bridge sends the exact catalog slug `anthropic/claude-haiku-4.5` upstream while keeping the canonical request digest unchanged. Every upstream request sets `X-Pod-Providers: openrouter`
+and `X-Pod-Routing-Mode: centralized-only`. [UsePod documents this hard provider pin](https://docs.usepod.ai/marketplace/routing/): excluded providers cannot serve a fallback.
+Contradictory `X-Pod-Provider-Id` or `X-Pod-Route` response headers are refused; absent
+optional headers are recorded as null. No generic prefix removal, model switching,
+or dated-revision claim is allowed.
+
+The upstream `model` remains unchanged. A versioned `covenant_provider` object
+records customer-requested, upstream-requested and reported model IDs, the exact response mapping, hard provider pin, optional
+reported route/provider, and SHA-256 of the original upstream response. It replaces
+any upstream-supplied field with that name. The Rust operator validates the identity
+and includes it as a `provider_identity` JSON block in the signed job output. This
+makes the provider report visible and covered by the receipt's result hash; it does
+not independently attest the model weights or prove which provider ran them. The
+response with this metadata is persisted and replayed identically after restart.
+Existing unknown/failed calls and their conservative cost reservations are unchanged.
 
 ## Existing Rust operator
 

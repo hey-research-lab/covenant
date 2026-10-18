@@ -125,3 +125,38 @@ test('local reconciliation CLI requires exact audit fields and never changes or 
  const good=await run(['--abandon-full-reservation','--id','key:cli','--request-sha256',digest,'--reserved-micro-usdc','2040','--audit-sha256',audit]);assert.equal(good.status,0);assert.equal(JSON.parse(good.stdout).state,'abandoned_full_loss');
  const reopened=new Ledger(config);t.after(()=>reopened.close());assert.equal(reopened.totals().lifetime,2040);assert.equal(reopened.totals().unresolved,0);assert.throws(()=>reopened.reserve('key:cli',digest,20),/provider_request_abandoned/);
 });
+
+test('the explicit Haiku pair is route-pinned and retains both model identities across restart',async t=>{
+ for(const reported of ['claude-haiku-4.5','anthropic/claude-haiku-4.5'])for(const headers of [{},{'X-Pod-Provider-Id':'openrouter','X-Pod-Route':'centralized'}])await t.test(`${reported}/${Object.keys(headers).length}`,async t=>{
+  const config=configuration(temp(t),{model:'claude-haiku-4.5'});let calls=0;
+  const reply=completion({model:reported,covenant_provider:{type:'spoofed',reported_model:'wrong'}});
+  const fetcher=async(_url,init)=>{calls++;assert.equal(init.headers['X-Pod-Providers'],'openrouter');assert.equal(init.headers['X-Pod-Routing-Mode'],'centralized-only');assert.equal(JSON.parse(init.body).model,'anthropic/claude-haiku-4.5');return Response.json(reply,{headers});};
+  let app=createProvider(config,{testFetch:fetcher}),addr=await app.listen(),base=`http://127.0.0.1:${addr.port}`;
+  const body=request({model:config.model}),key={'idempotency-key':'haiku-pair'};
+  const response=await post(base,body,key);assert.equal(response.status,200);const initial=await response.text(),value=JSON.parse(initial);
+  assert.equal(value.model,reported);assert.equal(value.covenant_provider.requested_model,config.model);assert.equal(value.covenant_provider.upstream_requested_model,'anthropic/claude-haiku-4.5');assert.equal(value.covenant_provider.reported_model,reported);
+  assert.equal(value.covenant_provider.provider_pin,'openrouter');assert.equal(value.covenant_provider.provider_reported,headers['X-Pod-Provider-Id']??null);
+  assert.equal(value.covenant_provider.route_reported,headers['X-Pod-Route']??null);assert.equal(value.covenant_provider.type,'provider_identity');
+  assert.match(value.covenant_provider.upstream_response_sha256,/^[a-f0-9]{64}$/);
+  await app.close();app=createProvider(config,{testFetch:fetcher});addr=await app.listen();base=`http://127.0.0.1:${addr.port}`;t.after(()=>app.close());
+  assert.equal(await (await post(base,body,key)).text(),initial);assert.equal(calls,1);assert.equal(app.ledger.totals().lifetime,20);
+ });
+});
+
+test('model aliases and contradictory pinned routes are refused without releasing reservation',async t=>{
+ for(const [model,headers,code] of [
+  ['other/claude-haiku-4.5',{},'provider_response_model_mismatch'],
+  ['anthropic/claude-sonnet-4.5',{},'provider_response_model_mismatch'],
+  ['anthropic/claude-haiku-4.5:free',{},'provider_response_model_mismatch'],
+  ['anthropic/claude-haiku-4.5',{'X-Pod-Provider-Id':'anthropic'},'provider_response_route_mismatch'],
+  ['claude-haiku-4.5',{'X-Pod-Route':'marketplace'},'provider_response_route_mismatch'],
+ ])await t.test(`${model}/${JSON.stringify(headers)}`,async t=>{
+  let calls=0;const app=await appFor(t,configuration(temp(t),{model:'claude-haiku-4.5'}),async()=>{calls++;return Response.json(completion({model}),{headers});});
+  const response=await post(app.base,request({model:'claude-haiku-4.5'}),{'idempotency-key':'refused-model'});
+  assert.equal(response.status,503);assert.equal((await response.json()).error.code,code);
+  assert.equal((await post(app.base,request({model:'claude-haiku-4.5'}),{'idempotency-key':'refused-model'})).status,503);
+  assert.equal(calls,1);assert.equal(app.ledger.totals().lifetime,2040);assert.equal(app.ledger.totals().unresolved,1);
+ });
+ const app=await appFor(t,configuration(temp(t)),async()=>Response.json(completion({model:'anthropic/claude-haiku-4.5'})));
+ assert.equal((await post(app.base)).status,503,'the pair is not accepted for other configured models');
+});

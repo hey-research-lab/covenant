@@ -29,7 +29,10 @@ const authorized=(header,token)=>{
 };
 async function readRequest(req,limit){let size=0,parts=[];for await(const chunk of req){size+=chunk.length;if(size>limit)throw new Refusal('request_too_large',413);parts.push(chunk);}try{return JSON.parse(Buffer.concat(parts).toString('utf8'));}catch{throw new Refusal('invalid_json',400);}}
 async function readResponse(response,limit){let size=0,parts=[];if(!response.body)throw new Refusal('provider_invalid_response');for await(const chunk of response.body){size+=chunk.length;if(size>limit){await response.body.cancel().catch(()=>{});throw new Refusal('provider_response_too_large');}parts.push(chunk);}return Buffer.concat(parts).toString('utf8');}
-function parseResponse(raw,c,diagnostics){
+// Exact documented OpenRouter slug for this UsePod catalog model; never strip prefixes.
+const haikuModel='claude-haiku-4.5',haikuReportedModel='anthropic/claude-haiku-4.5';
+const pinnedHaiku=c=>c.model===haikuModel;
+function parseResponse(raw,c,diagnostics,headers){
  diagnostics.response_sha256=crypto.createHash('sha256').update(raw).digest('hex');
  diagnostics.response_bytes=Buffer.byteLength(raw);
  if(raw.includes(c.token)||raw.includes(c.bearer))throw new Refusal('provider_response_contains_secret');
@@ -50,7 +53,19 @@ function parseResponse(raw,c,diagnostics){
  }
  if(safeObject(usage))for(const field of ['prompt_tokens','completion_tokens','total_tokens'])if(Number.isSafeInteger(usage[field])&&usage[field]>=0)diagnostics[field]=usage[field];
  if(value.error)throw new Refusal('provider_response_error');
- if(value.model!==c.model)throw new Refusal('provider_response_model_mismatch');
+ const mapped=pinnedHaiku(c)&&value.model===haikuReportedModel;
+ if(value.model!==c.model&&!mapped)throw new Refusal('provider_response_model_mismatch');
+ let identity;
+ if(pinnedHaiku(c)){
+  const provider=headers.get('X-Pod-Provider-Id'),route=headers.get('X-Pod-Route');
+  // UsePod's hard request pin is authoritative. Optional response headers may
+  // corroborate it, but a contradictory header is never silently ignored.
+  if(provider!==null&&provider!=='openrouter')throw new Refusal('provider_response_route_mismatch');
+  if(route!==null&&route!=='centralized')throw new Refusal('provider_response_route_mismatch');
+  identity={type:'provider_identity',version:1,upstream:'usepod',requested_model:c.model,upstream_requested_model:haikuReportedModel,reported_model:value.model,
+   model_mapping:mapped?'usepod-openrouter-haiku-4.5-v1':'exact',provider_pin:'openrouter',
+   provider_reported:provider,route_reported:route,upstream_response_sha256:diagnostics.response_sha256};
+ }
  if(typeof value.id!=='string'||!value.id.length)throw new Refusal('provider_response_id_missing');
  if(!Array.isArray(value.choices)||value.choices.length!==1)throw new Refusal('provider_response_choice_count');
  if(!safeObject(choice)||!safeObject(choice.message))throw new Refusal('provider_response_choice_shape');
@@ -60,7 +75,10 @@ function parseResponse(raw,c,diagnostics){
  if(!safeObject(usage)||!Number.isSafeInteger(usage.prompt_tokens)||usage.prompt_tokens<1||!Number.isSafeInteger(usage.completion_tokens)||usage.completion_tokens<1)throw new Refusal('provider_usage_missing');
  if(usage.total_tokens!==undefined&&usage.total_tokens!==usage.prompt_tokens+usage.completion_tokens)throw new Refusal('provider_usage_invalid');
  // Only successful, validated response bytes are retained. Diagnostic fields never contain strings from the provider.
- return {inputTokens:usage.prompt_tokens,outputTokens:usage.completion_tokens,response:raw};
+ // Keep the upstream model untouched. The local operator signs this identity
+ // alongside the output; this is provider-reported identity, not model attestation.
+ if(identity)value.covenant_provider=identity;
+ return {inputTokens:usage.prompt_tokens,outputTokens:usage.completion_tokens,response:identity?JSON.stringify(value):raw};
 }
 function send(res,status,body,headers={}){res.writeHead(status,{'content-type':'application/json','cache-control':'no-store',...headers});res.end(typeof body==='string'?body:JSON.stringify(body));}
 
@@ -98,11 +116,11 @@ export function createProvider(config,{testFetch,clock=Date.now}={}){
    let completion;
    try{
     const response=await fetcher(`https://api.usepod.ai/proxy/${encodeURIComponent(config.token)}/v1/chat/completions`,{
-     method:'POST',redirect:'error',headers:{'content-type':'application/json','User-Agent':'Covenant-x402/0.1','X-Pod-Max-Price-Input':String(config.inputPrice),'X-Pod-Max-Price-Output':String(config.outputPrice)},
-     body:serialized,signal:controller.signal});
+     method:'POST',redirect:'error',headers:{'content-type':'application/json','User-Agent':'Covenant-x402/0.1','X-Pod-Max-Price-Input':String(config.inputPrice),'X-Pod-Max-Price-Output':String(config.outputPrice),...(pinnedHaiku(config)?{'X-Pod-Providers':'openrouter','X-Pod-Routing-Mode':'centralized-only'}:{})},
+     body:pinnedHaiku(config)?JSON.stringify({...body,model:haikuReportedModel}):serialized,signal:controller.signal});
     diagnostics.http_status=response.status;
     if(!response.ok){await response.body?.cancel().catch(()=>{});throw new Refusal('provider_rejected_or_unknown');}
-    completion=parseResponse(await readResponse(response,Math.min(8_388_608,config.maxOutputTokens*256+65_536)),config,diagnostics);
+    completion=parseResponse(await readResponse(response,Math.min(8_388_608,config.maxOutputTokens*256+65_536)),config,diagnostics,response.headers);
    }finally{clearTimeout(timer);}
    ledger.complete(id,completion,clock());reservedId=undefined;
    send(res,200,completion.response,{'x-covenant-provider-replay':'false'});

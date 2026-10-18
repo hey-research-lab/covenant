@@ -21,22 +21,30 @@ type ModelPrice = { input: number; output: number; cacheRead: number; cacheWrite
 
 function priceFor(model: string): ModelPrice {
   const price = Object.hasOwn(PRICING, model) ? PRICING[model] : undefined;
-  if (!CLAUDE_MODELS.has(model) || !price || Object.values(price).some((p) => !Number.isFinite(p) || p <= 0)) {
+  if (
+    !CLAUDE_MODELS.has(model) ||
+    !price ||
+    Object.values(price).some((p) => !Number.isFinite(p) || p <= 0)
+  ) {
     throw new Error('Anthropic model has no recognized, valid configured price');
   }
   return price;
 }
 
 function tokenCount(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw new Error('Anthropic returned invalid token accounting');
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw new Error('Anthropic returned invalid token accounting');
   return value;
 }
 
 function usageMicros(usage: TokenUsage, price: ModelPrice): number {
-  return Math.ceil(usage.inputTokens * price.input + usage.outputTokens * price.output
-    + usage.cacheReadTokens * price.cacheRead + usage.cacheCreationTokens * price.cacheWrite);
+  return Math.ceil(
+    usage.inputTokens * price.input +
+      usage.outputTokens * price.output +
+      usage.cacheReadTokens * price.cacheRead +
+      usage.cacheCreationTokens * price.cacheWrite,
+  );
 }
-
 
 const SYSTEM = `You are a coding agent working inside an ephemeral sandbox with a
 few-minute wall-clock budget, so work efficiently and don't waste steps.
@@ -194,7 +202,9 @@ export class AnthropicBackend implements CodingBackend {
         const request = {
           model: config.model,
           thinking,
-          system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }] as Anthropic.TextBlockParam[],
+          system: [
+            { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
+          ] as Anthropic.TextBlockParam[],
           tools,
           messages: withTurnCache(messages),
         };
@@ -203,10 +213,16 @@ export class AnthropicBackend implements CodingBackend {
         // Token counts are estimates: leave 10% + 1024 input tokens of headroom.
         const counted = await this.client.messages.countTokens(request, { signal, maxRetries: 0 });
         const inputTokens = tokenCount(counted.input_tokens);
-        const reservedInput = Math.ceil(inputTokens * 1.10) + 1_024;
-        const inputMicros = Math.ceil(reservedInput * Math.max(price.input, price.cacheWrite, price.cacheRead));
-        const maxTokens = Math.min(MAX_TOKENS, Math.floor((budgetMicros - spentMicros - inputMicros) / price.output));
-        if (!Number.isSafeInteger(maxTokens) || maxTokens < 1) throw new Error('Anthropic provider budget exhausted before generation');
+        const reservedInput = Math.ceil(inputTokens * 1.1) + 1_024;
+        const inputMicros = Math.ceil(
+          reservedInput * Math.max(price.input, price.cacheWrite, price.cacheRead),
+        );
+        const maxTokens = Math.min(
+          MAX_TOKENS,
+          Math.floor((budgetMicros - spentMicros - inputMicros) / price.output),
+        );
+        if (!Number.isSafeInteger(maxTokens) || maxTokens < 1)
+          throw new Error('Anthropic provider budget exhausted before generation');
         if (signal.aborted) throw new Error('run aborted');
         await opts.recordProviderRequest?.();
         if (signal.aborted) throw new Error('run aborted');
@@ -237,7 +253,8 @@ export class AnthropicBackend implements CodingBackend {
         usage.cacheReadTokens += turnUsage.cacheReadTokens;
         usage.cacheCreationTokens += turnUsage.cacheCreationTokens;
         spentMicros += usageMicros(turnUsage, price);
-        if (spentMicros > budgetMicros) throw new Error('Anthropic usage exceeded the configured provider reservation');
+        if (spentMicros > budgetMicros)
+          throw new Error('Anthropic usage exceeded the configured provider reservation');
         if (signal.aborted) throw new Error('run aborted');
 
         messages.push({ role: 'assistant', content: message.content });
@@ -248,7 +265,8 @@ export class AnthropicBackend implements CodingBackend {
           .join('');
         if (text) finalText = text;
 
-        if (message.stop_reason === 'max_tokens') throw new Error('Anthropic output token budget exhausted');
+        if (message.stop_reason === 'max_tokens')
+          throw new Error('Anthropic output token budget exhausted');
         if (message.stop_reason === 'pause_turn') continue;
 
         const toolUses = message.content.filter(
@@ -316,7 +334,8 @@ export class AnthropicBackend implements CodingBackend {
 /** Format an existing cleanup report; never perform cleanup from a backend. */
 export function reapNote(report: ComputeCleanupReport | null): string {
   if (!report || (report.settled.length === 0 && report.complete)) return '';
-  if (!report.complete) return '\n[gpu_workspace cleanup pending; final receipts are not confirmed]';
+  if (!report.complete)
+    return '\n[gpu_workspace cleanup pending; final receipts are not confirmed]';
   return `\n[gpu_workspace settled at run end: ${report.settled.map((job) => job.job_id).join(', ')}]`;
 }
 

@@ -535,10 +535,10 @@ impl HermesRunner {
                 .get(&intent_id)
                 .map(|r| (r.stop_requested, r.stop_acknowledged))
                 .unwrap_or_default();
-            if stop_requested {
-                if !stop_acknowledged {
-                    let _ = self.request_stop(intent_id).await;
-                }
+            if stop_requested && !stop_acknowledged {
+                // Retry cancellation until the gateway acknowledges it;
+                // polling still decides when cleanup has reached a terminal state.
+                let _ = self.request_stop(intent_id).await;
             }
             let status = match self.poll(run_id).await {
                 Ok(status) => {

@@ -319,6 +319,7 @@ pub struct Gateway {
     disk: Mutex<Disk>,
     sale_price_atomic: u64,
     admissions_enabled: bool,
+    admissions_directory: PathBuf,
 }
 #[derive(Debug)]
 pub enum GatewayReply {
@@ -383,11 +384,33 @@ impl Gateway {
             executor,
             sale_price_atomic: sale_price,
             admissions_enabled: true,
+            admissions_directory: directory.into(),
         })
     }
     pub fn with_admissions_enabled(mut self, enabled: bool) -> Self {
         self.admissions_enabled = enabled;
         self
+    }
+    /// Supervisor latches are checked for each new quote/payment, including
+    /// after asynchronous verification. Missing is the only permissive state;
+    /// unreadable paths, symlinks and directories all fail closed. Existing
+    /// purchases are deliberately independent so settlement can recover.
+    pub fn admissions_open(&self) -> bool {
+        self.admissions_enabled
+            && ["admissions.disabled", "admissions.starting"]
+                .iter()
+                .all(|name| {
+                    matches!(
+                        std::fs::symlink_metadata(self.admissions_directory.join(name)),
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+                    )
+                })
+    }
+    fn require_admissions(&self) -> Result<()> {
+        if !self.admissions_open() {
+            return Err(GatewayError::Unavailable("new admissions disabled".into()));
+        }
+        Ok(())
     }
     /// Run on a timer even with no traffic. It removes cached plaintext output
     /// after five minutes while preserving permanent replay tombstones.
@@ -407,9 +430,7 @@ impl Gateway {
         let quote_id = if quote_id.is_some_and(|id| disk.journal.entries.contains_key(&id)) {
             quote_id.unwrap()
         } else {
-            if !self.admissions_enabled {
-                return Err(GatewayError::Unavailable("new admissions disabled".into()));
-            }
+            self.require_admissions()?;
             if payment_header.is_some() {
                 return Err(GatewayError::Payment("unknown or expired quote".into()));
             }
@@ -463,9 +484,7 @@ impl Gateway {
         }
         let mut phase = entry.phase;
         if matches!(phase, Phase::Quoted) {
-            if !self.admissions_enabled {
-                return Err(GatewayError::Unavailable("new admissions disabled".into()));
-            }
+            self.require_admissions()?;
             let Some(header) = payment_header else {
                 return Ok(GatewayReply::PaymentRequired(entry.terms));
             };
@@ -473,6 +492,7 @@ impl Gateway {
                 return Err(GatewayError::Payment("quote expired".into()));
             }
             let payment = self.rail.verify(header, &entry.terms).await?;
+            self.require_admissions()?;
             // A transaction may only authorize one quote even across alternate
             // request bodies or a restarted process.
             if disk.journal.entries.values().any(|e| match &e.phase {
@@ -663,7 +683,7 @@ pub fn spawn_retention(gateway: Arc<Gateway>) -> tokio::task::JoinHandle<()> {
 pub fn router(gateway: Arc<Gateway>) -> Router {
     Router::new()
         .route("/v1/chat/completions", post(handle_http))
-        .route("/health", get(|| async { Json(json!({"status":"ok", "service":"covenant-compute-x402", "protocol":"x402-v2", "revision":option_env!("COVENANT_BUILD_REVISION").unwrap_or("unknown")})) }))
+        .route("/health", get(|State(gateway): State<Arc<Gateway>>| async move { Json(json!({"status":"ok", "service":"covenant-compute-x402", "protocol":"x402-v2", "admissions_enabled":gateway.admissions_open(), "revision":option_env!("COVENANT_BUILD_REVISION").unwrap_or("unknown")})) }))
         .layer(DefaultBodyLimit::max(64 * 1024))
         .with_state(gateway)
 }

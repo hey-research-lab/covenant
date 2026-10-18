@@ -889,3 +889,142 @@ async fn rollback_disables_new_spending_but_settlement_recovery_continues() {
     ));
     assert_eq!(executor.calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn durable_latch_blocks_new_quotes_and_payments_across_restart_but_recovers_existing() {
+    let directory = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(false),
+    });
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("latch@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let open = || {
+        Gateway::open(
+            directory.path(),
+            "latch",
+            30,
+            12,
+            rail.clone(),
+            executor.clone(),
+        )
+        .unwrap()
+    };
+    let gateway = open();
+    let request = json!({"prompt":"same"});
+    let paid = Uuid::new_v4();
+    let unpaid = Uuid::new_v4();
+    for id in [paid, unpaid] {
+        gateway
+            .handle(request.clone(), Some(id), None, 1000)
+            .await
+            .unwrap();
+    }
+    gateway
+        .handle(request.clone(), Some(paid), Some("paid"), 1001)
+        .await
+        .unwrap();
+    std::fs::write(
+        directory.path().join("admissions.disabled"),
+        "provider failed",
+    )
+    .unwrap();
+    assert!(!gateway.admissions_open());
+    assert!(gateway
+        .handle(request.clone(), None, None, 1002)
+        .await
+        .is_err());
+    assert!(gateway
+        .handle(request.clone(), Some(unpaid), Some("unpaid"), 1003)
+        .await
+        .is_err());
+    assert_eq!(executor.calls.load(Ordering::SeqCst), 1);
+    drop(gateway);
+    let gateway = open();
+    assert!(!gateway.admissions_open());
+    rail.finalized.store(true, Ordering::SeqCst);
+    gateway.recover_pending(1004).await.unwrap();
+    assert!(matches!(
+        gateway
+            .handle(request.clone(), Some(paid), Some("paid"), 1005)
+            .await
+            .unwrap(),
+        GatewayReply::Complete { .. }
+    ));
+    assert_eq!(executor.calls.load(Ordering::SeqCst), 1);
+    // Only explicit removal permits admissions again; startup markers also deny.
+    std::fs::remove_file(directory.path().join("admissions.disabled")).unwrap();
+    std::fs::create_dir(directory.path().join("admissions.starting")).unwrap();
+    assert!(!gateway.admissions_open());
+    assert!(gateway
+        .handle(request.clone(), None, None, 1006)
+        .await
+        .is_err());
+    std::fs::remove_dir(directory.path().join("admissions.starting")).unwrap();
+    assert!(gateway.admissions_open());
+}
+
+struct LatchingRail {
+    latch: PathBuf,
+}
+#[async_trait]
+impl PaymentRail for LatchingRail {
+    fn network(&self) -> &str {
+        "test:1"
+    }
+    fn asset(&self) -> &str {
+        "USDC"
+    }
+    fn pay_to(&self) -> &str {
+        "merchant"
+    }
+    fn authorization_id(&self, header: &str) -> Result<String> {
+        Ok(header.into())
+    }
+    async fn verify(&self, _: &str, _: &PaymentTerms) -> Result<VerifiedPayment> {
+        // Optional worker dies while external payment verification is in flight.
+        std::fs::write(&self.latch, "provider failed")?;
+        Ok(VerifiedPayment {
+            payer: "payer".into(),
+            authorization_id: "tx".into(),
+            transaction_id: "tx".into(),
+            encoded_transaction: "tx".into(),
+        })
+    }
+    async fn settle(&self, _: &VerifiedPayment, _: &PaymentTerms) -> Result<SettlementStatus> {
+        panic!("disabled admission must never reach settlement")
+    }
+}
+#[tokio::test]
+async fn latch_raised_during_payment_verification_prevents_paid_dispatch() {
+    let directory = tempfile::tempdir().unwrap();
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("race@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(
+        directory.path(),
+        "latch-race",
+        10,
+        12,
+        Arc::new(LatchingRail {
+            latch: directory.path().join("admissions.disabled"),
+        }),
+        executor.clone(),
+    )
+    .unwrap();
+    let request = json!({"prompt":"same"});
+    let id = Uuid::new_v4();
+    gateway
+        .handle(request.clone(), Some(id), None, 1000)
+        .await
+        .unwrap();
+    assert!(gateway
+        .handle(request, Some(id), Some("tx"), 1001)
+        .await
+        .is_err());
+    assert_eq!(executor.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(gateway.disk.lock().await.used_reserve(), 0);
+}

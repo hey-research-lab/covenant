@@ -16,7 +16,8 @@ build; no Docker socket or GPU access is required for this provider-backed node.
 Run one instance with a persistent volume at `/data`. The supervisor creates
 separate gateway, operator, buyer-budget and provider directories, with private
 permissions. Identity seeds are restored only onto an empty volume; conflicting
-seeds refuse startup. Fee-payer keys and all existing monetary journals must
+buyer/fee-payer seeds refuse startup. A conflicting optional operator seed locks
+new admissions while payment recovery stays available. Fee-payer keys and all existing monetary journals must
 survive redeployment. Do not scale this container to multiple independent disks.
 
 Copy the names in `environment.example` to the deployment's secret store. The
@@ -73,3 +74,28 @@ verifier and persistent volume running so pending settlement can recover. Do not
 delete a journal, reset a volume, replace a payment authorization or reverse
 already-earned operator pay. Process `/health` alone does not prove capacity or
 successful paid inference.
+
+## Recovery when an optional worker stops
+
+The public gateway starts before the optional provider/operator in recovery-only
+mode. `/data/gateway/admissions.starting` blocks quotes and new payment admissions
+until the provider reports ready and the exact local operator has a fresh,
+matchable registration. `/health` returns `admissions_enabled` separately from
+process health; a recovery-only service still returns HTTP 200.
+
+A failed provider or operator writes `/data/gateway/admissions.disabled` and
+syncs it to the persistent disk before optional workers stop. Payment verification,
+reconciliation and already-admitted result delivery keep running. The failure
+latch survives redeployment and is never automatically removed. While it exists,
+optional workers are not restarted and no new paid qualification probe runs.
+Hung optional workers are terminated after a bounded shutdown window without
+stopping payment recovery. After reviewing
+and fixing the failure, explicitly remove that one latch file and restart the
+service; readiness must pass again. Do not remove any payment/provider journal,
+identity file or budget record. Disabling the local operator leaves admissions
+closed while recovery remains available.
+
+The private bridge authentication/seal secret is pinned in
+`/data/gateway/bridge-secret` with mode 0600. Keep its configured value identical
+across revisions: existing pending payments carry seals made with that key.
+Changing it refuses startup, just like changing the buyer or fee-payer key.

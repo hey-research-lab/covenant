@@ -1,54 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import {spawn} from 'node:child_process';
+import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,ProcessGroup,waitFor} from './runtime.mjs';
 
 process.umask(0o077);
-const children=[];
-let stopping=false;
-function stop(code){
-  if(stopping)return;
-  stopping=true;
-  for(const child of children)child.kill('SIGTERM');
-  const timeout=setTimeout(()=>{for(const child of children)child.kill('SIGKILL');process.exit(code);},10_000);
-  Promise.all(children.map(child=>child.exitCode!==null?Promise.resolve():new Promise(resolve=>child.once('exit',resolve))))
-    .then(()=>{clearTimeout(timeout);process.exit(code);});
-}
-function seed(file,encoded,length){
-  const bytes=encoded?Buffer.from(encoded,'base64'):undefined;
-  if(bytes&&length!==undefined&&bytes.length!==length)throw Error('Invalid identity seed length');
-  if(fs.existsSync(file)){
-    const actual=fs.readFileSync(file);
-    if((length!==undefined&&actual.length!==length)||(bytes&&(actual.length!==bytes.length||!crypto.timingSafeEqual(actual,bytes))))throw Error('Persistent identity mismatch');
-    fs.chmodSync(file,0o600);return;
-  }
-  if(!bytes)throw Error('A new volume requires explicit identity seeds');
-  const fd=fs.openSync(file,'wx',0o600);
-  try{fs.writeFileSync(fd,bytes);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
-  const dir=fs.openSync(path.dirname(file),'r');try{fs.fsyncSync(dir);}finally{fs.closeSync(dir);}
-}
-function start(name,command,args,env){
-  const child=spawn(command,args,{cwd:'/opt/covenant',stdio:'inherit',env});
-  children.push(child);
-  child.once('error',()=>{process.stderr.write(`${name} failed to start\n`);stop(1);});
-  child.once('exit',(code)=>{if(!stopping){process.stderr.write(`${name} exited (${code??'signal'})\n`);stop(1);}});
-}
-async function waitFor(url,headers={}){
-  for(let i=0;i<60;i++){
-    try{const r=await fetch(url,{headers,signal:AbortSignal.timeout(1000),redirect:'error'});if(r.ok)return;}catch{}
-    await new Promise(resolve=>setTimeout(resolve,500));
-  }
-  throw Error('Private service did not become ready');
-}
+let group;
 try{
   const data=process.env.COVENANT_X402_DATA;
   if(!data||!path.isAbsolute(data))throw Error('Persistent directory required');
-  if(!['true','false'].includes(process.env.COVENANT_X402_OPERATOR_ENABLED))throw Error('Explicit operator activation required');
+  const operatorEnabled=explicitBoolean(process.env,'COVENANT_X402_OPERATOR_ENABLED');
+  explicitBoolean(process.env,'COVENANT_GATEWAY_ADMISSIONS_ENABLED');
   const gateway=path.join(data,'gateway'),operator=path.join(data,'operator'),budget=path.join(data,'budget');
-  for(const dir of [gateway,operator,budget,path.join(data,'provider')])fs.mkdirSync(dir,{recursive:true,mode:0o700});
+  for(const dir of [gateway,budget])privateDirectory(dir);
+  const disabled=path.join(gateway,'admissions.disabled'),starting=path.join(gateway,'admissions.starting');
+  latch(starting,'Startup is not yet ready');
+  group=new ProcessGroup({
+    onOptionalFailure:reason=>latch(disabled,reason),
+    onBeforeStop:()=>latch(starting,'Shutdown in progress'),
+  });
+  for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>group.stop(0));
   seed(path.join(gateway,'identity.key'),process.env.COVENANT_GATEWAY_IDENTITY_B64,32);
   seed(path.join(gateway,'fee-payer.json'),process.env.COVENANT_GATEWAY_FEE_PAYER_KEY_B64);
-  if(process.env.COVENANT_X402_OPERATOR_ENABLED==='true')seed(path.join(operator,'identity.json'),process.env.COVENANT_COMPUTE_NODE_IDENTITY_B64,32);
+  // This key authenticates persisted payment seals: rotating it strands recovery.
+  const bridgeSecret=process.env.COVENANT_GATEWAY_BRIDGE_SECRET;
+  if(typeof bridgeSecret!=='string'||bridgeSecret.length<32)throw Error('Persistent bridge secret required');
+  seed(path.join(gateway,'bridge-secret'),Buffer.from(bridgeSecret).toString('base64'));
   const env={...process.env,
     COVENANT_GATEWAY_HOME:gateway,COVENANT_COMPUTE_NODE_HOME:operator,COVENANT_COMPUTE_BUDGET_HOME:budget,
     COVENANT_GATEWAY_LISTEN:`0.0.0.0:${process.env.PORT??'10000'}`,
@@ -58,17 +33,31 @@ try{
     COVENANT_COMPUTE_OPENAI_URL:'http://127.0.0.1:4044/v1',
     COVENANT_COMPUTE_OPENAI_API_KEY:process.env.COVENANT_INFERENCE_PROVIDER_BEARER_TOKEN};
   delete env.COVENANT_GATEWAY_IDENTITY_B64;delete env.COVENANT_COMPUTE_NODE_IDENTITY_B64;delete env.COVENANT_GATEWAY_FEE_PAYER_KEY_B64;
-  for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>stop(0));
-  start('payment verifier',process.execPath,['services/compute-x402-facilitator/server.mjs'],env);
-  // The verifier starts only after its pinned chain has been checked.
-  await waitFor('http://127.0.0.1:4043/health',{authorization:`Bearer ${env.COVENANT_GATEWAY_BRIDGE_SECRET}`});
-  if(env.COVENANT_X402_OPERATOR_ENABLED==='true'){
-    start('inference provider',process.execPath,['services/compute-inference-provider/server.mjs'],env);
-    await waitFor('http://127.0.0.1:4044/health');
-    start('inference operator','covenant-compute-node',['serve'],env);
+  group.start('payment verifier',process.execPath,['services/compute-x402-facilitator/server.mjs'],env);
+  await waitFor('http://127.0.0.1:4043/health',{headers:{authorization:`Bearer ${env.COVENANT_GATEWAY_BRIDGE_SECRET}`},group});
+  // Public port starts in recovery-only mode while the starting latch exists.
+  group.start('inference gateway','covenant-compute-gateway',[],env);
+  await waitFor(`http://127.0.0.1:${process.env.PORT??'10000'}/health`,{group});
+  // A restart must not retry paid qualification after a latched failure.
+  if(operatorEnabled&&missing(disabled)){
+    try{
+      for(const dir of [operator,path.join(data,'provider')])privateDirectory(dir);
+      seed(path.join(operator,'identity.json'),process.env.COVENANT_COMPUTE_NODE_IDENTITY_B64,32);
+      group.start('inference provider',process.execPath,['services/compute-inference-provider/server.mjs'],env,true);
+      await waitFor('http://127.0.0.1:4044/health',{predicate:body=>body.ready===true,group});
+      const pubkey=operatorPubkey(fs.readFileSync(path.join(operator,'identity.json')));
+      if(!env.COVENANT_GATEWAY_APPROVED_OPERATOR_PUBKEYS?.split(',').map(x=>x.trim()).includes(pubkey))throw Error('Local operator must be approved');
+      const started=Date.now();
+      group.start('inference operator','covenant-compute-node',['serve'],env,true);
+      const reputation=new URL(`/federation/operators/${pubkey}/reputation`,env.COVENANT_COMPUTE_COORDINATOR_URL);
+      await waitFor(reputation,{group,attempts:180,predicate:body=>body.operator_pubkey_b58===pubkey&&body.matchable===true&&Number.isSafeInteger(body.seen_ms_ago)&&body.seen_ms_ago<=Date.now()-started});
+      if(!group.optionalFailed&&!group.stopping)clearStartingLatch(starting);
+    }catch{
+      group.failOptional('Optional inference startup failed; review before re-enabling admissions');
+      process.stderr.write('Inference admissions locked; payment recovery remains available.\n');
+    }
   }
-  start('inference gateway','covenant-compute-gateway',[],env);
 }catch{
   process.stderr.write('Gateway supervisor refused startup; check private configuration and persistent volume.\n');
-  stop(1);
+  if(group)group.stop(1);else process.exitCode=1;
 }

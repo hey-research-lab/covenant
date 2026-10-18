@@ -1,0 +1,8 @@
+{
+  "actual_build_commit": "d997bb6436569d8dc96f963aaf72259b92ccb5ba",
+  "canonical_source_commit": "4dd036a4d59612326095768ff4b4f272aa48562d",
+  "equivalence_scope": "See verifier-merge-equivalence-4dd036a.json; no claim that all agent-os code is equal.",
+  "binary_sha256": "1d683d32bf0e600c9747b679fcbf7d03a51e05c896869b0951a768ea17be9edf",
+  "repository": "https://github.com/open-covenant/covenant",
+  "offline_runtime": true
+}

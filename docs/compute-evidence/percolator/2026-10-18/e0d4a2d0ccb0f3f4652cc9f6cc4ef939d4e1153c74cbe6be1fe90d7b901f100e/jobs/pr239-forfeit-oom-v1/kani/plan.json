@@ -1,0 +1,19 @@
+{
+  "expected_assertion": null,
+  "expected_outcome": "proven",
+  "features": [
+    "fuzz"
+  ],
+  "harness": "proof_v16_public_forfeit_long_flat_residue",
+  "manifest_path": "Cargo.toml",
+  "required_covers": [
+    "pr239 forfeit zero residue",
+    "pr239 forfeit long-only residue",
+    "pr239 forfeit short-only residue",
+    "pr239 forfeit two-sided residue"
+  ],
+  "schema": "covenant.kani.plan.v1",
+  "tests": true,
+  "timeout_secs": 1200,
+  "unwind": null
+}

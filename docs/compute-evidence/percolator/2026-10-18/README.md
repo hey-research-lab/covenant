@@ -16,6 +16,8 @@ The #241 orders are `b7a20990-a245-486e-ac4b-44d1331c272a` and `0425f25b-83bc-45
 
 The [first #241 attempt](e45e484093bd11eda6784f3b13b73b4d352bdf77263a9512f457ea25cface48d/README.md) exposed a non-executable scratch mount. The [second attempt](97e7fd29b7390e08298e6ec24d86e4e6ef4e3cb93f1dd189835d21fd41d3196d/README.md) exposed a missing required test feature. Both produced signed `tool_error` results, not proofs. The corrected executor and explicit `fuzz` plan were used by the distinct successful jobs above; the failure records remain unchanged.
 
+The [first reduced #239 forfeit attempt](e0d4a2d0ccb0f3f4652cc9f6cc4ef939d4e1153c74cbe6be1fe90d7b901f100e/README.md) exhausted its 27 GiB allocation after about 13 minutes. Its signed result is `out_of_memory`, with acceptance false and incomplete solver evidence. All available raw output is retained; this attempt establishes neither the property, a counterexample, nor the required covers. Subsequent attempts are separate orders.
+
 ## Verification and provenance
 
 Follow each archive's README to build the pinned verifier and check its inventory, signatures, source mapping and complete raw Kani evidence. Archive collection-state labels describe the preserved snapshot; this repository commit supplies its publication location. The verifier does not purchase compute. An optional paid rerun requires the matching image and resource capability; a smaller provider profile cannot silently substitute for it.

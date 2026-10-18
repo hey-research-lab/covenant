@@ -189,9 +189,14 @@ credentials, without submitting an intent or creating a sandbox/GPU job:
   smoke release. Model catalog and E2B control-plane probes must pass; the
   tariff probe must be configured and pass before the paid run as described
   above. An unconfigured tariff probe is not pricing verification.
-- Unauthenticated gateway `GET /v1/capabilities` and `GET /readyz`: HTTP 401.
-  Check these GET routes; do not use an unauthenticated POST as an auth test.
-- Gateway `GET /v1/capabilities` initially reports `gpu_workspace=false`.
+- Gateway exact `GET /v1/capabilities` without an Authorization header: HTTP 204,
+  zero response bytes, `Cache-Control: private, no-store`, and
+  `Vary: Authorization`. This compatibility response serves Render's legacy
+  health probe and establishes liveness only. An empty or incorrect Authorization
+  header must return 401. Anonymous `GET /readyz` and `GET /v1/budget` must return
+  401. Check these GET routes; do not submit a run as an auth test.
+- Authenticated gateway `GET /v1/capabilities`: HTTP 200 and valid capability JSON,
+  initially reporting `gpu_workspace=false`.
   Verify the actual persistent mount and writable storage, then set
   `COMPUTE_GPU_ENABLED=1` and redeploy. After readiness and recovery complete,
   authenticated capabilities must report `gpu_workspace=true`, GPU budget

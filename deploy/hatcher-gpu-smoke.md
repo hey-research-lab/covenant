@@ -22,8 +22,10 @@ the running version. Record each successful Render deployment ID and commit.
 Preserve each service's existing root directory and service type. The gateway
 root is `services/coding-gateway`; the connector root is
 `services/hatcher-connector`; the daemon builds `deploy/Dockerfile.daemon` from
-the repository root. Node must be 22 or later for the connector's native
-WebSocket; the patch was checked with Node 24. Use each package's scoped
+the repository root. Use the tested Node 24 runtime. The connector uses `ws`
+to inspect rejected upgrades and honor `Retry-After`; reconnects have a
+30-second minimum and a five-minute fallback cap, while a longer server
+cooldown takes precedence. Use each package's scoped
 installation and build, not an unrelated monorepo build. The existing scoped
 pnpm lockfiles omit some package dependencies; refresh them before requiring
 frozen installs, or retain the reviewed Render installation command that permits

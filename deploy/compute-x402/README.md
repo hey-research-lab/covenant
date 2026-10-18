@@ -99,3 +99,31 @@ The private bridge authentication/seal secret is pinned in
 `/data/gateway/bridge-secret` with mode 0600. Keep its configured value identical
 across revisions: existing pending payments carry seals made with that key.
 Changing it refuses startup, just like changing the buyer or fee-payer key.
+
+## Immutable-container smoke qualification
+
+After publishing the image, the image workflow pulls that exact digest and runs
+its real entrypoint with a temporary persistent Docker volume and a 512 MiB
+memory limit. Optional operator/provider processes and new admissions are
+explicitly disabled. Random unfunded test identities are used; no production
+keys, provider credentials or payment authorizations enter the test.
+
+The host reads Solana mainnet's genesis hash once. The image then runs on a Docker
+`--internal` network without published ports. A separate fixture, using the same
+image, returns that observed genesis hash and rejects/counts every other RPC or
+coordinator request. It has no forwarding path. The check verifies the image and
+HTTP revision, disabled admissions, a refused inference request, private file
+permissions, zero jobs/reservations and unchanged buyer/fee/seal keys and journal
+identity after restart. Only the recovery clock may advance. No key bytes, private
+fingerprints, journal contents or Docker logs are printed.
+
+Run it on a Linux Docker host with Node 24 and an accessible immutable image:
+
+```sh
+SMOKE_IMAGE=ghcr.io/open-covenant/covenant/compute-node-public@sha256:<digest> \
+SMOKE_REVISION=<full-source-revision> node deploy/compute-x402/smoke.mjs
+```
+
+This is a startup and empty-volume continuity check. Funded settlement recovery,
+real provider/operator readiness and memory usage with all workers enabled remain
+separate acceptance checks.

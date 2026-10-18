@@ -59,7 +59,7 @@ describe('GET /v1/capabilities', () => {
 
   // Otherwise an operator can only confirm the feature is on by paying for a
   // run that reaches for a GPU.
-  it('reports the GPU feature and its effective bounds when it is configured', async () => {
+  it('does not enable GPU merely because a token and broad operator limits exist', async () => {
     process.env.COMPUTE_API_TOKEN = 'operator-token';
     process.env.COMPUTE_API_URL = 'https://compute.test';
     process.env.COMPUTE_MAX_USDC_MICROS = '250000';
@@ -67,15 +67,8 @@ describe('GET /v1/capabilities', () => {
     process.env.COMPUTE_MAX_LAUNCHES = '2';
 
     await expect(get('/v1/capabilities')).resolves.toMatchObject({
-      features: { gpu_workspace: true },
-      compute: {
-        enabled: true,
-        budgetUsd: 0.25,
-        maxLaunches: 2,
-        maxDurationSecs: 900,
-        defaultDurationSecs: 900,
-        controlPlane: 'compute.test',
-      },
+      features: { gpu_workspace: false },
+      compute: { enabled: false },
     });
   });
 });

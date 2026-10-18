@@ -23,5 +23,5 @@ export function createSmokeRpc(genesis){
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   const {server}=createSmokeRpc(process.env.SMOKE_GENESIS);
   server.on('error',error=>{process.stderr.write(JSON.stringify({fixture:'rpc',error:error.code??'startup_failed'})+'\n');process.exitCode=1;});
-  server.listen(4045,'0.0.0.0',()=>process.stdout.write(JSON.stringify({fixture:'rpc',status:'listening',port:4045})+'\n'));
+  server.listen(14045,'0.0.0.0',()=>process.stdout.write(JSON.stringify({fixture:'rpc',status:'listening',port:14045})+'\n'));
 }

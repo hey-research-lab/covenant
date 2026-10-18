@@ -27,8 +27,8 @@ export function smokeEnvironment(){
     COVENANT_GATEWAY_BRIDGE_SECRET:crypto.randomBytes(32).toString('hex'),
     COVENANT_GATEWAY_PAY_TO:operatorPubkey(merchant),COVENANT_GATEWAY_FEE_PAYER:operatorPubkey(fee),
     COVENANT_GATEWAY_APPROVED_OPERATOR_PUBKEYS:operatorPubkey(operator),
-    COVENANT_COMPUTE_COORDINATOR_URL:'http://smoke-rpc:4045/coordinator',
-    COVENANT_GATEWAY_SOLANA_RPC:'http://smoke-rpc:4045/rpc',
+    COVENANT_COMPUTE_COORDINATOR_URL:'http://smoke-rpc:14045/coordinator',
+    COVENANT_GATEWAY_SOLANA_RPC:'http://smoke-rpc:14045/rpc',
     COVENANT_GATEWAY_NETWORK:'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
     COVENANT_GATEWAY_ASSET:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     COVENANT_GATEWAY_RESOURCE_URL:'https://smoke.invalid/v1/chat/completions',
@@ -60,7 +60,7 @@ export async function fixtureDiagnostics(container){
   }
 }
 async function waitForFixture(container){
-  const script=`let ready=false,last={};for(let i=0;i<40;i++){try{const r=await fetch('http://127.0.0.1:4045/audit',{signal:AbortSignal.timeout(1000)});last={http_status:r.status};if(r.ok){ready=true;break;}}catch(error){last={error:error.name,code:error.cause?.code};}await new Promise(r=>setTimeout(r,100));}if(!ready){process.stderr.write(JSON.stringify({probe:'rpc_fixture_loopback',...last})+'\\n');process.exit(1);}`;
+  const script=`let ready=false,last={};for(let i=0;i<40;i++){try{const r=await fetch('http://127.0.0.1:14045/audit',{signal:AbortSignal.timeout(1000)});last={http_status:r.status};if(r.ok){ready=true;break;}}catch(error){last={error:error.name,code:error.cause?.code};}await new Promise(r=>setTimeout(r,100));}if(!ready){process.stderr.write(JSON.stringify({probe:'rpc_fixture_loopback',...last})+'\\n');process.exit(1);}`;
   try{await exec('docker',['exec',container,'node','--input-type=module','-e',script],{timeout:60_000,maxBuffer:32_768});}
   catch(error){
     console.error(JSON.stringify({stage:'rpc_fixture_probe',exit_code:typeof error.code==='number'?error.code:null,stdout:diagnosticText(error.stdout),stderr:diagnosticText(error.stderr)}));
@@ -106,7 +106,7 @@ export async function smoke(image,revision){
     await docker(['restart','--time','15',app],'persistent volume restart');
     await ready();
     await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'private state continuity');
-    const audit=await http('http://smoke-rpc:4045/audit');
+    const audit=await http('http://smoke-rpc:14045/audit');
     assert.equal(audit.status,200);assert(audit.body.genesis>=2);assert.equal(audit.body.refused,0);assert.equal(audit.body.coordinator,0);
     const result={image,revision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,restart_state_preserved:true,job_entries:0,paid_dispatches:0};
     if(process.env.GITHUB_STEP_SUMMARY)await fs.appendFile(process.env.GITHUB_STEP_SUMMARY,`\nContainer smoke passed: \`${image}\`\n\nExpected revision \`${revision}\`; 512MiB gateway cap; admissions disabled; persistent keys, seal and journal preserved across restart; zero paid dispatches.\n`);

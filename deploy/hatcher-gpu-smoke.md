@@ -98,13 +98,15 @@ required by the boot checks or `/readyz` when no `E2B_TEMPLATE_ID` is configured
 In that case the reported tariff dependency is a no-op, not verified billing
 evidence. Setting `E2B_TEMPLATE_ID` activates the matching tariff probe.
 
-Before the paid smoke run, verify the sandbox reservation against a fixed
-template and current pricing: configure a verified immutable `E2B_TEMPLATE_ID`,
+Before the paid smoke run, verify the sandbox reservation against the current
+template and pricing: configure a verified `E2B_TEMPLATE_ID`,
 its matching `E2B_EXPECTED_CPU_COUNT` and `E2B_EXPECTED_MEMORY_MB`, a currently
 valid `CODER_E2B_TARIFF_REF`, and a verified conservative
 `CODER_E2B_WORST_CASE_USD_PER_SEC`. This is a stronger paid-run release gate than
 the internal-mode code requires. Do not invent tariff evidence or describe the
-default rate as a verified $0.50 overall spending bound. The independent GPU
+default rate as a verified $0.50 overall spending bound. Template IDs can have
+multiple builds; the gateway does not pin a build ID. Recheck the resolved
+template's CPU and memory identity before enabling the paid run. The independent GPU
 booking ceiling remains $0.20 for one 300-second booking. Keep
 `E2B_EGRESS_ALLOW` limited to the approved package/GitHub hosts actually needed;
 the GPU workspace URL is not an allowed sandbox destination.

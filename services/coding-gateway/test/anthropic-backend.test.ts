@@ -64,29 +64,62 @@ function mockMarket(job: Record<string, unknown> = {}) {
   let launched = 0;
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const jobs = new Map<string, Record<string, unknown>>();
-  vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(url), init });
-    if (String(url).endsWith('/v1/offers')) {
-      return new Response(JSON.stringify([{ id: 'a', gpu: { model: 'RTX 4090', vram_mib: 49_140 }, rate_usdc_micros_per_hour: 100_000, online: true }]), { status: 200 });
-    }
-    let current: Record<string, unknown>;
-    if (init?.method === 'POST') {
-      const plan = JSON.parse(String(init.body));
-      current = { id: `j${++launched}`, status: 'provisioning', offer_id: plan.offer.id, maximum_usdc_micros: plan.maximum_usdc_micros, access_url: null, error: null, receipt: null, ...job };
-      jobs.set(String(current.id), current);
-    } else {
-      current = jobs.get(String(url).split('/').pop()!)!;
-      if (init?.method === 'DELETE') current.status = 'cancelled';
-    }
-    if (['cancelled', 'completed', 'failed'].includes(String(current.status)) && !current.receipt) {
-      current.receipt = { runtime_secs: 0, charged_usdc_micros: 0, refunded_usdc_micros: current.maximum_usdc_micros };
-    }
-    return new Response(JSON.stringify(current), { status: 200 });
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith('/v1/offers')) {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 'a',
+              gpu: { model: 'RTX 4090', vram_mib: 49_140 },
+              rate_usdc_micros_per_hour: 100_000,
+              online: true,
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+      let current: Record<string, unknown>;
+      if (init?.method === 'POST') {
+        const plan = JSON.parse(String(init.body));
+        current = {
+          id: `j${++launched}`,
+          status: 'provisioning',
+          offer_id: plan.offer.id,
+          maximum_usdc_micros: plan.maximum_usdc_micros,
+          access_url: null,
+          error: null,
+          receipt: null,
+          ...job,
+        };
+        jobs.set(String(current.id), current);
+      } else {
+        current = jobs.get(String(url).split('/').pop()!)!;
+        if (init?.method === 'DELETE') current.status = 'cancelled';
+      }
+      if (
+        ['cancelled', 'completed', 'failed'].includes(String(current.status)) &&
+        !current.receipt
+      ) {
+        current.receipt = {
+          runtime_secs: 0,
+          charged_usdc_micros: 0,
+          refunded_usdc_micros: current.maximum_usdc_micros,
+        };
+      }
+      return new Response(JSON.stringify(current), { status: 200 });
+    }),
+  );
   return calls;
 }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 
 describe('withTurnCache', () => {
   it('marks only the last block of the last message and leaves the input untouched', () => {
@@ -386,22 +419,67 @@ describe('execTool gpu_workspace', () => {
 describe('reapNote', () => {
   it('is empty without a report or when the run launched nothing', () => {
     expect(reapNote(null)).toBe('');
-    expect(reapNote({ runKey: 'run', settled: [], pendingJobIds: [], pendingLaunchKeys: [], complete: true })).toBe('');
+    expect(
+      reapNote({
+        runKey: 'run',
+        settled: [],
+        pendingJobIds: [],
+        pendingLaunchKeys: [],
+        complete: true,
+      }),
+    ).toBe('');
   });
 
   it('formats only confirmed settlements and distinguishes pending cleanup', () => {
-    const report: ComputeCleanupReport = { runKey: 'run', settled: [{ job_id: 'j1', status: 'cancelled', maximum_usdc_micros: 50_000, receipt: { runtime_secs: 0, charged_usdc_micros: 0, refunded_usdc_micros: 50_000 } }], pendingJobIds: [], pendingLaunchKeys: [], complete: true };
+    const report: ComputeCleanupReport = {
+      runKey: 'run',
+      settled: [
+        {
+          job_id: 'j1',
+          status: 'cancelled',
+          maximum_usdc_micros: 50_000,
+          receipt: { runtime_secs: 0, charged_usdc_micros: 0, refunded_usdc_micros: 50_000 },
+        },
+      ],
+      pendingJobIds: [],
+      pendingLaunchKeys: [],
+      complete: true,
+    };
     expect(reapNote(report)).toBe('\n[gpu_workspace settled at run end: j1]');
-    expect(reapNote({ ...report, complete: false, pendingJobIds: ['j2'] })).toBe('\n[gpu_workspace cleanup pending; final receipts are not confirmed]');
+    expect(reapNote({ ...report, complete: false, pendingJobIds: ['j2'] })).toBe(
+      '\n[gpu_workspace cleanup pending; final receipts are not confirmed]',
+    );
   });
 });
 
 type RunOptions = Parameters<CodingBackend['run']>[0];
 function runOptions(extra: Partial<RunOptions> = {}): RunOptions {
-  return { input: 'do a small task', sandbox: memSandbox(), signal: new AbortController().signal, emit: () => {}, maxProviderCostUsd: 0.18, ...extra };
+  return {
+    input: 'do a small task',
+    sandbox: memSandbox(),
+    signal: new AbortController().signal,
+    emit: () => {},
+    maxProviderCostUsd: 0.18,
+    ...extra,
+  };
 }
 function modelMessage(extra: Partial<Anthropic.Message> = {}): Anthropic.Message {
-  return { id: 'msg-1', type: 'message', role: 'assistant', model: 'claude-sonnet-4-6', content: [{ type: 'text', text: 'done', citations: null }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 100, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, ...extra } as Anthropic.Message;
+  return {
+    id: 'msg-1',
+    type: 'message',
+    role: 'assistant',
+    model: 'claude-sonnet-4-6',
+    content: [{ type: 'text', text: 'done', citations: null }],
+    stop_reason: 'end_turn',
+    stop_sequence: null,
+    usage: {
+      input_tokens: 100,
+      output_tokens: 10,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    },
+    ...extra,
+  } as Anthropic.Message;
 }
 function fakeClient(responses: Anthropic.Message[] = [modelMessage()], inputTokens = 100) {
   let next = 0;
@@ -424,24 +502,54 @@ describe('Anthropic per-run consent and accounting', () => {
     const { AnthropicBackend: FreshBackend } = await import('../src/backends/anthropic.js');
     const fake = fakeClient();
     await new FreshBackend(undefined, fake.client).run(runOptions());
-    expect(fake.stream.mock.calls[0]![0].tools!.map((tool) => tool.name)).not.toContain('gpu_workspace');
+    expect(fake.stream.mock.calls[0]![0].tools!.map((tool) => tool.name)).not.toContain(
+      'gpu_workspace',
+    );
   });
 
   it('uses only the supplied GPU session and leaves cleanup, charges and terminal events to the server', async () => {
     const compute = new ComputeSession(COMPUTE_CFG);
-    const launch = vi.spyOn(compute, 'launch').mockResolvedValue({ id: 'j1', status: 'provisioning', offer_id: 'a', maximum_usdc_micros: 50_000, access_url: null, error: null, receipt: null });
+    const launch = vi.spyOn(compute, 'launch').mockResolvedValue({
+      id: 'j1',
+      status: 'provisioning',
+      offer_id: 'a',
+      maximum_usdc_micros: 50_000,
+      access_url: null,
+      error: null,
+      receipt: null,
+    });
     const reap = vi.spyOn(compute, 'reap');
     const fake = fakeClient([
-      modelMessage({ content: [{ type: 'tool_use', id: 'gpu-call', name: 'gpu_workspace', input: { action: 'launch' } } as Anthropic.ToolUseBlock], stop_reason: 'tool_use' }),
+      modelMessage({
+        content: [
+          {
+            type: 'tool_use',
+            id: 'gpu-call',
+            name: 'gpu_workspace',
+            input: { action: 'launch' },
+          } as Anthropic.ToolUseBlock,
+        ],
+        stop_reason: 'tool_use',
+      }),
       modelMessage(),
     ]);
     const events: GatewayEvent[] = [];
     const charge = vi.fn();
     const record = vi.fn();
-    const result = await new AnthropicBackend(undefined, fake.client).run(runOptions({ computeSession: compute, computeConfig: COMPUTE_CFG, recordComputeUsd: charge, recordProviderRequest: record, emit: (event) => events.push(event) }));
+    const result = await new AnthropicBackend(undefined, fake.client).run(
+      runOptions({
+        computeSession: compute,
+        computeConfig: COMPUTE_CFG,
+        recordComputeUsd: charge,
+        recordProviderRequest: record,
+        emit: (event) => events.push(event),
+      }),
+    );
     expect(result.output).toBe('done');
     expect(launch).toHaveBeenCalledOnce();
-    expect(fake.stream.mock.calls[0]![0].tools!.map((tool) => tool.name)).toContain('gpu_workspace');
+    expect(fake.stream.mock.calls[0]![0].tools!.map((tool) => tool.name)).toContain(
+      'gpu_workspace',
+    );
     expect(reap).not.toHaveBeenCalled();
     expect(charge).not.toHaveBeenCalled();
     expect(events.some((event) => event.type.startsWith('run.'))).toBe(false);
@@ -451,8 +559,12 @@ describe('Anthropic per-run consent and accounting', () => {
   it('rejects partial GPU injection before any provider request', async () => {
     const fake = fakeClient();
     const backend = new AnthropicBackend(undefined, fake.client);
-    await expect(backend.run(runOptions({ computeConfig: COMPUTE_CFG }))).rejects.toThrow(/supplied together/);
-    await expect(backend.run(runOptions({ computeSession: new ComputeSession(COMPUTE_CFG) }))).rejects.toThrow(/supplied together/);
+    await expect(backend.run(runOptions({ computeConfig: COMPUTE_CFG }))).rejects.toThrow(
+      /supplied together/,
+    );
+    await expect(
+      backend.run(runOptions({ computeSession: new ComputeSession(COMPUTE_CFG) })),
+    ).rejects.toThrow(/supplied together/);
     expect(fake.countTokens).not.toHaveBeenCalled();
     expect(fake.stream).not.toHaveBeenCalled();
   });
@@ -466,10 +578,24 @@ describe('Anthropic per-run consent and accounting', () => {
       async *[Symbol.asyncIterator]() {},
       finalMessage: async () => {
         ctrl.abort();
-        return modelMessage({ content: [{ type: 'tool_use', id: 'gpu-call', name: 'gpu_workspace', input: { action: 'launch' } } as Anthropic.ToolUseBlock], stop_reason: 'tool_use' });
+        return modelMessage({
+          content: [
+            {
+              type: 'tool_use',
+              id: 'gpu-call',
+              name: 'gpu_workspace',
+              input: { action: 'launch' },
+            } as Anthropic.ToolUseBlock,
+          ],
+          stop_reason: 'tool_use',
+        });
       },
     }));
-    await expect(new AnthropicBackend(undefined, fake.client).run(runOptions({ signal: ctrl.signal, computeSession: compute, computeConfig: COMPUTE_CFG }))).rejects.toThrow(/run aborted/);
+    await expect(
+      new AnthropicBackend(undefined, fake.client).run(
+        runOptions({ signal: ctrl.signal, computeSession: compute, computeConfig: COMPUTE_CFG }),
+      ),
+    ).rejects.toThrow(/run aborted/);
     expect(launch).not.toHaveBeenCalled();
   });
 
@@ -478,24 +604,64 @@ describe('Anthropic per-run consent and accounting', () => {
     const compute = new ComputeSession(COMPUTE_CFG);
     const launch = vi.spyOn(compute, 'launch');
     const sandbox = memSandbox();
-    sandbox.exec = async () => { ctrl.abort(); return { stdout: '', stderr: '', exitCode: 0 }; };
-    const fake = fakeClient([modelMessage({ content: [
-      { type: 'tool_use', id: 'shell-call', name: 'bash', input: { command: 'true' } } as Anthropic.ToolUseBlock,
-      { type: 'tool_use', id: 'gpu-call', name: 'gpu_workspace', input: { action: 'launch' } } as Anthropic.ToolUseBlock,
-    ], stop_reason: 'tool_use' })]);
-    await expect(new AnthropicBackend(undefined, fake.client).run(runOptions({ sandbox, signal: ctrl.signal, computeSession: compute, computeConfig: COMPUTE_CFG }))).rejects.toThrow(/run aborted/);
+    sandbox.exec = async () => {
+      ctrl.abort();
+      return { stdout: '', stderr: '', exitCode: 0 };
+    };
+    const fake = fakeClient([
+      modelMessage({
+        content: [
+          {
+            type: 'tool_use',
+            id: 'shell-call',
+            name: 'bash',
+            input: { command: 'true' },
+          } as Anthropic.ToolUseBlock,
+          {
+            type: 'tool_use',
+            id: 'gpu-call',
+            name: 'gpu_workspace',
+            input: { action: 'launch' },
+          } as Anthropic.ToolUseBlock,
+        ],
+        stop_reason: 'tool_use',
+      }),
+    ]);
+    await expect(
+      new AnthropicBackend(undefined, fake.client).run(
+        runOptions({
+          sandbox,
+          signal: ctrl.signal,
+          computeSession: compute,
+          computeConfig: COMPUTE_CFG,
+        }),
+      ),
+    ).rejects.toThrow(/run aborted/);
     expect(launch).not.toHaveBeenCalled();
     expect(fake.stream).toHaveBeenCalledOnce();
   });
 
   it('counts the exact prompt and bounds output at the worst cache-write price before generation', async () => {
     const fake = fakeClient([modelMessage()], 1_000);
-    await new AnthropicBackend(undefined, fake.client).run(runOptions({ maxProviderCostUsd: 0.02 }));
+    await new AnthropicBackend(undefined, fake.client).run(
+      runOptions({ maxProviderCostUsd: 0.02 }),
+    );
     const request = fake.stream.mock.calls[0]![0];
-    const counted = fake.countTokens.mock.calls[0] as unknown as [Anthropic.MessageCountTokensParams, unknown];
-    expect(counted[0]).toMatchObject({ model: request.model, system: request.system, messages: request.messages, tools: request.tools, thinking: request.thinking });
+    const counted = fake.countTokens.mock.calls[0] as unknown as [
+      Anthropic.MessageCountTokensParams,
+      unknown,
+    ];
+    expect(counted[0]).toMatchObject({
+      model: request.model,
+      system: request.system,
+      messages: request.messages,
+      tools: request.tools,
+      thinking: request.thinking,
+    });
     const price = PRICING[config.model]!;
-    const inputReserve = Math.ceil((Math.ceil(1_000 * 1.1) + 1_024) * Math.max(price.input, price.cacheWrite, price.cacheRead));
+    const inputReserve = Math.ceil(
+      (Math.ceil(1_000 * 1.1) + 1_024) * Math.max(price.input, price.cacheWrite, price.cacheRead),
+    );
     expect(inputReserve + request.max_tokens * price.output).toBeLessThanOrEqual(20_000);
     expect(request.max_tokens).toBeLessThan(1_000);
     expect(fake.stream.mock.calls[0]![1]).toMatchObject({ maxRetries: 0 });
@@ -505,15 +671,34 @@ describe('Anthropic per-run consent and accounting', () => {
   it('refuses unaffordable input and invalid token counts before generation', async () => {
     for (const count of [1_000_000, NaN, -1, 1.2]) {
       const fake = fakeClient([modelMessage()], count);
-      await expect(new AnthropicBackend(undefined, fake.client).run(runOptions())).rejects.toThrow();
+      await expect(
+        new AnthropicBackend(undefined, fake.client).run(runOptions()),
+      ).rejects.toThrow();
       expect(fake.stream).not.toHaveBeenCalled();
     }
   });
 
   it('recalculates the next turn from observed usage and stops before another unaffordable request', async () => {
-    const fake = fakeClient([modelMessage({ stop_reason: 'pause_turn', usage: { input_tokens: 1_000, output_tokens: 1_100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } as Anthropic.Usage })], 100);
+    const fake = fakeClient(
+      [
+        modelMessage({
+          stop_reason: 'pause_turn',
+          usage: {
+            input_tokens: 1_000,
+            output_tokens: 1_100,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          } as Anthropic.Usage,
+        }),
+      ],
+      100,
+    );
     const record = vi.fn();
-    await expect(new AnthropicBackend(undefined, fake.client).run(runOptions({ maxProviderCostUsd: 0.02, recordProviderRequest: record }))).rejects.toThrow(/budget exhausted before generation/);
+    await expect(
+      new AnthropicBackend(undefined, fake.client).run(
+        runOptions({ maxProviderCostUsd: 0.02, recordProviderRequest: record }),
+      ),
+    ).rejects.toThrow(/budget exhausted before generation/);
     expect(fake.stream).toHaveBeenCalledOnce();
     expect(record).toHaveBeenCalledOnce();
   });
@@ -523,19 +708,38 @@ describe('Anthropic per-run consent and accounting', () => {
     (config as { model: string }).model = 'unknown-model';
     try {
       const fake = fakeClient();
-      await expect(new AnthropicBackend(undefined, fake.client).run(runOptions())).rejects.toThrow(/recognized/);
+      await expect(new AnthropicBackend(undefined, fake.client).run(runOptions())).rejects.toThrow(
+        /recognized/,
+      );
       expect(fake.countTokens).not.toHaveBeenCalled();
       expect(fake.stream).not.toHaveBeenCalled();
-    } finally { (config as { model: string }).model = saved; }
+    } finally {
+      (config as { model: string }).model = saved;
+    }
   });
 
   it('throws at output and turn exhaustion without a success terminal event', async () => {
     const events: GatewayEvent[] = [];
     const truncated = fakeClient([modelMessage({ stop_reason: 'max_tokens' })]);
-    await expect(new AnthropicBackend(undefined, truncated.client).run(runOptions({ emit: (event) => events.push(event) }))).rejects.toThrow(/output token budget/);
+    await expect(
+      new AnthropicBackend(undefined, truncated.client).run(
+        runOptions({ emit: (event) => events.push(event) }),
+      ),
+    ).rejects.toThrow(/output token budget/);
     const endless = fakeClient([modelMessage({ stop_reason: 'pause_turn' })]);
     const record = vi.fn();
-    await expect(new AnthropicBackend(undefined, endless.client).run(runOptions({ maxProviderCostUsd: 10, recordProviderRequest: record, emit: (event) => events.push(event) }))).rejects.toMatchObject({ message: 'exceeded 30 Anthropic turns', usage: { inputTokens: 3_000, outputTokens: 300 } });
+    await expect(
+      new AnthropicBackend(undefined, endless.client).run(
+        runOptions({
+          maxProviderCostUsd: 10,
+          recordProviderRequest: record,
+          emit: (event) => events.push(event),
+        }),
+      ),
+    ).rejects.toMatchObject({
+      message: 'exceeded 30 Anthropic turns',
+      usage: { inputTokens: 3_000, outputTokens: 300 },
+    });
     expect(endless.stream).toHaveBeenCalledTimes(30);
     expect(record).toHaveBeenCalledTimes(30);
     expect(events.some((event) => event.type === 'run.completed')).toBe(false);
@@ -543,13 +747,27 @@ describe('Anthropic per-run consent and accounting', () => {
 
   it('does not secretly retry a failed SDK generation request', async () => {
     const fetcher = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url).includes('count_tokens')) return new Response(JSON.stringify({ input_tokens: 100 }), { status: 200, headers: { 'content-type': 'application/json' } });
-      return new Response(JSON.stringify({ type: 'error', error: { type: 'overloaded_error', message: 'test overload' } }), { status: 529, headers: { 'content-type': 'application/json' } });
+      if (String(url).includes('count_tokens'))
+        return new Response(JSON.stringify({ input_tokens: 100 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      return new Response(
+        JSON.stringify({
+          type: 'error',
+          error: { type: 'overloaded_error', message: 'test overload' },
+        }),
+        { status: 529, headers: { 'content-type': 'application/json' } },
+      );
     });
     vi.stubGlobal('fetch', fetcher);
     const record = vi.fn();
-    await expect(new AnthropicBackend('test-key-not-live').run(runOptions({ recordProviderRequest: record }))).rejects.toThrow();
-    expect(fetcher.mock.calls.filter(([url]) => !String(url).includes('count_tokens'))).toHaveLength(1);
+    await expect(
+      new AnthropicBackend('test-key-not-live').run(runOptions({ recordProviderRequest: record })),
+    ).rejects.toThrow();
+    expect(
+      fetcher.mock.calls.filter(([url]) => !String(url).includes('count_tokens')),
+    ).toHaveLength(1);
     expect(record).toHaveBeenCalledOnce();
   });
 });

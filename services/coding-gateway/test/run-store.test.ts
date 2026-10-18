@@ -76,7 +76,16 @@ describe('RunStore', () => {
   it('keeps interrupted GPU work stopping until its journal is reconciled', () => {
     const path = storePath();
     const gpu = { max_usdc_micros: 200000, duration_secs: 300, max_launches: 1 } as const;
-    new RunStore(path).save(run({ status: 'running', sessionId: 'gpu-session', requestFingerprint: 'b'.repeat(64), reservationId: 'r', reservedMax: 0.5, gpu }));
+    new RunStore(path).save(
+      run({
+        status: 'running',
+        sessionId: 'gpu-session',
+        requestFingerprint: 'b'.repeat(64),
+        reservationId: 'r',
+        reservedMax: 0.5,
+        gpu,
+      }),
+    );
     const [restored] = new RunStore(path).list();
     expect(restored).toMatchObject({ status: 'stopping', desiredStatus: 'failed', costUsd: 0.5 });
     expect(restored?.events.some((e) => e.type === 'run.failed')).toBe(false);
@@ -86,8 +95,31 @@ describe('RunStore', () => {
   it('rejects a forged receipt that does not balance the booked maximum', () => {
     const path = storePath();
     const gpu = { max_usdc_micros: 200000, duration_secs: 300, max_launches: 1 } as const;
-    new RunStore(path).save(run({ sessionId: 'gpu-session', requestFingerprint: 'b'.repeat(64), gpu,
-      compute: { runKey: 'gpu-session', complete: true, pendingJobIds: [], pendingLaunchKeys: [], settled: [{ job_id: 'job', status: 'cancelled', maximum_usdc_micros: 100000, receipt: { runtime_secs: 30, charged_usdc_micros: 10000, refunded_usdc_micros: 90001 } }] } }));
+    new RunStore(path).save(
+      run({
+        sessionId: 'gpu-session',
+        requestFingerprint: 'b'.repeat(64),
+        gpu,
+        compute: {
+          runKey: 'gpu-session',
+          complete: true,
+          pendingJobIds: [],
+          pendingLaunchKeys: [],
+          settled: [
+            {
+              job_id: 'job',
+              status: 'cancelled',
+              maximum_usdc_micros: 100000,
+              receipt: {
+                runtime_secs: 30,
+                charged_usdc_micros: 10000,
+                refunded_usdc_micros: 90001,
+              },
+            },
+          ],
+        },
+      }),
+    );
     expect(() => new RunStore(path)).toThrow('invalid records');
   });
 

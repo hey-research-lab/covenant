@@ -1,0 +1,37 @@
+{
+  "acceptance": {
+    "commands": [],
+    "image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:5648c867341b054aebf3570266200cd49766caea7f5119d2735dc437fcfe3f7d",
+    "kani": {
+      "check_price_micro_usdc": 50000,
+      "cpus": 6,
+      "memory_mib": 12288,
+      "plan": {
+        "expected_assertion": null,
+        "expected_outcome": "proven",
+        "features": [],
+        "harness": "receipt_smoke",
+        "manifest_path": "Cargo.toml",
+        "required_covers": [
+          "smoke reachable"
+        ],
+        "schema": "covenant.kani.plan.v1",
+        "tests": false,
+        "timeout_secs": 30,
+        "unwind": null
+      },
+      "scratch_mib": 4096
+    },
+    "timeout_secs": 300
+  },
+  "checker_model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+  "commit": "7cb43ea9156051b077197d43408f9f1c321ce746",
+  "deadline_ms": 600000,
+  "dry_run": true,
+  "kind": "agent_check",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "payment_basis": "checker execution, including a reported failed property",
+  "price_micro_usdc": 50000,
+  "spends_nothing": true,
+  "stored_bundle_bytes": 0
+}

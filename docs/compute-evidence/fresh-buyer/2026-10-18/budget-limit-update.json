@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "previous_limit_micro_usdc": 50000,
+  "required_environment": {
+    "COVENANT_COMPUTE_DAILY_BUDGET_MICRO_USDC": "100000"
+  },
+  "status": {
+    "limit_micro_usdc": 100000,
+    "pending_jobs": [
+      "41fd7797-e963-4cab-bd5f-3e128b364e9a"
+    ],
+    "pending_micro_usdc": 50000,
+    "remaining_micro_usdc": 50000,
+    "settled_24h_micro_usdc": 0
+  }
+}

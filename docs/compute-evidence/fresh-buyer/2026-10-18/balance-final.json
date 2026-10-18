@@ -1,0 +1,21 @@
+{
+  "balance": {
+    "available_micro_usdc": 0,
+    "buyer_pubkey_b58": "9SomEKhdoUG6Z8uDQbpQLA9SJgA5EiaSmf8sErxMQZYB",
+    "charged_micro_usdc": 50000,
+    "deposited_micro_usdc": 100000,
+    "prefunding_enforced": true,
+    "withdrawn_micro_usdc": 50000
+  },
+  "deposit_info": {
+    "configured": true,
+    "instructions": {
+      "deposit_owner_b58": "EQpsU4i6g9dFru72bcLcg8fjYWsWLGhMPQFor2nAruPv",
+      "how": "SPL-transfer the mint to the deposit owner's associated token account with the memo naming your buyer pubkey, then claim the transaction signature at POST /federation/buyers/deposit",
+      "memo_format": "compute-buyer:<buyer_pubkey_b58>",
+      "mint_b58": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "rail": "solana-rpc"
+    },
+    "prefunding_enforced": true
+  }
+}

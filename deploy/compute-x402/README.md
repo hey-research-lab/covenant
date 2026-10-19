@@ -189,6 +189,12 @@ isolated fixtures. No paid rental is needed to qualify this observer.
 
 ## Model-specific quoted prices
 
+Activate tariffs only with the full `compute-x402-image` build, which also includes
+the rental observer. The observer-only `compute-rental-watchdog-image` overlay
+preserves its pinned legacy payment runtime and cannot activate tariffs. Any
+tariff setting on that overlay locks new admissions while legacy payment recovery
+continues; its original flat-price operation remains available without tariffs.
+
 Set `COVENANT_GATEWAY_TARIFFS_JSON` to an approved array of paired `retail` and
 `native` versioned tariffs. The supervisor writes immutable configuration files
 for both gateway and node. Native tariff matching must be deployed on the

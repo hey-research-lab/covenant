@@ -7,6 +7,7 @@ on:
       - deploy/Dockerfile.compute-rental-watchdog
       - deploy/compute-canary-watchdog*
       - deploy/compute-x402/supervisor.mjs
+      - deploy/compute-x402/supervisor.test.mjs
       - deploy/compute-x402/smoke*
   workflow_dispatch:
 concurrency:
@@ -37,7 +38,7 @@ jobs:
       - name: Verify observer isolation and existing supervisor contracts
         run: |
           npm ci --omit=dev --ignore-scripts --prefix services/compute-x402-facilitator
-          node --test deploy/compute-canary-watchdog.test.mjs deploy/compute-x402/runtime.test.mjs deploy/compute-x402/smoke.test.mjs
+          node --test deploy/compute-canary-watchdog.test.mjs deploy/compute-x402/runtime.test.mjs deploy/compute-x402/supervisor.test.mjs deploy/compute-x402/smoke.test.mjs
           node --check deploy/compute-x402/supervisor.mjs
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
         with:

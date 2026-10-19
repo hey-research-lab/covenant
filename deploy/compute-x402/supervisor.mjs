@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {startWatchdog} from '../compute-canary-watchdog.mjs';
-import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,startInferenceOperator,ProcessGroup,waitFor,materializeTariffs} from './runtime.mjs';
+import * as runtime from './runtime.mjs';
+const {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,startInferenceOperator,ProcessGroup,waitFor}=runtime;
 
 process.umask(0o077);
 let group,stopWatchdog=()=>{};
@@ -29,8 +30,14 @@ try{
   if(typeof bridgeSecret!=='string'||bridgeSecret.length<32)throw Error('Persistent bridge secret required');
   seed(path.join(gateway,'bridge-secret'),Buffer.from(bridgeSecret).toString('base64'));
   let tariffFiles={};
-  try{tariffFiles=materializeTariffs(process.env,data);}catch{
-    latch(disabled,'Invalid tariff configuration; payment recovery only');
+  const supportsTariffs=typeof runtime.materializeTariffs==='function';
+  try{
+    if(supportsTariffs)tariffFiles=runtime.materializeTariffs(process.env,data);
+    // The observer-only overlay preserves a pre-tariff runtime and binaries.
+    // It may keep serving legacy requests, but must never ignore tariff setup.
+    else if(['COVENANT_GATEWAY_TARIFFS_JSON','COVENANT_GATEWAY_TARIFFS_FILE','COVENANT_COMPUTE_NODE_TARIFFS_FILE'].some(key=>process.env[key]!==undefined))throw Error('Tariff runtime unavailable');
+  }catch{
+    latch(disabled,supportsTariffs?'Invalid tariff configuration; payment recovery only':'Tariffs require the full pricing runtime image; payment recovery only');
     // A malformed optional price file must not stop the essential processes.
     tariffFiles={COVENANT_GATEWAY_TARIFFS_FILE:undefined,COVENANT_COMPUTE_NODE_TARIFFS_FILE:undefined};
   }

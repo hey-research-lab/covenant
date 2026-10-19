@@ -222,13 +222,30 @@ confirmation, Hatcher remains blocked from testing this integration.
 Use one new dispatch id for the agreed run; replays of that run must reuse it.
 The connector derives the stable run key from the full agent id and dispatch
 id. Do not change the dispatch id to retry an uncertain or still-stopping run.
+Before enabling the paid test, set the gateway's `CODER_ALLOWED_RUN_KEY` to the
+lowercase SHA-256 digest of the UTF-8 string
+`JSON.stringify([fullAgentId, exactDispatchId])` for that agreed dispatch, then
+redeploy. The pin is unset by default; a configured empty or malformed value
+fails startup. A pin also requires a service auth token of at least 32 characters
+and absolute `RUN_STORE_PATH` and `LEDGER_PATH` values.
+
+With the pin set, every other run key is rejected before admission or provider
+work, including ordinary requests without a GPU grant. Matching identical
+requests return the existing run; changed requests conflict instead of receiving
+a fresh allowance. The pinned session is retained during receipt pruning and
+reloaded after restarts. Keep the same pin and mounted data for the whole test;
+deleting the data, removing the pin, or changing it is not a permitted retry.
+After completion or failure, a replay retrieves that result and does not start a
+new attempt. A fresh test requires new authorization. Verify rejection of another
+key and replay of the original key without another sandbox or GPU booking.
+
 The following is the Hatcher mesh payload, not a command to execute now:
 
 ```json
 {
   "v": 1,
   "type": "dispatch",
-  "dispatch_id": "hatcher-gpu-smoke-2026-10-18-01",
+  "dispatch_id": "hatcher-gpu-smoke-2026-10-19-01",
   "agent_id": "cmp2dohkb00jtlsvsq1m5hriq",
   "intent": {
     "text": "Run a coding GPU smoke test. Launch exactly one gpu_workspace for 300 seconds. Poll status with bounded waits. Record its job id and status, then cancel it and return the final receipt. Do not launch a replacement or attempt to connect from this sandbox to the workspace URL.",

@@ -1,10 +1,11 @@
 # Model-specific inference pricing: evidence and release gates
 
-Status: initial deployment completed on 19 October 2026; new admissions are
-temporarily paused after tariff acceptance exposed a payment-verifier gap.
-The repair, paid acceptance, and package publication remain pending. The initial
-discovery and boot-probe evidence below do not establish a completed customer
-purchase.
+Status: repaired gateway live on 19 October 2026. Installed JavaScript and Python
+tariff purchases, original-result recovery, finalized customer and native
+transfers, offline replay, and final accounting are verified. Immutable JavaScript
+0.3.0 and Python 0.2.0 releases are published and their public downloads verified.
+The signed native `compute-v0.4.0` release and public page/card publication remain
+pending.
 
 ## Decision and customer behavior
 
@@ -163,7 +164,7 @@ paid requests. Read the production provider ledger and reconcile every unresolve
 payment/provider outcome first. Never recycle the two uncertain customer IDs,
 reset a ledger, or raise a budget as part of tariff activation.
 
-## Deployed source and activation
+## Initial deployment and activation
 
 [PR #353](https://github.com/open-covenant/covenant/pull/353) was reviewed at
 `54a1b2dac8bcfade63da3fc08816596cb606edd6` and merged at
@@ -217,6 +218,38 @@ Sanitized private readbacks are retained in
 `coordinator-runtime-after-deployment.json`, and
 `inference-runtime-after-activation.json`. The public readback SHA-256 is
 `8ead271e034829c73911b4eae1d6ecb9ff73d9fbecd97071c6dcd0227c59c3c0`.
+
+## Repaired deployment
+
+[PR #358](https://github.com/open-covenant/covenant/pull/358) corrected the
+facilitator's fixed-price restriction described below. Its qualified source
+`1f181bb4fb2d670a1e57e27d6460696d02a9f84a` and merge
+`1beedaa7cdb8b8aff3e5802964ce35804b078ba5` have identical complete Git trees.
+The image build and isolated restart smoke passed with zero paid dispatches.
+
+Only inference/x402 was redeployed. Render deployment
+`dep-dbb0kn0m7kps73ajn260` became live at **2026-10-19T12:18:16.547919Z** with
+`ghcr.io/open-covenant/covenant/compute-node-public@sha256:4405c70f3f46fc317c57f3ef49704bc9156f82dc37cdb379d0adc24c9b59658e`.
+All 51 environment entries were preserved. The coordinator remained on the
+initial deployment above, including its scheduled rental checks.
+
+At 12:19:40 UTC, authenticated deployment readback and public health confirmed
+that image/source with admissions enabled. The model catalog again returned
+HTTP 200 with `Cache-Control: no-store`; catalog and capacity retained the exact
+revision-1 tariffs and 30-day validity window above. The five pre-existing
+gateway entries matched their prior semantic hashes across this repair restart;
+the version-3 namespace, four-complete/one-failed aggregate, and 3,000,000-micro
+reserve were preserved. This later comparison does not strengthen the separate
+initial version-2 migration evidence beyond its recorded limits.
+
+The second boot probe completed with another **58 micro-USDC** of conservative
+provider accounting, making **116 micro-USDC** for both deployment probes.
+Before customer acceptance, the provider ledger held 12 calls and 335,466
+micro-USDC of lifetime accounting, with no unresolved calls. Both 1,000,000-micro
+provider ceilings and the 315,360-micro historical abandoned loss remained.
+Evidence is retained in `qualified-image-1f181bb4f.json`,
+`repair-public-deployment-evidence.json`, and
+`inference-runtime-after-repair.json` under the private release directory.
 
 ## Local validation and package candidates
 
@@ -295,8 +328,8 @@ The native buyer, node, and lease-signer manifests are aligned at `0.4.0`.
 The archive README references only `compute-v0.4.0`, and matching notes exist at
 `deploy/compute-release/notes/compute-v0.4.0.md`, satisfying the packaging metadata
 preflight. All four platform build jobs passed for the reviewed PR source;
-tag-triggered signing and publication remain pending. No package was published
-by these checks.
+tag-triggered signing and publication remain pending. The installed candidates
+below retain these exact package bytes; no package was published by these checks.
 
 ## Paid acceptance and publication gates
 
@@ -334,12 +367,12 @@ activity since that attempt. The observation is retained in
 At 2026-10-19T11:56:23.954511Z, public readback confirmed the inference service
 remained healthy at revision `54a1b2dac8bcfade63da3fc08816596cb606edd6` with
 `admissions_enabled: false` and an empty model catalog. This temporary pause
-protects new purchases while the facilitator repair is qualified. The
-coordinator deployment is unchanged. Evidence is retained in
+protected new purchases until the repaired deployment above was qualified. The
+coordinator deployment was unchanged. Evidence is retained in
 `repair-admissions-paused.json` and
 `acceptance-runners-v3/javascript/paid-response.json`.
 
-The prepared repair loads the same paired tariff configuration into the
+The deployed repair loads the same paired tariff configuration into the
 facilitator and admits exact integer-cap retail prices alongside the fixed
 legacy price. It refuses nonmember amounts before sponsor signing and preserves
 recovery of sealed original authorizations after expiry, rotation, or invalid
@@ -348,21 +381,157 @@ optional pricing configuration. JavaScript and Python regressions now send
 with an independently configured policy. Nonmember prices, changed accepted
 terms, and mismatched transfers are rejected before sponsor signing; the tests
 perform no broadcast. The JavaScript regression fails against the original
-deployed bridge. These local checks do not establish deployment of the repair.
+deployed bridge. The separate deployment evidence above establishes activation.
 
-| Installed client | Requested output cap | Expected retail / native micro-USDC | Current evidence |
+### Installed JavaScript acceptance
+
+At 12:22 UTC, installed JavaScript 0.3.0 used request
+`ff380b32-103d-4892-b289-34736f37238c` and a 256-token cap. It made exactly one
+quote request, one buyer signature, and one authorization-bearing POST. The
+gateway returned HTTP 202, then completed native job
+`534728a7-5020-46fb-8d4b-976cbf2c6863`. The operator retrieved the original
+completed response through authenticated production state; the client verified
+the proof and original finalized payment before saving completion. No second
+quote, signature, payment submission, or inference request was made during
+recovery. A subsequent completed replay made zero network calls and signatures.
+
+The [customer transfer](https://explorer.solana.com/tx/2p3vtgVHiSPqyvJ2JWFrH8bk2xogv5JcDzmF2hB2i4Yh5Xbbn8JFVbrgmaMWF2FTp6MajChyDwNcJtqX9XgZgAWy)
+finalized at slot **458831665** for **14,304 micro-USDC**, with exact payer and
+merchant token deltas and a **10,001-lamport** fee. The native signed quote and
+coordinator journal record **11,920 micro-USDC gross**, split into **10,728**
+operator payout and **1,192** marketplace fee. Independent native chain
+verification at 12:33:39 UTC confirmed the
+[operator payout](https://explorer.solana.com/tx/TnC1eoXsVkXUfLtAQ8RRCDAHhziPERfNHb2m7xXRD9PvcqS5oUGRYpzwEiQ7B8XBvyQbGVvG3iEyuDmtM7N5G8a)
+finalized at slot **458831659** with exact 10,728-micro token deltas and a
+5,000-lamport fee. The two transactions cost **15,001 lamports** in total.
+The verifier matched the complete tariff envelope and signed operator receipt
+against the authenticated coordinator journal, checked both signatures, and
+independently verified the finalized transfers and bound memos through RPC.
+
+The provider call reported 16 input and 8 output tokens and accounted for
+**84 micro-USDC** at the configured conservative ceilings. At 12:25:18 UTC, the
+provider ledger had 13 calls, 335,550 micro-USDC lifetime accounting, and no
+unresolved calls. The coordinator recorded no active or unpaid completed jobs;
+the gateway buyer's charged total increased from 120,000 to 131,920 micro-USDC.
+The customer journal retained its original nine rows and 342,912-micro reserve,
+adding this one completed purchase for a total reserve of 357,216 micro-USDC.
+Earlier unsuccessful attempts were retained and not retried.
+
+The public native-proof feed remains intentionally disabled. Native evidence
+comes from the authenticated coordinator journal and separate finalized-chain
+verification; no public proof endpoint is claimed. Private acceptance evidence
+is under `acceptance-runners-v4/javascript/`, with ledger readbacks in
+`inference-after-js-completed.json` and `coordinator-after-js-completed.json`.
+The independent settlement report is
+`public-verification-534728a7-5020-46fb-8d4b-976cbf2c6863-1792413219625.json`;
+its filename does not change the authenticated private provenance of the
+coordinator evidence.
+
+### Installed Python acceptance
+
+An earlier Python attempt retained its unsigned 30,432-micro quote and stopped
+before key access or a paid POST: the private harness required an integer type
+although the installed SDK's JSON parser represents integral numbers as floats.
+The harness correction uses the SDK's safe-integer guard and normalizes the
+validated fee. An independent exact-wallet-code test passed 12 cases, including
+parsed `10001.0` and invalid fee values, with no live key reads, signatures, or
+network calls. The SDK package remained unchanged, and the stopped attempt was
+retained under its original ID.
+
+At 12:42:57 UTC, installed Python 0.2.0 used a new request,
+`73cdbfbf-46ae-4a7f-81bc-edc9bcf0f2a8`, with a 2,048-token cap. It made exactly
+one quote request, one buyer signature, and one authorization-bearing POST.
+After HTTP 202, the gateway completed native job
+`450cbbe8-b7da-4696-bdb0-4a32c44e1748`. As with JavaScript, recovery retrieved
+and verified the original completed response and finalized customer payment;
+it made no new quote, signature, paid POST, or inference request. Completed
+replay then made zero network calls and signatures.
+
+The [customer transfer](https://explorer.solana.com/tx/3ZcpWCj4e4PB57C7XgYCo8Ycj9e1nYdMPApU66UMkgTVKAMr8StNQuSaL9D38VaCxdFSQv7vpmgVajuSFnDpcFXQ)
+finalized at slot **458837401** for **30,432 micro-USDC**, with exact token
+deltas and a **10,001-lamport** fee. Native gross was **25,360 micro-USDC**,
+split into **22,824** operator payout and **2,536** marketplace fee. The
+[operator payout](https://explorer.solana.com/tx/4AKCBjwFWWigkUSAx2pfEArpffoAfjeJfKro1hvFyCnecbzABk7PkZ8iQe458kR39WKkQogJN12QacAgD75srePE)
+finalized at slot **458837396**, with exact 22,824-micro token deltas and a
+**5,000-lamport** fee. Independent verification at 12:45:43 UTC matched the
+signed receipt and complete tariff envelope to the authenticated coordinator
+journal and verified both finalized transfers and bound memos. The provider
+call used 16 input and 8 output tokens, accounting for **84 micro-USDC**.
+
+Private evidence is under `acceptance-runners-v5/python/`; the independent
+settlement report is
+`public-verification-450cbbe8-b7da-4696-bdb0-4a32c44e1748-1792413943047.json`.
+As for JavaScript, coordinator evidence has authenticated private provenance;
+the public native-proof feed remains disabled.
+
+| Installed client | Requested output cap | Retail / native gross micro-USDC | Acceptance evidence |
 |---|---:|---:|---|
-| JavaScript 0.3.0 | 256 | 14,304 / 11,920 | Two unpaid harness attempts retained; corrected harness reached verifier rejection; acceptance pending repair |
-| Python 0.2.0 | 2,048 | 30,432 / 25,360 | Paid acceptance pending |
+| JavaScript 0.3.0 | 256 | 14,304 / 11,920 | Original-result recovery after HTTP 202; finalized retail/native transfers, signed journal evidence, and zero-call replay verified |
+| Python 0.2.0 | 2,048 | 30,432 / 25,360 | Original-result recovery after HTTP 202; finalized retail/native transfers, signed journal evidence, and zero-call replay verified |
 
-Before declaring the release accepted, record the completed tariff receipts,
-finalized customer transfers and native settlement, actual provider accounting,
-and exact saved-completion replay without a new purchase. Preserve the original
-customer journal, its uncertain entries, and all spending ceilings. Complete
-unpaid legacy/invalid-request controls separately from paid provider acceptance.
-First qualify and deploy the repaired inference image, reconcile retained
-attempts without reposting them, and verify admissions and actual pricing again.
+### Final reconciliation and publication gates
 
-Immutable SDK assets and the signed `compute-v0.4.0` native release remain
-unpublished. Public page/card publication is a separate step. No paid tariff
-completion or increased budget is claimed in this record.
+Read-only production reconciliation at approximately **12:45:48 UTC** recorded
+14 provider calls, **335,634 micro-USDC** lifetime accounting, and zero unresolved
+calls. The increase over the approved 335,350 baseline is **284 micro-USDC**:
+two 58-micro boot probes and two 84-micro acceptance calls. The original
+315,360-micro abandoned loss remained counted, and both provider spending
+ceilings remained 1,000,000 micro-USDC.
+
+| Allowance component | Micro-USDC |
+|---|---:|
+| Provider accounting, including both boot probes | 284 |
+| Both retail customer payments | 44,736 |
+| Both native gross charges | 37,280 |
+| Combined against the approved 750,000 allowance | **82,300** |
+
+The four finalized transfers cost **30,002 lamports** in total, accounted for
+separately from the USDC allowance. The gateway buyer retained its 3,000,000-micro
+deposit and zero withdrawals; charged total was 157,280, leaving **2,842,720
+micro-USDC** available. The coordinator had zero active jobs, completed unpaid
+jobs, open transfer attempts, unpushed withdrawals, or matured unpushed unbonds.
+Scheduled rental checks remained enabled with no active or unresolved entry at
+that observation.
+
+All five historical gateway entry hashes matched the captured post-migration
+baseline; version 3 now held seven entries, six complete and one failed, with
+the unchanged 3,000,000-micro reserve. The customer journal retained every prior
+row, including the unsigned Python attempt. It held **12 rows**, six complete
+and four uncertain authorizations retained, with **418,080 micro-USDC** reserved.
+The two other rows were unpaid quotes; no failed or uncertain attempt was
+recycled and no spending ceiling was raised.
+
+The runtime audit confirmed both tariff files still matched the approved
+revision-1 definitions. Fresh public health, model catalog, and capacity checks
+at 12:45:52 UTC confirmed the deployed sources, admissions, and published
+tariffs. Final evidence is retained in `final-inference-totals.json`,
+`final-coordinator-totals.json`, `final-runtime-audit.json`, and
+`final-public-deployment-evidence.json`. These are timestamped observations,
+not a guarantee about future traffic or scheduled results.
+
+Both installed-client tariff acceptance checks and the final accounting gate
+passed. Local legacy and invalid-request controls are reported in the validation
+section; they are distinct from these two paid production acceptance calls.
+
+### Published SDK assets
+
+The immutable [JavaScript 0.3.0 release](https://github.com/open-covenant/covenant/releases/tag/codex-compute-x402-client-v0.3.0)
+and [Python 0.2.0 release](https://github.com/open-covenant/covenant/releases/tag/codex-compute-x402-python-v0.2.0)
+are published. Anonymous verification at **12:50:59 UTC** and **12:51:13 UTC**,
+respectively, confirmed their public immutable status, reviewed release bodies,
+and exact source revision `54a1b2dac8bcfade63da3fc08816596cb606edd6`. That SDK
+source is distinct from the deployed facilitator repair source above.
+
+All three JavaScript release assets and all four Python assets were downloaded
+without credentials. The archive, wheel, and source distribution matched the
+accepted package SHA-256 values recorded above; each release's `SHA256SUMS`
+matched its reviewed bytes. Both include the same sanitized
+[`model-pricing-mainnet-acceptance.json`](https://github.com/open-covenant/covenant/releases/download/codex-compute-x402-client-v0.3.0/model-pricing-mainnet-acceptance.json),
+SHA-256 `333a6f20f090ce2dd67b93ea224cb5b7024e14415f90c9f964f31df9b94199a5`.
+Private verification reports are retained in
+`anonymous-javascript-release-20261019T125058316450Z/verification.json` and
+`anonymous-python-release-20261019T125111685975Z/verification.json`.
+
+The signed native `compute-v0.4.0` release remains unpublished at this snapshot;
+its public archives, signatures, and provenance must be verified after
+publication. Public page/card publication is a separate remaining step.

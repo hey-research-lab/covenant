@@ -569,6 +569,7 @@ impl Rig {
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,

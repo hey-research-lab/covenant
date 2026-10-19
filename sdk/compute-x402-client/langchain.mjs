@@ -10,11 +10,11 @@ import { assert } from './proof.mjs';
  * Recreating this tool with that UUID and the same client journal resumes the
  * original purchase; a changed prompt or generation setting is refused.
  */
-export function covenantInferenceTool({ client, requestId, model, maxTokens = 2048, temperature = 0.2, systemPrompt }) {
+export function covenantInferenceTool({ client, requestId, model, maxTokens = 2048, temperature = 0.2, systemPrompt, pricing }) {
   assert(client instanceof CovenantX402Client, 'covenant_x402_client_required');
   assert(typeof requestId === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(requestId), 'trusted_stable_uuid_required');
   // Validate the application-controlled settings now, before tool registration.
-  const fixed = requestSchema.parse({ model, max_tokens: maxTokens, temperature,
+  const fixed = requestSchema.parse({ model, max_tokens: maxTokens, temperature, ...(pricing === undefined ? {} : { pricing }),
     messages: [
       ...(systemPrompt === undefined ? [] : [{ role: 'system', content: systemPrompt }]),
       { role: 'user', content: 'configuration validation' },
@@ -37,7 +37,7 @@ export function covenantInferenceTool({ client, requestId, model, maxTokens = 20
           ...(fixedSystemPrompt === undefined ? [] : [{ role: 'system', content: fixedSystemPrompt }]),
           { role: 'user', content: prompt },
         ], max_tokens: fixed.max_tokens,
-        temperature: fixed.temperature });
+        temperature: fixed.temperature, ...(fixed.pricing === undefined ? {} : { pricing: fixed.pricing }) });
       const content = result.status === 'completed'
         ? { status: result.status, requestId: result.requestId, text: result.text,
             amountMicroUsdc: result.amountMicroUsdc, transaction: result.settlement.transaction,

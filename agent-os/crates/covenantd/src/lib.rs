@@ -47454,6 +47454,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -47879,6 +47880,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -48123,6 +48125,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -48467,6 +48470,7 @@ required = {caps:?}
         // the match and never polls its queue.
         let idle_operator = LocalIdentity::generate("idle-operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: idle_operator.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -48766,6 +48770,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -49023,6 +49028,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -49295,6 +49301,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -49924,6 +49931,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -50507,6 +50515,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -50770,6 +50779,7 @@ required = {caps:?}
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,

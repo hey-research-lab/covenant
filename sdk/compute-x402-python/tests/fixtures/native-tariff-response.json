@@ -1,0 +1,171 @@
+{
+  "request": {
+    "max_tokens": 64,
+    "messages": [
+      {
+        "content": "Be precise.",
+        "role": "system"
+      },
+      {
+        "content": "Explain a rainbow.",
+        "role": "user"
+      }
+    ],
+    "model": "fixture-model",
+    "pricing": "model_tariff_v1",
+    "temperature": 0.25
+  },
+  "response": {
+    "choices": [
+      {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "Light separates into colors.\nVerified fixture.",
+          "role": "assistant"
+        }
+      }
+    ],
+    "covenant": {
+      "envelope": {
+        "payload": {
+          "buyer": {
+            "display": "tariff-fixture-buyer@local",
+            "pubkey": "DWrAExQhQBUvuSorMrsnRvoy9dPXc4z493YTD2CWJcM8"
+          },
+          "capability_requirement": {
+            "gpu_class": null,
+            "inference_tariff": {
+              "price_micro_usdc": 165,
+              "requested_output_cap": 64,
+              "tariff": {
+                "base_micro_usdc": 100,
+                "id": "fixture-model-v1",
+                "max_output_tokens": 4096,
+                "model": "fixture-model",
+                "output_cap_micro_usdc_per_million": 1000001,
+                "revision": 1,
+                "schema_version": 1,
+                "valid_from_ms": 1792280501148,
+                "valid_until_ms": 1792281502148
+              }
+            },
+            "kind": "inference_call",
+            "max_duration_secs": 45,
+            "min_reputation_bps": null,
+            "min_vram_gb": null,
+            "model_id": "fixture-model"
+          },
+          "deadline_ms": 45000,
+          "idempotency": {
+            "duplicate_safety": "idempotent",
+            "key": "0d1a5de6-15d7-4ead-9fff-2434654a7f90"
+          },
+          "input": [
+            {
+              "type": "json",
+              "value": {
+                "messages": [
+                  {
+                    "content": "Be precise.",
+                    "role": "system"
+                  },
+                  {
+                    "content": "Explain a rainbow.",
+                    "role": "user"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "json",
+              "value": {
+                "generation": {
+                  "max_tokens": 64,
+                  "temperature": 0.25
+                }
+              }
+            },
+            {
+              "type": "json",
+              "value": {
+                "inference_tariff": {
+                  "price_micro_usdc": 165,
+                  "requested_output_cap": 64,
+                  "tariff": {
+                    "base_micro_usdc": 100,
+                    "id": "fixture-model-v1",
+                    "max_output_tokens": 4096,
+                    "model": "fixture-model",
+                    "output_cap_micro_usdc_per_million": 1000001,
+                    "revision": 1,
+                    "schema_version": 1,
+                    "valid_from_ms": 1792280501148,
+                    "valid_until_ms": 1792281502148
+                  }
+                }
+              }
+            }
+          ],
+          "issued_at_ms": 1792280502148,
+          "job_id": "0d1a5de6-15d7-4ead-9fff-2434654a7f90",
+          "kind": "inference_call",
+          "price_micro_usdc": 165
+        },
+        "payload_json": "{\"job_id\":\"0d1a5de6-15d7-4ead-9fff-2434654a7f90\",\"buyer\":{\"display\":\"tariff-fixture-buyer@local\",\"pubkey\":\"DWrAExQhQBUvuSorMrsnRvoy9dPXc4z493YTD2CWJcM8\"},\"kind\":\"inference_call\",\"capability_requirement\":{\"inference_tariff\":{\"tariff\":{\"schema_version\":1,\"id\":\"fixture-model-v1\",\"revision\":1,\"model\":\"fixture-model\",\"base_micro_usdc\":100,\"output_cap_micro_usdc_per_million\":1000001,\"max_output_tokens\":4096,\"valid_from_ms\":1792280501148,\"valid_until_ms\":1792281502148},\"requested_output_cap\":64,\"price_micro_usdc\":165},\"gpu_class\":null,\"min_vram_gb\":null,\"model_id\":\"fixture-model\",\"kind\":\"inference_call\",\"max_duration_secs\":45,\"min_reputation_bps\":null},\"input\":[{\"type\":\"json\",\"value\":{\"messages\":[{\"content\":\"Be precise.\",\"role\":\"system\"},{\"content\":\"Explain a rainbow.\",\"role\":\"user\"}]}},{\"type\":\"json\",\"value\":{\"generation\":{\"max_tokens\":64,\"temperature\":0.25}}},{\"type\":\"json\",\"value\":{\"inference_tariff\":{\"price_micro_usdc\":165,\"requested_output_cap\":64,\"tariff\":{\"base_micro_usdc\":100,\"id\":\"fixture-model-v1\",\"max_output_tokens\":4096,\"model\":\"fixture-model\",\"output_cap_micro_usdc_per_million\":1000001,\"revision\":1,\"schema_version\":1,\"valid_from_ms\":1792280501148,\"valid_until_ms\":1792281502148}}}}],\"price_micro_usdc\":165,\"deadline_ms\":45000,\"idempotency\":{\"duplicate_safety\":\"idempotent\",\"key\":\"0d1a5de6-15d7-4ead-9fff-2434654a7f90\"},\"issued_at_ms\":1792280502148}",
+        "signature_b58": "4q22Cqu6NAptXK8fcGfATqn2X68sBKbgB4UoYVrZ8jsMfMR9ASTFJqCWNh2iH5GhkvMm5SdWeZzy3M4y86sscYK5",
+        "signer_pubkey_b58": "DWrAExQhQBUvuSorMrsnRvoy9dPXc4z493YTD2CWJcM8"
+      },
+      "job_id": "0d1a5de6-15d7-4ead-9fff-2434654a7f90",
+      "output": [
+        {
+          "text": "Light separates into colors.",
+          "type": "text"
+        },
+        {
+          "type": "json",
+          "value": {
+            "confidence": 0.125,
+            "count": 1
+          }
+        },
+        {
+          "text": "Verified fixture.",
+          "type": "text"
+        }
+      ],
+      "output_json": "[{\"type\":\"text\",\"text\":\"Light separates into colors.\"},{\"type\":\"json\",\"value\":{\"confidence\":0.125,\"count\":1}},{\"type\":\"text\",\"text\":\"Verified fixture.\"}]",
+      "quote_id": "00000000-0000-4000-8000-000000000001",
+      "receipt": {
+        "receipt": {
+          "executed_at_ms": 1792280502149,
+          "job_hash_hex": "a215a2e7edec5bc58cce77cfe8b2c49d12205f5e30c97f71868e2678749a58de",
+          "job_id": "0d1a5de6-15d7-4ead-9fff-2434654a7f90",
+          "meter": {
+            "finish_reason": null,
+            "gpu_seconds": null,
+            "tokens_in": 12,
+            "tokens_out": 9,
+            "wall_ms": 5
+          },
+          "node_audit_root_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "operator": {
+            "display": "tariff-fixture-operator@local",
+            "pubkey": "5w5LcMfwk4uYYSxVYjtLJttoyCdLHv4kUss2JsU4DTVy"
+          },
+          "price_micro_usdc": 165,
+          "result_hash_hex": "c34d8c2a18386bf2df5761bd5a9592725d3b5429f27b2d5914902ff48b94f453",
+          "status": "ok"
+        },
+        "receipt_json": "{\"job_id\":\"0d1a5de6-15d7-4ead-9fff-2434654a7f90\",\"operator\":{\"display\":\"tariff-fixture-operator@local\",\"pubkey\":\"5w5LcMfwk4uYYSxVYjtLJttoyCdLHv4kUss2JsU4DTVy\"},\"job_hash_hex\":\"a215a2e7edec5bc58cce77cfe8b2c49d12205f5e30c97f71868e2678749a58de\",\"result_hash_hex\":\"c34d8c2a18386bf2df5761bd5a9592725d3b5429f27b2d5914902ff48b94f453\",\"meter\":{\"wall_ms\":5,\"tokens_in\":12,\"tokens_out\":9,\"gpu_seconds\":null,\"finish_reason\":null},\"price_micro_usdc\":165,\"status\":\"ok\",\"executed_at_ms\":1792280502149,\"node_audit_root_hex\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}",
+        "signature_b58": "52xqtYksWjrnVorptvoWZF6f8oCh3TY9NTKfFxXUCLB7qeJy4bfQJ47JxUKv6qxY64oXKSkxvMH1P2T8hBsvgqhG",
+        "signer_pubkey_b58": "5w5LcMfwk4uYYSxVYjtLJttoyCdLHv4kUss2JsU4DTVy"
+      },
+      "request_sha256": "abb16fbd4f461ef6def20f6bf65b56fc60a83645fb61afa315da466ba45ca5e7"
+    },
+    "created": 1792280502,
+    "id": "chatcmpl-0d1a5de6-15d7-4ead-9fff-2434654a7f90",
+    "model": "fixture-model",
+    "object": "chat.completion"
+  }
+}

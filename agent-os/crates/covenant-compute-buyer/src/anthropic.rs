@@ -623,6 +623,7 @@ async fn messages(
     // uses, so a message here means the same job as a chat on the CLI, the
     // MCP server, and the OpenAI front door.
     let args = InferArgs {
+        tariff_id: None,
         prompt: None,
         messages: Some(messages),
         images: None,
@@ -1334,6 +1335,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::InferenceCall,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -1678,6 +1680,7 @@ mod tests {
             entries: rows
                 .iter()
                 .map(|(kind, model)| CapacityEntry {
+                    inference_tariffs: Vec::new(),
                     kind: *kind,
                     model: (*model).into(),
                     operators: 1,

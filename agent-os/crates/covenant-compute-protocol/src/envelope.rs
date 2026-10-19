@@ -19,6 +19,9 @@ use crate::sign::{
     sign_domain, to_canonical_json, verify_domain, ProtocolError, JOB_ENVELOPE_DOMAIN,
 };
 
+/// Maximum accepted clock skew for a signed job envelope's issuance time.
+pub const JOB_FRESHNESS_WINDOW_MS: u64 = 120_000;
+
 /// Unsigned job payload. `input` is small inline content. A payload
 /// near or above the shared IPC/HTTP frame cap (`MAX_FRAME`, 8 MiB —
 /// `covenant-ipc/src/lib.rs:69`) belongs in blob storage referenced by
@@ -81,6 +84,29 @@ impl JobEnvelopePayload {
                 "job kind {:?} disagrees with its capability requirement {:?}",
                 self.kind, self.capability_requirement.kind
             )));
+        }
+        let quote = crate::parse_tariff_input(&self.input)?;
+        if quote != self.capability_requirement.inference_tariff {
+            return Err(ProtocolError::Invalid(
+                "inference tariff block and routing requirement disagree".into(),
+            ));
+        }
+        if let Some(quote) = &quote {
+            if self.kind != JobKind::InferenceCall
+                || !quote.tariff.valid_at(self.issued_at_ms)
+                || self
+                    .capability_requirement
+                    .model_id
+                    .as_ref()
+                    .is_none_or(|m| {
+                        crate::canonical_model(m) != crate::canonical_model(&quote.tariff.model)
+                    })
+                || self.price_micro_usdc != quote.price_micro_usdc
+                || crate::parse_generation_params(&self.input)?.and_then(|p| p.max_tokens)
+                    != Some(quote.requested_output_cap)
+            {
+                return Err(ProtocolError::Invalid("inference tariff must bind model, requested output cap, exact price, and issue time".into()));
+            }
         }
         match self.kind {
             JobKind::InferenceCall => {
@@ -315,6 +341,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::InferenceCall,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: Some(8),
                 model_id: Some("llama-3-8b".into()),

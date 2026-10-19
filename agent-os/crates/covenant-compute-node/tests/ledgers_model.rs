@@ -356,6 +356,7 @@ fn accepted_entry(
             buyer: buyer.agent_id(),
             kind: JobKind::BatchJob,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,

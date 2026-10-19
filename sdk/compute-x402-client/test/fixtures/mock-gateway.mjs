@@ -26,7 +26,7 @@ export const input = id => ({ requestId: id ?? randomUUID(), model:'covenant-tes
 
 export async function fixture(options = {}) {
   const home = mkdtempSync(join(tmpdir(),'covenant-x402-test-')); const key = Keypair.generate(), buyer = Keypair.generate(), operator = Keypair.generate(), fee = Keypair.generate(), seller = Keypair.generate();
-  let requests = 0, signatures = 0, quotes = 0, sends = 0; const payments = [], confirmed = new Map(); let firstFailure = options.dropFirst; let firstPending = options.pendingFirst;
+  let requests = 0, signatures = 0, quotes = 0, sends = 0; const payments = [], confirmed = new Map(), savedQuotes = new Map(); let firstFailure = options.dropFirst; let firstPending = options.pendingFirst;
   const server = createServer(async (req,res) => {
     try {
       requests++;
@@ -42,15 +42,19 @@ export async function fixture(options = {}) {
         res.end(JSON.stringify({jsonrpc:'2.0',id:body.id,result}));return;
       }
       assert.equal(req.url,'/v1/chat/completions'); const digest=sha256(stable(body));const quoteId=req.headers['idempotency-key'];
-      const quote={scheme:'exact',network:NETWORK,asset:USDC,amount:'1000',payTo:seller.publicKey.toBase58(),maxTimeoutSeconds:90,extra:{feePayer:fee.publicKey.toBase58(),quoteId,requestSha256:digest,expiresAtMs:Date.now()+90000,memo:`covenant.x402.v2:${quoteId}:${digest}`}};
+      const quote=savedQuotes.get(quoteId)??{scheme:'exact',network:NETWORK,asset:USDC,amount:String(options.price?.(body)??1000),payTo:seller.publicKey.toBase58(),maxTimeoutSeconds:90,extra:{feePayer:fee.publicKey.toBase58(),quoteId,requestSha256:digest,expiresAtMs:Date.now()+90000,memo:`covenant.x402.v2:${quoteId}:${digest}`}};
       if(!req.headers['payment-signature']) {
         quotes++; if(options.badQuote) options.badQuote(quote);
+        savedQuotes.set(quoteId,quote);
         const required={x402Version:2,resource:{url:base+'/v1/chat/completions',description:'Covenant inference',mimeType:'application/json'},accepts:[quote]};
         res.statusCode=402;res.setHeader('PAYMENT-REQUIRED',encode(required));res.end('{}');return;
       }
       sends++;payments.push(req.headers['payment-signature']);
       if(options.paidGate)await options.paidGate;
       const payment=JSON.parse(Buffer.from(payments.at(-1),'base64')); const transaction=VersionedTransaction.deserialize(Buffer.from(payment.payload.transaction,'base64'));
+      assert.deepEqual(payment.accepted,quote);
+      const transfer=transaction.message.compiledInstructions.find(ix=>transaction.message.staticAccountKeys[ix.programIdIndex].toBase58()===tokenProgram);
+      assert.equal(Buffer.from(transfer.data).readBigUInt64LE(1),BigInt(quote.amount));
       if(options.verifyBridge) {
         const {createBridge}=await import(pathToFileURL(process.env.COVENANT_X402_BRIDGE_PATH).href);
         const signer=toFacilitatorSvmSigner(await createKeyPairSignerFromBytes(fee.secretKey));
@@ -72,8 +76,18 @@ export async function fixture(options = {}) {
       if(firstFailure){firstFailure=false;res.statusCode=503;res.end('{}');return;}
       if(firstPending){firstPending=false;res.statusCode=202;res.end('{}');return;}
       const output=[{type:'text',text:'<!doctype html><button onclick="this.textContent=Number(this.textContent)+1">0</button>'}];
-      const envelope=signature(buyer,'covenant.compute.job.v1\n',{job_id:quoteId,kind:'inference_call',capability_requirement:{kind:'inference_call',model_id:body.model},input:[{type:'json',value:{messages:body.messages}},{type:'json',value:{generation:{max_tokens:body.max_tokens,temperature:body.temperature}}}],price_micro_usdc:900},'payload','buyer');
-      const receipt=signature(operator,'covenant.compute.receipt.v1\n',{job_id:quoteId,job_hash_hex:sha256(envelope.payload_json),result_hash_hex:sha256(stable(output)),price_micro_usdc:900,status:'ok'},'receipt','operator');
+      const job={job_id:quoteId,kind:'inference_call',capability_requirement:{kind:'inference_call',model_id:body.model},input:[{type:'json',value:{messages:body.messages}},{type:'json',value:{generation:{max_tokens:body.max_tokens,temperature:body.temperature}}}],price_micro_usdc:900};
+      if(body.pricing==='model_tariff_v1') {
+        const issued=Date.now();
+        const tariff={schema_version:1,id:'fixture-tariff',revision:1,model:body.model,base_micro_usdc:500,output_cap_micro_usdc_per_million:1001,max_output_tokens:8192,valid_from_ms:issued-1000,valid_until_ms:issued+90000};
+        const nativeQuote={tariff,requested_output_cap:body.max_tokens,price_micro_usdc:500+Number((BigInt(body.max_tokens)*1001n+999999n)/1000000n)};
+        job.capability_requirement.inference_tariff=structuredClone(nativeQuote);
+        job.input.push({type:'json',value:{inference_tariff:nativeQuote}});
+        job.price_micro_usdc=nativeQuote.price_micro_usdc; job.issued_at_ms=issued;
+      }
+      if(options.badJob)options.badJob(job);
+      const envelope=signature(buyer,'covenant.compute.job.v1\n',job,'payload','buyer');
+      const receipt=signature(operator,'covenant.compute.receipt.v1\n',{job_id:quoteId,job_hash_hex:sha256(envelope.payload_json),result_hash_hex:sha256(stable(output)),price_micro_usdc:job.price_micro_usdc,status:'ok'},'receipt','operator');
       const result={choices:[{message:{role:'assistant',content:output[0].text}}],covenant:{envelope,receipt,output,output_json:stable(output),request_sha256:digest,quote_id:quoteId,job_id:quoteId}};
       if(options.badResult)options.badResult(result);
       res.setHeader('PAYMENT-RESPONSE',encode({success:true,network:NETWORK,payer:key.publicKey.toBase58(),transaction:txid}));res.end(JSON.stringify(result));

@@ -1,6 +1,6 @@
 {
   "name": "@covenant/compute-x402-client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Bounded x402 V2 Solana inference purchases for AgentKit, LangChain and LangGraph",
   "type": "module",
   "engines": {

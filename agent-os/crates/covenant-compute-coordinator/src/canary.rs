@@ -387,6 +387,7 @@ impl CanaryProber {
             buyer: probe_identity.agent_id(),
             kind,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id,
@@ -644,6 +645,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -775,6 +777,7 @@ mod tests {
     fn probe_plans_prefer_a_concrete_model_and_skip_unprobeable_profiles() {
         let identity = LocalIdentity::generate("op@test");
         let mut profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,

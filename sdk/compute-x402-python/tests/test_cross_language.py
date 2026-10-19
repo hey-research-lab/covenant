@@ -50,8 +50,8 @@ def test_node_python_concurrent_budget_one_winner(tmp_path):
     assert sorted(outputs) == ["refused", "reserved"]
 
 
-@pytest.mark.parametrize("pending,legacy", [(True, False), (False, False), (True, True)])
-async def test_python_resumes_real_node_journal_without_resigning(pending, legacy):
+@pytest.mark.parametrize("pending,legacy,tariff", [(True, False, False), (False, False, False), (True, True, False), (True, False, True), (False, False, True)])
+async def test_python_resumes_real_node_journal_without_resigning(pending, legacy, tariff):
     code = f"""
       import{{fixture,input}}from {json.dumps((JS/'test/fixtures/mock-gateway.mjs').as_uri())};
       import{{CovenantX402Client}}from {json.dumps((JS/'index.mjs').as_uri())};
@@ -60,6 +60,7 @@ async def test_python_resumes_real_node_journal_without_resigning(pending, legac
       import{{getTransactionEncoder}}from '@solana/kit';
       import{{VersionedTransaction}}from '@solana/web3.js';
       const f=await fixture({{pendingFirst:{str(pending).lower()},expectedUnits:{20000 if legacy else 60000}}});const c=new CovenantX402Client(f.config),r=input();
+      if({str(tariff).lower()})r.pricing='model_tariff_v1';
       if({str(legacy).lower()}){{
         const signer={{address:f.walletProvider.getAddress(),signTransactions:async txs=>Promise.all(txs.map(async tx=>{{
           const signed=await f.walletProvider.signTransaction(VersionedTransaction.deserialize(getTransactionEncoder().encode(tx)));
@@ -107,9 +108,12 @@ async def test_python_resumes_real_node_journal_without_resigning(pending, legac
         assert process.returncode == 0, process.stderr.read()
 
 
-async def test_node_reads_python_completed_journal_without_network(tmp_path):
+@pytest.mark.parametrize("tariff", [False, True])
+async def test_node_reads_python_completed_journal_without_network(tmp_path, tariff):
     from fixture import Fixture, request
     f, req = Fixture(tmp_path), request()
+    if tariff:
+        req["pricing"] = "model_tariff_v1"
     async with f.client() as client:
         result = await client.purchase(**req)
     config = {"gatewayUrl": f.config["gateway_url"], "rpcUrl": f.config["rpc_url"], "payTo": f.config["pay_to"], "gatewayBuyer": f.config["gateway_buyer"], "operators": f.config["operators"], "journalPath": f.config["journal_path"], "maxPaymentMicroUsdc": 1000, "maxTotalMicroUsdc": 2000, "payer": f.wallet.address}

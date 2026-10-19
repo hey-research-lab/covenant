@@ -64,7 +64,7 @@ test('model cannot choose wallet, identity, route, model, budget or generation s
   const f = await fixture(); const client = new CovenantX402Client(f.config);
   const config = settings(client); const tool = covenantInferenceTool(config);
   try {
-    for (const extra of ['requestId', 'walletProvider', 'gatewayUrl', 'payTo', 'operators', 'model', 'maxPaymentMicroUsdc', 'maxTotalMicroUsdc', 'maxTokens', 'temperature', 'systemPrompt']) {
+    for (const extra of ['requestId', 'walletProvider', 'gatewayUrl', 'payTo', 'operators', 'model', 'maxPaymentMicroUsdc', 'maxTotalMicroUsdc', 'maxTokens', 'temperature', 'systemPrompt', 'pricing']) {
       await assert.rejects(tool.invoke(call({ prompt, [extra]: 'model-controlled' })));
     }
     await assert.rejects(tool.invoke(call({ prompt: '' })));
@@ -76,6 +76,18 @@ test('model cannot choose wallet, identity, route, model, budget or generation s
     assert.throws(() => covenantInferenceTool({ ...config, maxTokens: 999999 }));
     assert.throws(() => covenantInferenceTool({ ...config, client: { purchase() {} } }), /covenant_x402_client_required/);
     assert.equal(f.counts().requests, 0);
+  } finally { client.close(); await f.cleanup(); }
+});
+
+test('application pricing opt-in is fixed before tool invocation and cannot be removed on replay', async () => {
+  const f = await fixture(); const client = new CovenantX402Client(f.config);
+  const config = { ...settings(client), pricing: 'model_tariff_v1' }; const tool = covenantInferenceTool(config);
+  try {
+    delete config.pricing;
+    const message = await tool.invoke(call());
+    assert.ok(message.artifact.result.covenant.envelope.payload.capability_requirement.inference_tariff);
+    await assert.rejects(covenantInferenceTool(config).invoke(call()), /idempotency_request_mismatch/);
+    assert.equal(f.counts().signatures, 1);
   } finally { client.close(); await f.cleanup(); }
 });
 

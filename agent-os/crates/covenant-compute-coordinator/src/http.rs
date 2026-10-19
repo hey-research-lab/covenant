@@ -4371,6 +4371,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::LeaseSession,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -4526,6 +4527,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::LeaseSession,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -4700,6 +4702,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::LeaseSession,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -4871,6 +4874,7 @@ mod tests {
             .register(
                 &RegisterRequest::sign(
                     CapabilityProfile {
+                        inference_tariffs: Vec::new(),
                         operator: operator.agent_id(),
                         hardware: HardwareClass::CpuOnly,
                         vram_gb: 0,
@@ -4908,6 +4912,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::LeaseSession,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -5050,6 +5055,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,

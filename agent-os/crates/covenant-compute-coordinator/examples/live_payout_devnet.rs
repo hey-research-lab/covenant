@@ -256,6 +256,7 @@ async fn main() {
     // --- register the operator with its REAL devnet payout wallet ---
     let operator_identity = LocalIdentity::generate("operator@live-payout-devnet");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -320,6 +321,7 @@ async fn main() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,

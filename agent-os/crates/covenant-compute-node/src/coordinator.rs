@@ -235,6 +235,7 @@ mod tests {
         let coordinator = MockCoordinator::new();
         let identity = LocalIdentity::generate("operator@local");
         let profile = covenant_compute_protocol::CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: covenant_compute_protocol::HardwareClass::CpuOnly,
             vram_gb: 0,

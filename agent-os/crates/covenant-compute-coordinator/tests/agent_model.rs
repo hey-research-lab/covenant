@@ -131,6 +131,7 @@ async fn rig_full(
 fn register(rig: &Rig, display: &str, seed: u8) -> LocalIdentity {
     let op = LocalIdentity::generate(display);
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: op.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -233,6 +234,7 @@ async fn post_task_with(rig: &Rig, spec: AgentTaskSpec) -> Uuid {
         buyer: buyer.agent_id(),
         kind: JobKind::AgentTask,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some("claude-code".into()),
@@ -338,6 +340,7 @@ fn verification_envelope(
             buyer: buyer.agent_id(),
             kind: JobKind::AgentCheck,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: Some(spec.checker_model()),
@@ -912,6 +915,7 @@ async fn agent_work_is_closed_to_unlisted_buyers_and_checks_cannot_be_bought() {
         buyer: buyer.agent_id(),
         kind: JobKind::AgentTask,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some("claude-code".into()),
@@ -954,6 +958,7 @@ async fn agent_work_is_closed_to_unlisted_buyers_and_checks_cannot_be_bought() {
         buyer: buyer.agent_id(),
         kind: JobKind::AgentCheck,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some("python:3.12-slim".into()),
@@ -1518,6 +1523,7 @@ async fn an_offer_too_small_for_a_build_is_refused() {
         buyer: buyer.agent_id(),
         kind: JobKind::AgentTask,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some("claude-code".into()),
@@ -1866,6 +1872,7 @@ async fn post_as(
         buyer: buyer.agent_id(),
         kind: JobKind::AgentTask,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some("claude-code".into()),

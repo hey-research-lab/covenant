@@ -27,15 +27,15 @@ const viewMessage = message => ({ type: message.getType(), content: message.cont
  * finish: resume after the tool and produce the planner's final draft summary.
  */
 export async function runSupportDemo({ client, planner, requestId, threadId, model,
-  outputDirectory, phase, ticket = SAMPLE_TICKET }) {
+  outputDirectory, phase, ticket = SAMPLE_TICKET, pricing }) {
   assert(['plan', 'purchase', 'replay', 'finish'].includes(phase), 'invalid_demo_phase');
   assert(typeof threadId === 'string' && threadId.length > 0, 'stable_thread_id_required');
   const directory = resolve(outputDirectory); mkdirSync(directory, { recursive: true, mode: 0o700 });
   const tool = covenantInferenceTool({ client, requestId, model, maxTokens: 2048, temperature: 0.2,
-    systemPrompt: SUPPORT_DRAFT_POLICY });
+    systemPrompt: SUPPORT_DRAFT_POLICY, pricing });
   const checkpointer = SqliteSaver.fromConnString(join(directory, 'graph.sqlite'));
   const identityPath = join(directory, 'run.json');
-  const identity = { requestId, threadId, model, ticketSha256: sha256(ticket), version: 1 };
+  const identity = { requestId, threadId, model, ticketSha256: sha256(ticket), version: 1, ...(pricing === undefined ? {} : { pricing }) };
   if (phase === 'plan') {
     // Never silently start a fresh purchase or overwrite another run.
     writeFileSync(identityPath, JSON.stringify(identity, null, 2) + '\n', { flag: 'wx', mode: 0o600 });

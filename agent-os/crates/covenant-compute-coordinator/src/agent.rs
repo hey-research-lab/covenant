@@ -270,6 +270,7 @@ pub async fn order_check(state: &CoordinatorState, task_id: Uuid) -> Result<Uuid
         return Err("the task offer leaves no budget beyond its proof check".into());
     }
     let requirement = CapabilityRequirement {
+        inference_tariff: None,
         gpu_class: None,
         min_vram_gb: None,
         model_id: Some(spec.acceptance.checker_model()),

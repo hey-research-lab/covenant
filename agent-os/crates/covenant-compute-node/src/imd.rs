@@ -1530,6 +1530,7 @@ mod tests {
             buyer: AgentId::new("buyer@swarm", [7u8; 32]),
             kind: JobKind::BatchJob,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: Some(SWARM_MODEL.into()),

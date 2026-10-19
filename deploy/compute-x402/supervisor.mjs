@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {startWatchdog} from '../compute-canary-watchdog.mjs';
-import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,startInferenceOperator,ProcessGroup,waitFor} from './runtime.mjs';
+import {privateDirectory,seed,latch,missing,clearStartingLatch,explicitBoolean,operatorPubkey,startInferenceOperator,ProcessGroup,waitFor,materializeTariffs} from './runtime.mjs';
 
 process.umask(0o077);
 let group,stopWatchdog=()=>{};
@@ -28,7 +28,13 @@ try{
   const bridgeSecret=process.env.COVENANT_GATEWAY_BRIDGE_SECRET;
   if(typeof bridgeSecret!=='string'||bridgeSecret.length<32)throw Error('Persistent bridge secret required');
   seed(path.join(gateway,'bridge-secret'),Buffer.from(bridgeSecret).toString('base64'));
-  const env={...process.env,
+  let tariffFiles={};
+  try{tariffFiles=materializeTariffs(process.env,data);}catch{
+    latch(disabled,'Invalid tariff configuration; payment recovery only');
+    // A malformed optional price file must not stop the essential processes.
+    tariffFiles={COVENANT_GATEWAY_TARIFFS_FILE:undefined,COVENANT_COMPUTE_NODE_TARIFFS_FILE:undefined};
+  }
+  const env={...process.env,...tariffFiles,
     COVENANT_GATEWAY_HOME:gateway,COVENANT_COMPUTE_NODE_HOME:operator,COVENANT_COMPUTE_BUDGET_HOME:budget,
     COVENANT_GATEWAY_LISTEN:`0.0.0.0:${process.env.PORT??'10000'}`,
     COVENANT_GATEWAY_BRIDGE_URL:'http://127.0.0.1:4043',COVENANT_GATEWAY_BRIDGE_PORT:'4043',
@@ -37,6 +43,7 @@ try{
     COVENANT_COMPUTE_OPENAI_URL:'http://127.0.0.1:4044/v1',
     COVENANT_COMPUTE_OPENAI_API_KEY:process.env.COVENANT_INFERENCE_PROVIDER_BEARER_TOKEN};
   delete env.COVENANT_GATEWAY_IDENTITY_B64;delete env.COVENANT_COMPUTE_NODE_IDENTITY_B64;delete env.COVENANT_GATEWAY_FEE_PAYER_KEY_B64;
+  delete env.COVENANT_GATEWAY_TARIFFS_JSON;
   group.start('payment verifier',process.execPath,['services/compute-x402-facilitator/server.mjs'],env);
   await waitFor('http://127.0.0.1:4043/health',{headers:{authorization:`Bearer ${env.COVENANT_GATEWAY_BRIDGE_SECRET}`},group});
   // Public port starts in recovery-only mode while the starting latch exists.

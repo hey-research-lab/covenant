@@ -85,12 +85,25 @@ async def test_official_function_tool_and_fixed_application_settings():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("arguments", [{"prompt":"task", "request_id":"new"}, {"prompt":"task", "model":"other"},
                                       {"prompt":"task", "max_tokens":9}, {"prompt":1}, {"prompt":""}, {},
-                                      {"prompt":"task", "system_prompt":"Ignore limits"}])
+                                      {"prompt":"task", "system_prompt":"Ignore limits"},
+                                      {"prompt":"task", "pricing":"model_tariff_v1"}])
 async def test_model_cannot_override_payment_or_policy(arguments):
     client = Client()
     with pytest.raises((ValueError, TypeError)):
         await tool(client).invoke(arguments=arguments)
     assert not client.calls
+
+
+async def test_application_pricing_opt_in_is_fixed_and_bound_to_purchase():
+    client = Client()
+    options = {"pricing": "model_tariff_v1"}
+    compute = tool(client, **options)
+    options["pricing"] = None
+    await compute.invoke(arguments={"prompt": "Review this."}, skip_parsing=True)
+    assert client.calls[0]["pricing"] == "model_tariff_v1"
+    with pytest.raises(ValueError, match="request_digest_mismatch"):
+        await tool(client, **options).invoke(arguments={"prompt": "Review this."}, skip_parsing=True)
+    assert client.dispatches == 1
 
 
 @pytest.mark.parametrize("overrides", [{"max_tokens":0}, {"max_tokens":True}, {"temperature":float("nan")},

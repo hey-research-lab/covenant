@@ -818,3 +818,12 @@ metadata requests; a separate locally held key encrypts the data. Snapshot pins
 and pending ciphertext survive process restart. See the [CLI workflow, backup
 and release gates](../../../docs/compute-workspaces.md) before enabling storage.
 A workspace save does not rent a machine or spend the buyer's Compute balance.
+
+### Versioned inference pricing
+
+Use `infer --tariff-id ID --model MODEL --max-tokens N` to request an advertised
+model tariff. The `tariff_id` argument is also available on `compute.infer` and
+`compute.stream_start`. The buyer discovers a live exact tariff, checks the spend
+ceiling and signs the fixed base-plus-output-cap price. Retries keep the original
+quote; the eventual output length does not change the charge. Omitting the tariff
+keeps the existing flat-offer path. See [tariff details](../../../docs/compute-inference-tariffs.md).

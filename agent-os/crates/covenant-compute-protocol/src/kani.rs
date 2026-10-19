@@ -893,6 +893,7 @@ mod tests {
             buyer: identity.agent_id(),
             kind: crate::JobKind::AgentCheck,
             capability_requirement: crate::CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: Some(acceptance.checker_model()),

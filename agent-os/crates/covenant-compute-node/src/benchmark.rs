@@ -81,6 +81,7 @@ fn probe_payload(
         buyer: operator.clone(),
         kind: spec.kind,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: model_id.map(str::to_string),

@@ -17,7 +17,7 @@ use uuid::Uuid;
 /// Freshness window for a job envelope's `issued_at_ms`, mirroring
 /// `covenantd`'s own identity-attestation skew check
 /// (`covenantd/src/lib.rs:5463-5470`, 120s).
-pub const FRESHNESS_WINDOW_MS: u64 = 120_000;
+pub const FRESHNESS_WINDOW_MS: u64 = covenant_compute_protocol::JOB_FRESHNESS_WINDOW_MS;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum AdmissionError {
@@ -124,11 +124,7 @@ pub fn admit_job(
     // coordinator legitimately routed.
     let ask = ctx
         .local_profile
-        .ask_for(envelope.payload.kind)
-        .job_floor_micro_usdc(
-            envelope.payload.kind,
-            envelope.payload.capability_requirement.max_duration_secs,
-        );
+        .job_floor_micro_usdc(&envelope.payload.capability_requirement);
     if envelope.payload.price_micro_usdc < ask {
         return Err(AdmissionError::OfferBelowAsk {
             offered: envelope.payload.price_micro_usdc,
@@ -138,7 +134,7 @@ pub fn admit_job(
 
     if !ctx
         .local_profile
-        .satisfies(&envelope.payload.capability_requirement)
+        .satisfies_at(&envelope.payload.capability_requirement, ctx.now_ms)
     {
         return Err(AdmissionError::CapabilityMismatch);
     }
@@ -166,6 +162,7 @@ mod tests {
 
     fn profile(operator: &LocalIdentity) -> CapabilityProfile {
         CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -187,6 +184,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::BatchJob,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -217,6 +215,72 @@ mod tests {
 
     fn coordinator_pubkey(coordinator: &LocalIdentity) -> String {
         bs58::encode(coordinator.pubkey_bytes()).into_string()
+    }
+
+    #[test]
+    fn tariff_admission_accepts_exact_lower_offer_and_rejects_changed_or_expired_revision() {
+        use covenant_compute_protocol::{
+            generation_input, tariff_input, GenerationParams, InferenceTariff,
+        };
+        let buyer = LocalIdentity::generate("buyer@local");
+        let coordinator = LocalIdentity::generate("coordinator@local");
+        let job_id = Uuid::new_v4();
+        let tariff = InferenceTariff {
+            schema_version: 1,
+            id: "model-price".into(),
+            revision: 1,
+            model: "model".into(),
+            base_micro_usdc: 10,
+            output_cap_micro_usdc_per_million: 1_000_000,
+            max_output_tokens: 100,
+            valid_from_ms: 900,
+            valid_until_ms: 2000,
+        };
+        let quote = tariff.quote(20, 1000).unwrap();
+        let mut payload = envelope(&buyer, job_id, quote.price_micro_usdc, 1000).payload;
+        payload.kind = JobKind::InferenceCall;
+        payload.capability_requirement.kind = JobKind::InferenceCall;
+        payload.capability_requirement.model_id = Some("model".into());
+        payload.capability_requirement.inference_tariff = Some(quote.clone());
+        payload.input = vec![
+            Content::text("prompt"),
+            generation_input(GenerationParams {
+                max_tokens: Some(20),
+                ..Default::default()
+            })
+            .unwrap(),
+            tariff_input(&quote).unwrap(),
+        ];
+        let env = SignedJobEnvelope::sign(payload, &buyer).unwrap();
+        let hold = escrow_hold(&coordinator, job_id, quote.price_micro_usdc, 1000);
+        let mut p = profile(&buyer);
+        p.job_kinds = vec![JobKind::InferenceCall];
+        p.inference_tariffs = vec![tariff];
+        let pk = coordinator_pubkey(&coordinator);
+        let check = |p: &CapabilityProfile, now_ms| {
+            admit_job(
+                &env,
+                &hold,
+                &AdmissionContext {
+                    local_profile: p,
+                    coordinator_pubkey_b58: &pk,
+                    max_in_flight: 1,
+                    in_flight: 0,
+                    now_ms,
+                },
+            )
+        };
+        assert!(quote.price_micro_usdc < p.price.micro_usdc);
+        check(&p, 1000).unwrap();
+        assert!(matches!(
+            check(&p, 2000),
+            Err(AdmissionError::CapabilityMismatch)
+        ));
+        p.inference_tariffs[0].revision += 1;
+        assert!(matches!(
+            check(&p, 1000),
+            Err(AdmissionError::CapabilityMismatch)
+        ));
     }
 
     #[test]

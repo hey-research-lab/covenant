@@ -61,9 +61,11 @@ pub use agent::{
 };
 mod agent_evidence;
 mod purchases;
+pub mod tariffs;
 pub use agent_evidence::{
     fetch_agent_evidence, verify_agent_evidence, VerifiedAgentCheck, VerifiedAgentEvidence,
 };
+pub use covenant_compute_protocol::parse_tariff_input;
 pub use purchases::{PurchaseBook, PurchaseEntry, PurchaseError};
 
 mod vault;
@@ -596,6 +598,7 @@ pub fn infer_tool_spec(max_price_micro_usdc: u64) -> ToolSpec {
         input_schema: serde_json::json!({
             "type": "object",
             "properties": {
+                "tariff_id": {"type": "string", "description": "Opt in to an explicitly configured live inference tariff. Requires model and max_tokens; price_micro_usdc must equal its quote if supplied. Fixed base plus requested output cap, not measured token usage."},
                 "prompt": {
                     "type": "string",
                     "description": "Raw completion input. Exactly one of prompt or messages."
@@ -763,6 +766,9 @@ pub fn infer_tool_spec(max_price_micro_usdc: u64) -> ToolSpec {
 /// The `compute.infer` argument shape, shared by both consumers.
 #[derive(Debug, Deserialize)]
 pub struct InferArgs {
+    /// Opt in to a live, explicitly configured tariff by ID. Resolved before signing.
+    #[serde(default)]
+    pub tariff_id: Option<String>,
     #[serde(default)]
     pub prompt: Option<String>,
     #[serde(default)]
@@ -831,6 +837,12 @@ impl InferArgs {
     /// refused here; both callers refuse before signing anything
     /// otherwise.
     pub fn input(&self) -> Result<Vec<Content>, String> {
+        if self.tariff_id.is_some() {
+            return Err(
+                "tariff_id must be resolved by the buyer tariff pricing path before building input"
+                    .into(),
+            );
+        }
         let images = self.images.as_deref().unwrap_or_default();
         for image in images {
             base64::engine::general_purpose::STANDARD
@@ -3766,11 +3778,14 @@ fn build_envelope(
     let max_duration_secs = lease_window_secs(request.kind, &request.input)
         .or_else(|| agent_build_window_secs(request.kind, &request.input, request.deadline_ms))
         .unwrap_or_else(|| (request.deadline_ms / 1_000).max(1) as u32);
+    let inference_tariff = covenant_compute_protocol::parse_tariff_input(&request.input)
+        .map_err(|e| BuyerError::Protocol(e.to_string()))?;
     let payload = JobEnvelopePayload {
         job_id,
         buyer: buyer_identity.agent_id(),
         kind: request.kind,
         capability_requirement: CapabilityRequirement {
+            inference_tariff,
             gpu_class,
             min_vram_gb: request.min_vram_gb,
             model_id: request.model,
@@ -3786,6 +3801,11 @@ fn build_envelope(
         referral_code: config.referral_code.clone(),
         stream,
     };
+    if payload.capability_requirement.inference_tariff.is_some() {
+        payload
+            .validate_input()
+            .map_err(|e| BuyerError::Protocol(e.to_string()))?;
+    }
     SignedJobEnvelope::sign(payload, buyer_identity)
         .map_err(|e| BuyerError::Protocol(e.to_string()))
 }
@@ -4353,6 +4373,7 @@ mod tests {
     async fn cheapest_matching_ask_narrows_to_the_hardware_that_could_serve() {
         use covenant_compute_protocol::PriceUnit;
         let entry = |model: &str, ask, vram, class: &str| CapacityEntry {
+            inference_tariffs: Vec::new(),
             kind: JobKind::BatchJob,
             model: model.into(),
             operators: 1,
@@ -4418,6 +4439,7 @@ mod tests {
             min_score_bps: 0,
             min_bond_micro_usdc: 0,
             entries: vec![CapacityEntry {
+                inference_tariffs: Vec::new(),
                 kind: JobKind::AgentCheck,
                 model: "any".into(),
                 operators: 1,
@@ -4609,6 +4631,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::InferenceCall,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,

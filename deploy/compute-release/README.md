@@ -21,7 +21,8 @@ first, follow "Verify a download" in the release notes. Installing with
 Homebrew (`brew install open-covenant/tap/covenant-compute`) or the install
 script (`curl -fsSL https://opencovenant.org/install/compute.sh | sh`) avoids
 this step. Those installers use separately pinned releases; check that
-`covenant-compute --version` reports `0.3.0` before using the workspace commands.
+`covenant-compute --version` reports `0.4.0` before using this release's tariff
+commands.
 
 From the unpacked folder:
 
@@ -50,6 +51,27 @@ covenant-compute capacity    # what you can rent right now, and at what price
 Add the `export` line to your shell profile to keep it. Your buyer key controls
 your balance, and `covenant-compute` and `covenant-compute-mcp` both use it, so
 back up `~/.covenant-compute-mcp/identity.json`.
+
+## Upfront model prices
+
+Version 0.4.0 adds opt-in inference tariffs. Read `capacity` for a currently
+offered tariff ID, then request its exact model and output limit:
+
+```sh
+covenant-compute infer --tariff-id <tariff-id> --model <model-id> \
+  --max-tokens 256 --dry-run --json 'Summarize this paragraph.'
+```
+
+The dry run shows the fixed quote without buying work. To purchase it, remove
+`--dry-run`; the normal spending cap still applies. The price combines the model's
+base charge with the requested maximum output length. A shorter answer does not
+reduce the agreed charge. `covenant-compute-mcp` exposes the same choice through
+`tariff_id`, `model`, and `max_tokens` on `compute.infer`.
+
+Tariffs require a compatible coordinator and an operator advertising the exact
+offer. Installing the client does not activate a tariff on the network. Requests
+without a tariff ID retain their existing pricing behavior. The tariff guide is:
+https://github.com/open-covenant/covenant/blob/compute-v0.4.0/docs/compute-inference-tariffs.md
 
 ## Encrypted checkpoints
 
@@ -80,13 +102,13 @@ attestation. `workspace delete <workspace-uuid>` schedules stored ciphertext for
 cleanup after outstanding grants expire.
 
 The complete workspace workflow and storage limits are documented at:
-https://github.com/open-covenant/covenant/blob/compute-v0.3.1/docs/compute-workspaces.md
+https://github.com/open-covenant/covenant/blob/compute-v0.4.0/docs/compute-workspaces.md
 
 The guide at https://docs.opencovenant.org/compute covers funding your balance,
 renting a GPU, hiring a coding agent and running a node. Every command and flag
 of `covenant-compute` and `covenant-compute-mcp` is described in the command
 reference:
-https://github.com/open-covenant/covenant/tree/compute-v0.3.1/agent-os/crates/covenant-compute-buyer#readme
+https://github.com/open-covenant/covenant/tree/compute-v0.4.0/agent-os/crates/covenant-compute-buyer#readme
 
 The source is at https://github.com/open-covenant/covenant, licensed under
 Apache 2.0 (see `LICENSE` and `NOTICE.md`).

@@ -198,11 +198,25 @@ fn speech_blocks(dir: &Path, output: &[Content], job_id: uuid::Uuid) -> Vec<Valu
 }
 
 async fn call_infer(state: &ServerState, id: Value, arguments: Value) -> Value {
-    let args: InferArgs = match serde_json::from_value(arguments) {
+    let mut args: InferArgs = match serde_json::from_value(arguments) {
         Ok(args) => args,
         Err(e) => return error(id, -32602, format!("invalid arguments: {e}")),
     };
-    let input = match args.input() {
+    let existing = args.idempotency_key.as_ref().and_then(|key| {
+        state.purchases.lookup(&format!(
+            "{}:{key}",
+            state.identity.agent_id().pubkey_base58()
+        ))
+    });
+    let input = match covenant_compute_buyer::tariffs::prepare_infer_args_for_purchase(
+        &state.http,
+        &state.buyer,
+        &mut args,
+        state.caps.max_price_micro_usdc(),
+        existing.as_ref().map(|entry| &entry.envelope),
+    )
+    .await
+    {
         Ok(input) => input,
         Err(e) => return error(id, -32602, format!("invalid arguments: {e}")),
     };
@@ -775,7 +789,7 @@ async fn dispatch_with_caps(
             Err(e) => return tool_error(id, e.to_string()),
         };
         let deadline_ms = deadline_arg.unwrap_or(state.default_deadline_ms);
-        let preview = preview_value(
+        let mut preview = preview_value(
             kind,
             model.as_deref(),
             gpu_class.as_deref(),
@@ -786,6 +800,10 @@ async fn dispatch_with_caps(
             cap,
             input.len(),
         );
+        if let Ok(Some(tariff)) = covenant_compute_protocol::parse_tariff_input(&input) {
+            preview["inference_tariff"] = serde_json::to_value(tariff).unwrap_or_default();
+            preview["price_source"] = json!("versioned_inference_tariff");
+        }
         return response(
             id,
             json!({ "content": [{ "type": "text", "text": preview.to_string() }], "isError": false }),
@@ -1024,7 +1042,7 @@ fn paid_response(
 /// returns, for `compute.stream_poll` to serve. The session spend is
 /// committed when the drain verifies the receipt — never at poll time.
 async fn call_stream_start(state: &Arc<ServerState>, id: Value, arguments: Value) -> Value {
-    let args: InferArgs = match serde_json::from_value(arguments) {
+    let mut args: InferArgs = match serde_json::from_value(arguments) {
         Ok(args) => args,
         Err(e) => return error(id, -32602, format!("invalid arguments: {e}")),
     };
@@ -1053,7 +1071,14 @@ async fn call_stream_start(state: &Arc<ServerState>, id: Value, arguments: Value
             ),
         );
     }
-    let input = match args.input() {
+    let input = match covenant_compute_buyer::tariffs::prepare_infer_args(
+        &state.http,
+        &state.buyer,
+        &mut args,
+        state.caps.max_price_micro_usdc(),
+    )
+    .await
+    {
         Ok(input) => input,
         Err(e) => return error(id, -32602, format!("invalid arguments: {e}")),
     };

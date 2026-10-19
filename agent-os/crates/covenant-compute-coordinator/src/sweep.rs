@@ -534,6 +534,7 @@ mod tests {
 
     fn cpu_profile(identity: &LocalIdentity, ask_micro_usdc: u64) -> CapabilityProfile {
         CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -683,6 +684,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::BatchJob,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -874,6 +876,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::LeaseSession,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -1107,6 +1110,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::LeaseSession,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -1692,6 +1696,7 @@ mod tests {
         };
         let identity = LocalIdentity::generate(display);
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,

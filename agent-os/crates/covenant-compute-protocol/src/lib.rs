@@ -24,12 +24,15 @@ mod escrow;
 mod fees;
 mod generation;
 mod kani;
+mod tariff;
+pub use tariff::{
+    parse_tariff_input, tariff_input, InferenceTariff, InferenceTariffOffer, InferenceTariffQuote,
+};
 mod lease;
 mod lease_close;
 mod logprobs;
 mod merkle;
 mod payout;
-pub mod workspace;
 pub mod price_history;
 mod proof;
 mod read_auth;
@@ -44,6 +47,7 @@ mod vault;
 mod version;
 mod wire;
 mod withdrawal;
+pub mod workspace;
 
 pub use address::validate_address_b58;
 pub use agent::{
@@ -78,7 +82,7 @@ pub use embedding::{
     embedding_output, embedding_texts, parse_embedding_output, parse_embedding_output_expecting,
     EmbeddingResult,
 };
-pub use envelope::{JobEnvelopePayload, SignedJobEnvelope};
+pub use envelope::{JobEnvelopePayload, SignedJobEnvelope, JOB_FRESHNESS_WINDOW_MS};
 pub use escrow::{
     EscrowError, EscrowHoldAttestation, EscrowStatus, FederationEscrow, FundingSource,
     RefundReason, DEPOSIT_MEMO_PREFIX,

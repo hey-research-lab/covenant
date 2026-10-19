@@ -34,6 +34,7 @@ async fn full_local_loop_admits_executes_signs_and_credits() {
     let coordinator_pubkey_b58 = bs58::encode(coordinator_identity.pubkey_bytes()).into_string();
 
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -55,6 +56,7 @@ async fn full_local_loop_admits_executes_signs_and_credits() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -182,6 +184,7 @@ async fn a_job_the_local_profile_cannot_satisfy_is_rejected_before_execution() {
 
     // Node only serves InferenceCall; buyer asks for BatchJob.
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -203,6 +206,7 @@ async fn a_job_the_local_profile_cannot_satisfy_is_rejected_before_execution() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -278,6 +282,7 @@ async fn a_streaming_job_relays_chunks_and_still_settles_by_receipt() {
     let coordinator_pubkey_b58 = bs58::encode(coordinator_identity.pubkey_bytes()).into_string();
 
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -299,6 +304,7 @@ async fn a_streaming_job_relays_chunks_and_still_settles_by_receipt() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -440,6 +446,7 @@ async fn a_dead_chunk_relay_never_fails_the_job_itself() {
     let coordinator_pubkey_b58 = bs58::encode(coordinator_identity.pubkey_bytes()).into_string();
 
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -461,6 +468,7 @@ async fn a_dead_chunk_relay_never_fails_the_job_itself() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -641,6 +649,7 @@ async fn a_result_settled_as_a_refund_books_no_earnings() {
     let coordinator_pubkey_b58 = bs58::encode(coordinator_identity.pubkey_bytes()).into_string();
 
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -662,6 +671,7 @@ async fn a_result_settled_as_a_refund_books_no_earnings() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -741,6 +751,7 @@ async fn a_metered_release_credits_the_coordinators_gross_not_the_receipt_price(
     let coordinator_pubkey_b58 = bs58::encode(coordinator_identity.pubkey_bytes()).into_string();
 
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -762,6 +773,7 @@ async fn a_metered_release_credits_the_coordinators_gross_not_the_receipt_price(
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -854,6 +866,7 @@ async fn a_fee_the_ack_states_is_booked_over_the_disclosed_rate() {
     let coordinator_pubkey_b58 = bs58::encode(coordinator_identity.pubkey_bytes()).into_string();
 
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -875,6 +888,7 @@ async fn a_fee_the_ack_states_is_booked_over_the_disclosed_rate() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -982,6 +996,7 @@ fn offer_for_at(
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -1017,6 +1032,7 @@ fn offer_for_at(
 
 fn cpu_profile_for(operator_identity: &LocalIdentity) -> CapabilityProfile {
     CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,

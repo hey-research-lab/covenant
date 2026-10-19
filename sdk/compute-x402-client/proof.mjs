@@ -54,6 +54,42 @@ function signed(wrapper, field, domain, actor) {
   assert(verify(null, Buffer.from(domain + raw), publicKey, signature), 'invalid_signature'); return payload;
 }
 
+function verifyTariff(job, request, blocks) {
+  const tariffs = blocks.filter(b => b.type === 'json' && b.value && Object.hasOwn(b.value, 'inference_tariff'));
+  const requirement = job.capability_requirement.inference_tariff;
+  if (request.pricing === undefined) {
+    assert(tariffs.length === 0 && requirement == null && blocks.length === 2, 'unexpected_inference_tariff');
+    return;
+  }
+  assert(request.pricing === 'model_tariff_v1', 'invalid_pricing');
+  assert(tariffs.length === 1 && blocks.length === 3, 'inference_tariff_required');
+  assert(Object.keys(tariffs[0].value).length === 1, 'invalid_inference_tariff_block');
+  const quote = tariffs[0].value.inference_tariff;
+  const fields = (value, names) => value && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).sort().join(',') === [...names].sort().join(',');
+  assert(fields(quote, ['tariff', 'requested_output_cap', 'price_micro_usdc']), 'invalid_inference_tariff_quote');
+  assert(stable(quote) === stable(requirement), 'inference_tariff_requirement_mismatch');
+  const tariff = quote.tariff;
+  assert(fields(tariff, ['schema_version', 'id', 'revision', 'model', 'base_micro_usdc', 'output_cap_micro_usdc_per_million', 'max_output_tokens', 'valid_from_ms', 'valid_until_ms']), 'invalid_inference_tariff');
+  const integer = (value, minimum = 0) => Number.isSafeInteger(value) && value >= minimum;
+  assert(tariff.schema_version === 1 && integer(tariff.revision, 1)
+    && typeof tariff.id === 'string' && /^[A-Za-z0-9_.-]{1,128}$/.test(tariff.id)
+    && typeof tariff.model === 'string' && tariff.model.trim() && tariff.model !== 'any'
+    && Buffer.byteLength(tariff.model) <= 128 && !/[\u0000-\u001f\u007f-\u009f]/u.test(tariff.model)
+    && integer(tariff.base_micro_usdc) && integer(tariff.output_cap_micro_usdc_per_million)
+    && integer(tariff.max_output_tokens, 1) && tariff.max_output_tokens <= 0xffff_ffff
+    && integer(tariff.valid_from_ms) && integer(tariff.valid_until_ms) && tariff.valid_until_ms > tariff.valid_from_ms,
+  'invalid_inference_tariff');
+  const canonicalModel = model => model.endsWith(':latest') ? model.slice(0, -7) : model;
+  assert(canonicalModel(tariff.model) === canonicalModel(request.model), 'inference_tariff_model_mismatch');
+  assert(integer(job.issued_at_ms) && tariff.valid_from_ms <= job.issued_at_ms && job.issued_at_ms < tariff.valid_until_ms, 'inference_tariff_issue_time_mismatch');
+  assert(integer(quote.requested_output_cap, 1) && quote.requested_output_cap === request.max_tokens && quote.requested_output_cap <= tariff.max_output_tokens, 'inference_tariff_cap_mismatch');
+  const priceFor = cap => BigInt(tariff.base_micro_usdc) + (BigInt(cap) * BigInt(tariff.output_cap_micro_usdc_per_million) + 999_999n) / 1_000_000n;
+  assert(priceFor(tariff.max_output_tokens) <= BigInt(Number.MAX_SAFE_INTEGER)
+    && integer(quote.price_micro_usdc, 1) && priceFor(quote.requested_output_cap) === BigInt(quote.price_micro_usdc)
+    && quote.price_micro_usdc === job.price_micro_usdc, 'inference_tariff_price_mismatch');
+}
+
 export function verifyComputeResult(result, { request, requestSha256, quoteId, gatewayBuyer, operators }) {
   const proof = result.covenant;
   assert(proof?.request_sha256 === requestSha256 && proof.quote_id === quoteId, 'result_request_binding_mismatch');
@@ -68,11 +104,13 @@ export function verifyComputeResult(result, { request, requestSha256, quoteId, g
   const output = strictJson(proof.output_json);
   assert(stable(output) === stable(proof.output), 'output_bytes_mismatch');
   const blocks = job.input;
-  assert(Array.isArray(blocks) && blocks.length === 2, 'invalid_job_input');
+  assert(Array.isArray(blocks), 'invalid_job_input');
+  verifyTariff(job, request, blocks);
   const chats = blocks.filter(b => b.type === 'json' && b.value?.messages);
   const generations = blocks.filter(b => b.type === 'json' && b.value?.generation);
   assert(chats.length === 1 && stable(chats[0].value.messages) === stable(request.messages), 'job_messages_mismatch');
   assert(generations.length === 1, 'job_generation_missing');
+  assert(chats[0] !== generations[0], 'invalid_job_input');
   const generation = generations[0].value.generation;
   assert(Object.keys(generation).every(key => ['max_tokens', 'temperature'].includes(key)), 'unexpected_generation_parameters');
   assert(generation.max_tokens === request.max_tokens, 'job_token_limit_mismatch');

@@ -381,6 +381,7 @@ mod tests {
         operators: usize,
     ) -> CapacityEntry {
         CapacityEntry {
+            inference_tariffs: Vec::new(),
             kind: JobKind::LeaseSession,
             model: "any".into(),
             operators,
@@ -482,10 +483,12 @@ mod tests {
         let offers = offers_from_capacity(&view(vec![
             lease_entry(&["rtx-4090", "a100-80g", "cpu"], 1_000_000, 80, 2),
             CapacityEntry {
+                inference_tariffs: Vec::new(),
                 kind: JobKind::InferenceCall,
                 ..lease_entry(&["rtx-4090"], 500_000, 24, 3)
             },
             CapacityEntry {
+                inference_tariffs: Vec::new(),
                 min_ask_unit: PriceUnit::PerJob,
                 ..lease_entry(&["h100"], 700_000, 80, 1)
             },
@@ -515,10 +518,12 @@ mod tests {
         // supply that can serve it.
         let offers = offers_from_capacity(&view(vec![
             CapacityEntry {
+                inference_tariffs: Vec::new(),
                 model: "label-a".into(),
                 ..lease_entry(&["rtx-4090"], 2_000_000, 24, 1)
             },
             CapacityEntry {
+                inference_tariffs: Vec::new(),
                 model: "label-b".into(),
                 ..lease_entry(&["rtx-4090"], 1_000_000, 24, 1)
             },

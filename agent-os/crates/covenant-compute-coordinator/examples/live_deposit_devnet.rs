@@ -140,6 +140,7 @@ fn signed_job(buyer: &LocalIdentity, idem_key: &str) -> SignedJobEnvelope {
         buyer: buyer.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -348,6 +349,7 @@ async fn main() {
     // --- the balance is real: register a node, resubmit, get served ---
     let operator_identity = LocalIdentity::generate("operator@live-deposit-devnet");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,

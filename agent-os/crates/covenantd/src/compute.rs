@@ -362,9 +362,21 @@ pub async fn run_infer_call(
     payer: &AgentId,
     arguments: serde_json::Value,
 ) -> Result<ToolCallResult, ComputeError> {
-    let args: InferArgs =
+    let mut args: InferArgs =
         serde_json::from_value(arguments).map_err(|e| ComputeError::InvalidArgs(e.to_string()))?;
-    let input = args.input().map_err(ComputeError::InvalidArgs)?;
+    let existing = args.idempotency_key.as_ref().and_then(|key| {
+        state
+            .purchases
+            .lookup(&format!("{}:{key}", payer.pubkey_base58()))
+    });
+    let input = covenant_compute_buyer::tariffs::prepare_infer_args_for_purchase(
+        &http_client(),
+        &buyer_config(&state.config),
+        &mut args,
+        state.config.max_price_micro_usdc,
+        existing.as_ref().map(|entry| &entry.envelope),
+    )
+    .await?;
     dispatch_paid_job(
         state,
         ctx,
@@ -604,7 +616,7 @@ pub async fn run_stream_start_call(
     payer: &AgentId,
     arguments: serde_json::Value,
 ) -> Result<ToolCallResult, ComputeError> {
-    let args: InferArgs =
+    let mut args: InferArgs =
         serde_json::from_value(arguments).map_err(|e| ComputeError::InvalidArgs(e.to_string()))?;
     // Streaming returns a job_id before the drain settles, so it can't
     // dedupe on a key the way compute.infer does. Refuse the key rather
@@ -624,7 +636,13 @@ pub async fn run_stream_start_call(
              with dry_run to see the price and routing first, then stream."
         )));
     }
-    let input = args.input().map_err(ComputeError::InvalidArgs)?;
+    let input = covenant_compute_buyer::tariffs::prepare_infer_args(
+        &http_client(),
+        &buyer_config(&state.config),
+        &mut args,
+        state.config.max_price_micro_usdc,
+    )
+    .await?;
 
     let cap = state.config.max_price_micro_usdc;
     let price = resolve_offer(
@@ -911,7 +929,7 @@ async fn dispatch_paid_job(
         )
         .await?;
         let deadline_ms = deadline_ms.unwrap_or(state.config.default_deadline_ms);
-        let preview = preview_value(
+        let mut preview = preview_value(
             kind,
             model.as_deref(),
             gpu_class.as_deref(),
@@ -922,6 +940,12 @@ async fn dispatch_paid_job(
             cap,
             input.len(),
         );
+        if let Some(tariff) = covenant_compute_buyer::parse_tariff_input(&input)
+            .map_err(|e| ComputeError::InvalidArgs(e.to_string()))?
+        {
+            preview["inference_tariff"] = serde_json::to_value(tariff).unwrap_or_default();
+            preview["price_source"] = serde_json::json!("versioned_inference_tariff");
+        }
         return Ok(ToolCallResult::ok(vec![Content::json(preview)]));
     }
     let price = resolve_offer(
@@ -1579,6 +1603,7 @@ mod tests {
                 buyer: payer.clone(),
                 kind: JobKind::InferenceCall,
                 capability_requirement: CapabilityRequirement {
+                    inference_tariff: None,
                     gpu_class: None,
                     min_vram_gb: None,
                     model_id: None,

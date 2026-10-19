@@ -178,6 +178,7 @@ impl Rig {
 
         let operator_identity = LocalIdentity::generate("operator@test");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: operator_identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -1121,6 +1122,7 @@ async fn a_crashed_keyed_purchase_is_cancelled_and_its_key_freed_on_restart() {
     let idle_operator = LocalIdentity::generate("idle-operator@test");
     let idle_key = idle_operator.agent_id().pubkey_base58();
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: idle_operator.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,

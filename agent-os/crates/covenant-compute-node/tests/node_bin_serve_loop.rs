@@ -2466,6 +2466,7 @@ async fn status_names_the_refund_reasons_behind_the_faults_count() {
         LocalIdentity::load_or_create(&node_home.path().join("identity.json"), "operator@compute")
             .unwrap();
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,

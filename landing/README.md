@@ -82,6 +82,13 @@ separate freshness window, and labels retained data after a failed refresh.
 An empty scan, no available operators, unreviewed findings and reviewed incidents
 remain distinct. The status page does not initiate jobs or financial actions.
 
+`/compute-work` launches as a static explanation with an explicit "Awaiting
+funding" state. Its compile-time phase lives in `app/compute-work/_phase.ts`.
+Switch to `live` only after funding and the coordinator's public reporting
+endpoint have been deployed and verified. The waiting phase does not mount the
+live poller or invent balances. The prepared dashboard, credential-free data
+proxy and evidence views remain available for that later activation.
+
 ## Identity
 
 The site has a dark theme only: light text on a black background

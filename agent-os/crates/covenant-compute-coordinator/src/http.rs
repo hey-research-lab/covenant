@@ -133,6 +133,10 @@ pub fn router(state: CoordinatorState) -> Router {
         )
         .route("/community-work", get(crate::community_work::snapshot))
         .route(
+            "/admin/community-work/:kind/:filename",
+            put(crate::community_work::upload).layer(DefaultBodyLimit::max(1024 * 1024)),
+        )
+        .route(
             "/community-work/deposits/:signature",
             get(crate::community_work::deposit),
         )

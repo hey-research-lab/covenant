@@ -11227,7 +11227,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/http.rs")).unwrap();
     assert_eq!(
         router_source.matches(".route(").count(),
-        58,
+        59,
         "the route table changed — teach the hostile-wire barrage the new route first"
     );
 
@@ -11412,6 +11412,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
     for path in [
         "/admin/pool-operator",
         "/admin/pool-operator/observations/invalid.json",
+        "/admin/community-work/manifests/invalid.json",
     ] {
         for (class, body, content_type) in garbage_bodies {
             assert_wire_answer(

@@ -1660,6 +1660,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,

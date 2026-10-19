@@ -18,6 +18,12 @@ COVENANT_GATEWAY_RESERVE_MICRO_USDC=3000000
 COVENANT_COMPUTE_DAILY_BUDGET_MICRO_USDC=3000000
 COVENANT_GATEWAY_MAX_TOKENS=2048
 COVENANT_GATEWAY_MAX_INPUT_BYTES=4096
+# Optional JSON array of {retail,native} versioned tariff pairs. Set only after
+# current model/rates are qualified and coordinator tariff matching is deployed.
+# The supervisor materializes immutable files for gateway and operator together.
+# Updated clients opt in with pricing:"model_tariff_v1"; omitted pricing retains
+# the original flat retail/native prices above and two-block legacy receipts.
+# COVENANT_GATEWAY_TARIFFS_JSON
 COVENANT_COMPUTE_NODE_EXECUTOR=openai-compat
 COVENANT_COMPUTE_NODE_MODELS=claude-haiku-4.5
 COVENANT_COMPUTE_OPENAI_DEFAULT_MODEL=claude-haiku-4.5

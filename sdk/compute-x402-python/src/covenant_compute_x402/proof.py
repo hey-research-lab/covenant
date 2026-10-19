@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from typing import Any
 
 import jcs
@@ -101,6 +102,39 @@ def _signed(wrapper: dict, field: str, domain: str, actor: str) -> dict:
     return payload
 
 
+def _verify_tariff(job: dict, request: dict, blocks: list) -> None:
+    tariffs = [b for b in blocks if b.get("type") == "json" and "inference_tariff" in b.get("value", {})]
+    requirement = job["capability_requirement"].get("inference_tariff")
+    if "pricing" not in request:
+        require(not tariffs and requirement is None and len(blocks) == 2, "unexpected_inference_tariff")
+        return
+    require(request["pricing"] == "model_tariff_v1", "invalid_pricing")
+    require(len(tariffs) == 1 and len(blocks) == 3, "inference_tariff_required")
+    require(set(tariffs[0]["value"]) == {"inference_tariff"}, "invalid_inference_tariff_block")
+    quote = tariffs[0]["value"]["inference_tariff"]
+    require(isinstance(quote, dict) and set(quote) == {"tariff", "requested_output_cap", "price_micro_usdc"}, "invalid_inference_tariff_quote")
+    require(stable(quote) == stable(requirement), "inference_tariff_requirement_mismatch")
+    tariff = quote["tariff"]
+    require(isinstance(tariff, dict) and set(tariff) == {"schema_version", "id", "revision", "model", "base_micro_usdc", "output_cap_micro_usdc_per_million", "max_output_tokens", "valid_from_ms", "valid_until_ms"}, "invalid_inference_tariff")
+    require(safe_integer(tariff["schema_version"]) and tariff["schema_version"] == 1
+            and safe_integer(tariff["revision"], 1)
+            and isinstance(tariff["id"], str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", tariff["id"])
+            and isinstance(tariff["model"], str) and tariff["model"].strip() and tariff["model"] != "any"
+            and len(tariff["model"].encode("utf-8")) <= 128 and not re.search(r"[\x00-\x1f\x7f-\x9f]", tariff["model"])
+            and safe_integer(tariff["base_micro_usdc"]) and safe_integer(tariff["output_cap_micro_usdc_per_million"])
+            and safe_integer(tariff["max_output_tokens"], 1) and tariff["max_output_tokens"] <= 0xffff_ffff
+            and safe_integer(tariff["valid_from_ms"]) and safe_integer(tariff["valid_until_ms"])
+            and tariff["valid_until_ms"] > tariff["valid_from_ms"], "invalid_inference_tariff")
+    require(tariff["model"].removesuffix(":latest") == request["model"].removesuffix(":latest"), "inference_tariff_model_mismatch")
+    require(safe_integer(job.get("issued_at_ms")) and tariff["valid_from_ms"] <= job["issued_at_ms"] < tariff["valid_until_ms"], "inference_tariff_issue_time_mismatch")
+    require(safe_integer(quote["requested_output_cap"], 1) and quote["requested_output_cap"] == request["max_tokens"] and quote["requested_output_cap"] <= tariff["max_output_tokens"], "inference_tariff_cap_mismatch")
+    def price_for(cap):
+        return int(tariff["base_micro_usdc"]) + (int(cap) * int(tariff["output_cap_micro_usdc_per_million"]) + 999_999) // 1_000_000
+    require(price_for(tariff["max_output_tokens"]) <= 9_007_199_254_740_991
+            and safe_integer(quote["price_micro_usdc"], 1)
+            and price_for(quote["requested_output_cap"]) == quote["price_micro_usdc"] == job["price_micro_usdc"], "inference_tariff_price_mismatch")
+
+
 def verify_compute_result(result: dict, *, request: dict, request_sha256: str,
                           quote_id: str, gateway_buyer: str, operators: list[str]) -> dict:
     try:
@@ -117,11 +151,13 @@ def verify_compute_result(result: dict, *, request: dict, request_sha256: str,
         output = strict_json(proof["output_json"])
         require(stable(output) == stable(proof.get("output")), "output_bytes_mismatch")
         blocks = job.get("input")
-        require(isinstance(blocks, list) and len(blocks) == 2, "invalid_job_input")
+        require(isinstance(blocks, list), "invalid_job_input")
+        _verify_tariff(job, request, blocks)
         chats = [b for b in blocks if b.get("type") == "json" and "messages" in b.get("value", {})]
         generations = [b for b in blocks if b.get("type") == "json" and "generation" in b.get("value", {})]
         require(len(chats) == 1 and stable(chats[0]["value"]["messages"]) == stable(request["messages"]), "job_messages_mismatch")
         require(len(generations) == 1, "job_generation_missing")
+        require(chats[0] is not generations[0], "invalid_job_input")
         generation = generations[0]["value"]["generation"]
         require(set(generation) <= {"max_tokens", "temperature"}, "unexpected_generation_parameters")
         require(generation.get("max_tokens") == request["max_tokens"], "job_token_limit_mismatch")

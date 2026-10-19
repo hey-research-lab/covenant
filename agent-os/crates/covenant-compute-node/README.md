@@ -371,6 +371,7 @@ rather than refusing to start, so check the boot log after changing one.
 | `COVENANT_COMPUTE_NODE_JOB_KINDS` | inference or batch | `inference_call` for the inference executors, `batch_job` otherwise. Set `embedding` to serve embeddings from an inference backend that hosts an embedding model (or pass `setup --job-kinds embedding`), and the boot benchmark proves that claim with a real embedding rather than a chat probe. Comma-separated to serve several. The boot fails if a kind isn't servable by the executor (inference and embedding need `ollama`/`openai-compat`; transcription needs `whisper`; speech synthesis needs `say`; batch needs `subprocess`/`container`/`imd`; a lease session needs `broker` or `lease-stub`), so a node never sells compute it would mis-execute. |
 | `COVENANT_COMPUTE_NODE_PRICE_MICRO_USDC` | `1000` | This node's ask. |
 | `COVENANT_COMPUTE_NODE_PRICE_UNIT` | `per_job` | `per_job`, `per_million_tokens`, `per_gpu_second`, or `per_lease_hour`. |
+| `COVENANT_COMPUTE_NODE_TARIFFS_FILE` | unset | Optional absolute JSON file of measured, versioned inference tariffs. Exact signed model/revision/output-cap quotes may price below the legacy flat ask; missing, mismatched or expired tariffs are refused. See [tariffs](../../../docs/compute-inference-tariffs.md). |
 | `COVENANT_COMPUTE_NODE_MAX_FEE_BPS` | (unbounded) | Refuse to serve a coordinator whose disclosed marketplace fee exceeds this. |
 | `COVENANT_COMPUTE_REFERRAL_CODE` | (none) | Signed into registration so the partner who onboarded this node earns their fee share. |
 

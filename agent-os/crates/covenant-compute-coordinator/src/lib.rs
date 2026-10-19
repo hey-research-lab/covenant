@@ -30,7 +30,6 @@
 
 #![deny(unsafe_code)]
 
-pub mod workspace;
 pub mod accounts;
 pub mod agent;
 mod agent_evidence;
@@ -51,9 +50,9 @@ pub mod prices;
 pub mod prices_page;
 pub mod provider_prices;
 pub mod recover;
-pub mod rental_checks;
 pub mod redundancy;
 pub mod registry;
+pub mod rental_checks;
 pub mod reputation;
 pub mod rounds;
 pub mod social;
@@ -62,6 +61,7 @@ pub mod state;
 pub mod stream;
 pub mod sweep;
 pub mod vault;
+pub mod workspace;
 
 pub use accounts::{BuyerAccounts, DepositOutcome, PartnerPayoutOutcome, PartnerPayouts};
 pub use agent::{spawn_periodic_settle, AgentPolicy};

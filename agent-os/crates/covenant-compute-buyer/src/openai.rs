@@ -793,6 +793,7 @@ async fn chat_completions(
     // surface uses, so a chat job means the same thing here as on the CLI
     // and the MCP server. `max_tokens` and its newer alias fold to one.
     let args = InferArgs {
+        tariff_id: None,
         prompt: None,
         messages: Some(messages),
         images: None,
@@ -1354,6 +1355,7 @@ async fn completions(
     // surface uses, so a completion means the same thing here as a
     // `--prompt` on the CLI.
     let args = InferArgs {
+        tariff_id: None,
         prompt: Some(prompt),
         messages: None,
         images: None,
@@ -3192,6 +3194,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::InferenceCall,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,
@@ -3629,6 +3632,7 @@ mod tests {
             entries: rows
                 .iter()
                 .map(|(kind, model)| CapacityEntry {
+                    inference_tariffs: Vec::new(),
                     kind: *kind,
                     model: (*model).into(),
                     operators: 1,

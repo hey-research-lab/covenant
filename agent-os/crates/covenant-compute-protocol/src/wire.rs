@@ -357,6 +357,7 @@ mod tests {
 
     fn profile(identity: &LocalIdentity) -> CapabilityProfile {
         CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,

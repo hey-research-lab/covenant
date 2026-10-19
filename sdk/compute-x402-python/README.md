@@ -6,6 +6,9 @@ quote binding, and the confirmed payment transaction before returning a complete
 result. The Python package supports Microsoft Agent Framework through an optional
 adapter; this is an integration, not a Microsoft affiliation or endorsement.
 
+Version 0.2.0 is the model-tariff release candidate. Local tests and package builds
+do not establish production deployment or funded acceptance.
+
 Python 3.11 or later is required. Install the immutable release wheel with its
 published SHA256. For framework tools, use the `agent-framework` extra. The `demo`
 extra also installs Microsoft's OpenAI client adapter for a separately metered
@@ -25,19 +28,34 @@ async with CovenantX402Client(
     result = await client.purchase(
         request_id=stable_purchase_uuid,
         model=approved_model,
+        pricing="model_tariff_v1",  # omit to retain legacy fixed-price behavior
         messages=[{"role": "user", "content": "Summarize this support ticket."}],
         max_tokens=256, temperature=0.2,
     )
 ```
 
 Use the same request UUID, parameters, wallet, gateway and journal when resuming.
+Set `pricing="model_tariff_v1"` to opt in; omission preserves legacy fixed-price
+requests and signed results. Quote amounts may vary by model and requested `max_tokens` output cap. A
+configured tariff can combine a model's base price with that cap. The payment
+limit is a ceiling, not a fixed charge: `amountMicroUsdc` reports the exact
+accepted upfront quote. This does not meter or refund tokens actually generated.
+Tariff changes affect new quotes; resuming preserves the original quote, amount,
+model, output cap and signed payment. Changing the model or cap requires a new
+purchase UUID; changing the pricing mode also requires a new UUID. An opted-in
+result must carry the same native tariff snapshot in its signed input and routing
+requirement. The client checks its model, revision, validity at job issue time,
+requested cap and exact rounded native job price. Missing tariff evidence is
+refused. The x402 customer payment is checked separately from the operator price.
+
 A pending response is not a completed inference. Unknown outcomes retain their
 authorization and budget reservation. The client never automatically changes or
 re-signs an uncertain payment, even after its quote or blockhash expires. Restore
 or reconcile the original journal before retrying. Deleting the journal resets
 the local ceiling and destroys recovery information.
 
-The SQLite schema and scope match `@covenant/compute-x402-client` v0.2.0. Node and
+The SQLite schema and scope match `@covenant/compute-x402-client` v0.3.0 and retain
+compatibility with v0.2.0 legacy purchases. Node and
 Python processes using the same wallet, exact gateway origin and journal share a
 cumulative ceiling and exclusive five-minute purchase claims. Preserve the
 existing ceiling when changing clients. A completed journal replay does no RPC,
@@ -66,6 +84,7 @@ async def review_ticket(client, planner, purchase_id, approved_model, ticket):
     tool = covenant_inference_tool(
         client=client, request_id=purchase_id, model=approved_model,
         max_tokens=512, temperature=0.2,
+        pricing="model_tariff_v1",  # fixed by the application, outside the tool schema
         system_prompt="Draft for human review. Do not claim you changed an account.",
     )
     agent = Agent(
@@ -84,6 +103,8 @@ untrusted sources. The optional `demo` extra supplies
 `agent_framework.openai.OpenAIChatCompletionClient`; configure its underlying
 client with the planner endpoint, credentials and a separate durable budget.
 The planner is not included in the Covenant inference price.
+The optional `pricing` setting is also supported by `run_demo` and saved in its
+workflow identity.
 
 The official pinned x402 Python SVM scheme constructs an unsigned transaction
 using a capture signer. Covenant checks its full compiled message before making

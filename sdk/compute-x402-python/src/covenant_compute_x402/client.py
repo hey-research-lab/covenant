@@ -36,7 +36,7 @@ def _url(value: str, local: bool) -> str:
     return urlunsplit((parsed.scheme, host, parsed.path or "/", parsed.query, ""))
 
 
-def validate_request(model, messages, max_tokens, temperature=None) -> dict:
+def validate_request(model, messages, max_tokens, temperature=None, pricing=None) -> dict:
     def length(text):
         require(isinstance(text, str), "invalid_request_string")
         try:
@@ -53,6 +53,9 @@ def validate_request(model, messages, max_tokens, temperature=None) -> dict:
         clean.append({"role": message["role"], "content": message["content"]})
     require(safe_integer(max_tokens, 1) and max_tokens <= 8192, "invalid_max_tokens")
     request = {"model": model, "messages": clean, "max_tokens": int(max_tokens)}
+    if pricing is not None:
+        require(pricing == "model_tariff_v1", "invalid_pricing")
+        request["pricing"] = pricing
     if temperature is not None:
         require(isinstance(temperature, (int, float)) and not isinstance(temperature, bool) and math.isfinite(temperature) and 0 <= temperature <= 2 and Decimal(str(temperature)) % Decimal("0.01") == 0, "invalid_temperature")
         request["temperature"] = temperature
@@ -175,9 +178,9 @@ class CovenantX402Client:
             raise CovenantError("invalid_settlement_signature") from exc
         return complete
 
-    async def purchase(self, *, request_id: str, model: str, messages: list[dict], max_tokens: int, temperature=None) -> dict:
+    async def purchase(self, *, request_id: str, model: str, messages: list[dict], max_tokens: int, temperature=None, pricing=None) -> dict:
         require(isinstance(request_id, str) and UUID_PATTERN.fullmatch(request_id), "stable_uuid_request_id_required")
-        request = validate_request(model, messages, max_tokens, temperature)
+        request = validate_request(model, messages, max_tokens, temperature, pricing)
         require(len(compact(request["messages"]).encode("utf-8")) <= self.max_input_bytes, "input_byte_limit_exceeded")
         body = stable(request)
         require(len(body.encode("utf-8")) <= 128_000, "request_too_large")

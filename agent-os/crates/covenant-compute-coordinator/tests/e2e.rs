@@ -138,6 +138,7 @@ fn new_coordinator_state(long_poll_timeout: Duration) -> (CoordinatorState, Arc<
 
 fn cpu_profile(identity: &LocalIdentity, micro_usdc: u64) -> CapabilityProfile {
     CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -166,6 +167,7 @@ fn signed_envelope(
         buyer: buyer.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -198,6 +200,7 @@ fn referred_envelope(
         buyer: buyer.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -220,6 +223,7 @@ fn referred_envelope(
 /// pricing — an embedding operator, matched only by an embedding ask.
 fn embedding_profile(identity: &LocalIdentity, micro_usdc: u64) -> CapabilityProfile {
     CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -246,6 +250,7 @@ fn embedding_envelope(
         buyer: buyer.agent_id(),
         kind: JobKind::Embedding,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some("nomic-embed-text".into()),
@@ -2144,6 +2149,7 @@ async fn a_failed_job_refunds_the_buyer_and_pays_the_operator_nothing() {
 
     let operator_identity = LocalIdentity::generate("operator@e2e");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         job_kinds: vec![JobKind::InferenceCall],
         ..cpu_profile(&operator_identity, 1_000)
     };
@@ -3957,6 +3963,7 @@ async fn a_demanded_hardware_ask_the_only_operator_cannot_meet_refuses_at_admiss
 
     let operator_identity = LocalIdentity::generate("operator@e2e");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::ConsumerGpu {
             model: "rtx-4090".into(),
@@ -3999,6 +4006,7 @@ async fn a_demanded_hardware_ask_the_only_operator_cannot_meet_refuses_at_admiss
         SignedJobEnvelope::sign(payload, &buyer_identity).unwrap()
     };
     let requirement = |gpu_class: Option<&str>, min_vram_gb: Option<u32>| CapabilityRequirement {
+        inference_tariff: None,
         gpu_class: gpu_class.map(str::to_string),
         min_vram_gb,
         model_id: None,
@@ -4229,6 +4237,7 @@ async fn capacity_directory_tracks_registrations_and_standing_over_the_wire() {
 
     let gpu_identity = LocalIdentity::generate("gpu@capacity");
     let gpu_profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: gpu_identity.agent_id(),
         hardware: HardwareClass::ConsumerGpu {
             model: "rtx-4090".into(),
@@ -4708,6 +4717,7 @@ async fn canary_probes_judge_real_nodes_and_feed_reputation() {
     for (display, honest) in [("honest@e2e", true), ("echo@e2e", false)] {
         let operator_identity = LocalIdentity::generate(display);
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             models_served: vec!["canary-model".into()],
             job_kinds: vec![JobKind::InferenceCall],
             ..cpu_profile(&operator_identity, 1_000)
@@ -4924,6 +4934,7 @@ async fn canary_probes_stop_dead_without_a_subsidy_policy() {
     let (state, _payout) = new_coordinator_state(Duration::from_secs(2));
     let operator_identity = LocalIdentity::generate("operator@e2e");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         models_served: vec!["canary-model".into()],
         job_kinds: vec![JobKind::InferenceCall],
         ..cpu_profile(&operator_identity, 1_000)
@@ -5063,6 +5074,7 @@ async fn redundancy_sampling_faults_the_hash_minority_and_survives_restart() {
                 buyer: buyer.agent_id(),
                 kind: JobKind::BatchJob,
                 capability_requirement: CapabilityRequirement {
+                    inference_tariff: None,
                     gpu_class: None,
                     min_vram_gb: None,
                     model_id: None,
@@ -5351,6 +5363,7 @@ async fn partial_verdict_rig() -> (
         buyer: buyer.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -8339,6 +8352,7 @@ async fn a_streaming_job_relays_chunks_to_its_buyer_and_nobody_else() {
         buyer: buyer_identity.agent_id(),
         kind: JobKind::BatchJob,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -10120,6 +10134,7 @@ async fn money_is_conserved_across_all_books_under_a_random_multi_outcome_worklo
                         buyer: buyer.agent_id(),
                         kind: JobKind::InferenceCall,
                         capability_requirement: CapabilityRequirement {
+                            inference_tariff: None,
                             gpu_class: None,
                             min_vram_gb: None,
                             model_id: None,
@@ -11212,7 +11227,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/http.rs")).unwrap();
     assert_eq!(
         router_source.matches(".route(").count(),
-        48,
+        49,
         "the route table changed — teach the hostile-wire barrage the new route first"
     );
 
@@ -11304,6 +11319,8 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
     for path in [
         "/health",
         "/status",
+        // The rental observer feed is input-less even when disabled.
+        "/rental-checks",
         "/metrics",
         "/federation/deposit-info",
         "/federation/bond-info",
@@ -11333,6 +11350,19 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         )
         .await;
     }
+
+    // Ignorable query text does not exempt the rental feed from refusing
+    // malformed protocol headers before its read-only handler runs.
+    assert_wire_answer(
+        http.get(format!("{base_url}/rental-checks")).header(
+            covenant_compute_protocol::PROTOCOL_VERSION_HEADER,
+            "garbage",
+        ),
+        false,
+        "GET /rental-checks (malformed protocol header)".to_string(),
+        &mut violations,
+    )
+    .await;
 
     for query in [
         "since_ms=garbage",
@@ -11389,6 +11419,9 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
     // well-formed unknown id and a hostile segment.
     let unknown_job = Uuid::new_v4();
     let post_paths = [
+        // The public rental-check feed never accepts writes, regardless
+        // of body shape; each garbage class must receive a clean 4xx.
+        "/rental-checks".to_string(),
         "/federation/operators/register".to_string(),
         "/federation/operators/heartbeat".to_string(),
         "/federation/jobs".to_string(),
@@ -11766,6 +11799,7 @@ async fn a_canary_probe_accrues_no_partner_rev_share() {
     let operator_identity = LocalIdentity::generate("probed@e2e");
     let operator_key = operator_identity.agent_id().pubkey_base58();
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         models_served: vec!["canary-model".into()],
         job_kinds: vec![JobKind::InferenceCall],
         ..cpu_profile(&operator_identity, 1_000)
@@ -12161,6 +12195,7 @@ fn signed_lease_envelope(
         buyer: buyer.agent_id(),
         kind: JobKind::LeaseSession,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,

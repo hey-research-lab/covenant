@@ -129,6 +129,7 @@ async fn operators_registered(url: &str) -> u64 {
 async fn serve_echo_node(url: &str, coordinator_pubkey: &str) -> tokio::task::JoinHandle<()> {
     let operator = LocalIdentity::generate("operator@test");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -500,6 +501,7 @@ async fn the_volumetric_cap_env_knobs_bound_registrations_and_in_flight_holds() 
     // The one operator the cap admits, serving inference.
     let operator = LocalIdentity::generate("operator@caps");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -524,6 +526,7 @@ async fn the_volumetric_cap_env_knobs_bound_registrations_and_in_flight_holds() 
     // A second, different operator is growth past the cap: 503, named.
     let stranger = LocalIdentity::generate("stranger@caps");
     let stranger_profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: stranger.agent_id(),
         ..profile.clone()
     };
@@ -982,6 +985,7 @@ async fn the_lease_meter_boots_beside_a_fee_and_discloses_the_lease_exemption() 
 
     let operator = LocalIdentity::generate("operator@test");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,

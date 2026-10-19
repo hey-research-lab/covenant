@@ -28,6 +28,7 @@ fn envelope(buyer: &LocalIdentity, kind: JobKind, input: Vec<Content>) -> Signed
             buyer: buyer.agent_id(),
             kind,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: Some(if kind == JobKind::AgentTask {

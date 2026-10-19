@@ -322,6 +322,7 @@ pub(crate) async fn create_response(
 
     let model = req.model.clone();
     let args = InferArgs {
+        tariff_id: None,
         prompt: None,
         messages: Some(messages),
         images: None,

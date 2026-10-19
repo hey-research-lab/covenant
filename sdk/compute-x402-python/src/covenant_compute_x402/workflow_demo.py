@@ -135,6 +135,7 @@ async def run_demo(
     workflow_id: str, model: str, planner: Any = None, max_tokens: int = 2048,
     temperature: float = 0.2, system_prompt: str = SYSTEM_POLICY,
     task: str = SAMPLE_INCIDENT,
+    pricing: str | None = None,
 ) -> dict[str, Any]:
     """Run exactly one explicit plan, purchase, replay or finish phase.
 
@@ -155,10 +156,11 @@ async def run_demo(
     manifest_path = root / "workflow.json"
     identity = {"requestId": request_id, "workflowId": workflow_id, "model": model,
                 "maxTokens": max_tokens, "temperature": temperature,
-                "systemPrompt": system_prompt, "task": task}
+                "systemPrompt": system_prompt, "task": task,
+                **({"pricing": pricing} if pricing is not None else {})}
     tool = covenant_inference_tool(client=client, request_id=request_id, model=model,
                                    max_tokens=max_tokens, temperature=temperature,
-                                   system_prompt=system_prompt, checkpoint_before_dispatch=True)
+                                   system_prompt=system_prompt, checkpoint_before_dispatch=True, pricing=pricing)
     checkpoint_dir = root / "checkpoints"
     checkpoint_dir.mkdir(exist_ok=True, mode=0o700)
     os.chmod(checkpoint_dir, 0o700)

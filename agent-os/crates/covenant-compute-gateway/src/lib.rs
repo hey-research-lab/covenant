@@ -4,6 +4,7 @@
 #![deny(unsafe_code)]
 pub mod bridge;
 pub mod buyer;
+pub mod pricing;
 
 use async_trait::async_trait;
 use axum::{
@@ -123,6 +124,11 @@ pub struct PreparedExecution {
     pub job_envelopes: Vec<SignedJobEnvelope>,
     pub maximum_cost_micro_usdc: u64,
 }
+pub struct ExecutionQuote {
+    pub prepared: PreparedExecution,
+    pub amount_atomic: u64,
+    pub expires_at_ms: u64,
+}
 #[derive(Debug)]
 pub struct ExecutionFailure {
     pub message: String,
@@ -139,6 +145,24 @@ pub trait Executor: Send + Sync {
     /// No network submission here: all child ids must be signed and persisted
     /// together before the first execution, including batch requests.
     fn prepare(&self, request: &Value) -> Result<PreparedExecution>;
+    fn quote(&self, request: &Value, legacy_price: u64, now: u64) -> Result<ExecutionQuote> {
+        Ok(ExecutionQuote {
+            prepared: self.prepare(request)?,
+            amount_atomic: legacy_price,
+            expires_at_ms: now.saturating_add(90_000),
+        })
+    }
+    /// Recover a pre-upgrade quote using the original flat native offer. Never
+    /// reinterpret a saved retail authorization through a newly configured rate.
+    fn prepare_legacy(&self, request: &Value) -> Result<PreparedExecution> {
+        self.prepare(request)
+    }
+    fn validate_admission(&self, _prepared: &PreparedExecution, _now: u64) -> Result<()> {
+        Ok(())
+    }
+    fn models(&self, _now: u64, _legacy_price: u64) -> Vec<Value> {
+        Vec::new()
+    }
     async fn execute(
         &self,
         prepared: &PreparedExecution,
@@ -177,6 +201,8 @@ enum Phase {
 struct Entry {
     terms: PaymentTerms,
     phase: Phase,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    quoted_execution: Option<PreparedExecution>,
 }
 #[derive(Serialize, Deserialize)]
 struct Journal {
@@ -223,7 +249,7 @@ impl Disk {
         let mut journal = match std::fs::read(directory.join("gateway.json")) {
             Ok(bytes) => serde_json::from_slice::<Journal>(&bytes)?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Journal {
-                version: 2,
+                version: 3,
                 namespace: namespace.clone(),
                 watermark_ms: 0,
                 reserve_micro_usdc: reserve,
@@ -231,7 +257,7 @@ impl Disk {
             },
             Err(e) => return Err(e.into()),
         };
-        if journal.version != 2
+        if !matches!(journal.version, 2 | 3)
             || journal.namespace != namespace
             || reserve < journal.reserve_micro_usdc
             || (reserve > journal.reserve_micro_usdc && !allow_reserve_increase)
@@ -240,6 +266,10 @@ impl Disk {
                 "journal identity/rail/reserve configuration changed".into(),
             ));
         }
+        // Old binaries must not reinterpret frozen tariff quotes as their flat
+        // native offer. Migration retains every existing identity and phase;
+        // rollback uses this binary with new admissions disabled.
+        journal.version = 3;
         journal.reserve_micro_usdc = reserve;
         let mut disk = Self {
             directory: directory.into(),
@@ -415,7 +445,8 @@ impl Gateway {
     /// Run on a timer even with no traffic. It removes cached plaintext output
     /// after five minutes while preserving permanent replay tombstones.
     pub async fn purge_expired(&self, now: u64) -> Result<()> {
-        self.disk.lock().await.advance(now)
+        let started = std::time::Instant::now();
+        self.disk.lock().await.advance(after_wait(now, started))
     }
     pub async fn handle(
         &self,
@@ -424,8 +455,10 @@ impl Gateway {
         payment_header: Option<&str>,
         now: u64,
     ) -> Result<GatewayReply> {
+        let handling_started = std::time::Instant::now();
         let digest = request_digest(&request)?;
         let mut disk = self.disk.lock().await;
+        let now = after_wait(now, handling_started);
         disk.advance(now)?;
         let quote_id = if quote_id.is_some_and(|id| disk.journal.entries.contains_key(&id)) {
             quote_id.unwrap()
@@ -435,7 +468,17 @@ impl Gateway {
                 return Err(GatewayError::Payment("unknown or expired quote".into()));
             }
             // Validate before producing a payment offer, but never dispatch.
-            let _ = self.executor.prepare(&request)?;
+            let quote = self.executor.quote(&request, self.sale_price_atomic, now)?;
+            if quote.amount_atomic == 0
+                || quote.prepared.job_envelopes.is_empty()
+                || quote.prepared.maximum_cost_micro_usdc == 0
+                || quote.amount_atomic < quote.prepared.maximum_cost_micro_usdc
+                || quote.expires_at_ms <= now
+            {
+                return Err(GatewayError::Unavailable(
+                    "quote cannot cover execution or has expired".into(),
+                ));
+            }
             if disk.journal.entries.len() >= 100_000
                 || disk
                     .journal
@@ -455,9 +498,9 @@ impl Gateway {
                 network: self.rail.network().into(),
                 asset: self.rail.asset().into(),
                 pay_to: self.rail.pay_to().into(),
-                amount_atomic: self.sale_price_atomic,
+                amount_atomic: quote.amount_atomic,
                 asset_decimals: self.rail.asset_decimals(),
-                expires_at_ms: now.saturating_add(90_000),
+                expires_at_ms: quote.expires_at_ms.min(now.saturating_add(90_000)),
                 fee_payer: self.rail.fee_payer().into(),
                 resource_url: self.rail.resource_url().into(),
             };
@@ -466,6 +509,7 @@ impl Gateway {
                 Entry {
                     terms: terms.clone(),
                     phase: Phase::Quoted,
+                    quoted_execution: Some(quote.prepared),
                 },
             );
             disk.save()?;
@@ -488,11 +532,18 @@ impl Gateway {
             let Some(header) = payment_header else {
                 return Ok(GatewayReply::PaymentRequired(entry.terms));
             };
-            if now > entry.terms.expires_at_ms {
+            if now >= entry.terms.expires_at_ms {
                 return Err(GatewayError::Payment("quote expired".into()));
             }
+            let verification_started = std::time::Instant::now();
             let payment = self.rail.verify(header, &entry.terms).await?;
             self.require_admissions()?;
+            let admission_now = after_wait(now, verification_started);
+            if admission_now >= entry.terms.expires_at_ms {
+                return Err(GatewayError::Payment(
+                    "quote expired during verification".into(),
+                ));
+            }
             // A transaction may only authorize one quote even across alternate
             // request bodies or a restarted process.
             if disk.journal.entries.values().any(|e| match &e.phase {
@@ -506,9 +557,14 @@ impl Gateway {
             }) {
                 return Err(GatewayError::Payment("transaction already assigned".into()));
             }
-            let prepared = self.executor.prepare(&request)?;
+            let prepared = match entry.quoted_execution {
+                Some(prepared) => prepared,
+                None => self.executor.prepare_legacy(&request)?,
+            };
+            self.executor.validate_admission(&prepared, admission_now)?;
             if prepared.job_envelopes.is_empty()
                 || prepared.maximum_cost_micro_usdc == 0
+                || prepared.maximum_cost_micro_usdc > entry.terms.amount_atomic
                 || disk
                     .used_reserve()
                     .checked_add(prepared.maximum_cost_micro_usdc)
@@ -519,7 +575,9 @@ impl Gateway {
                 ));
             }
             phase = Phase::Executing { payment, prepared };
-            disk.journal.entries.get_mut(&quote_id).unwrap().phase = phase.clone();
+            let saved = disk.journal.entries.get_mut(&quote_id).unwrap();
+            saved.phase = phase.clone();
+            saved.quoted_execution = None;
             disk.save()?; // durable payer + chain + asset + request + stable job ids
         } else if payment_header.is_none() {
             // A quote id is public; resumption and result fetch require the
@@ -641,7 +699,9 @@ impl Gateway {
     /// Reconcile persisted work even if the HTTP client has disconnected. A
     /// restart uses the same signed jobs and exact signed payment bytes.
     pub async fn recover_pending(&self, now: u64) -> Result<()> {
+        let started = std::time::Instant::now();
         let mut disk = self.disk.lock().await;
+        let now = after_wait(now, started);
         disk.advance(now)?;
         let pending = disk
             .journal
@@ -659,10 +719,25 @@ impl Gateway {
     }
 }
 
+fn after_wait(now: u64, started: std::time::Instant) -> u64 {
+    now.saturating_add(started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64)
+}
+
 pub fn request_digest(value: &Value) -> Result<String> {
-    // serde_json's default map representation is sorted, giving the same
-    // digest across whitespace/object-key permutations without altering arrays.
-    let digest = Sha256::digest(serde_json::to_vec(value)?);
+    // Workspace feature unification can enable serde_json/preserve_order. Sort
+    // recursively so canonical request identity does not depend on that feature.
+    fn sorted(value: &Value) -> Value {
+        match value {
+            Value::Object(map) => {
+                let ordered: BTreeMap<_, _> =
+                    map.iter().map(|(k, v)| (k.clone(), sorted(v))).collect();
+                Value::Object(ordered.into_iter().collect())
+            }
+            Value::Array(values) => Value::Array(values.iter().map(sorted).collect()),
+            _ => value.clone(),
+        }
+    }
+    let digest = Sha256::digest(serde_json::to_vec(&sorted(value))?);
     Ok(digest.iter().map(|b| format!("{b:02x}")).collect())
 }
 pub fn now_ms() -> u64 {
@@ -683,6 +758,10 @@ pub fn spawn_retention(gateway: Arc<Gateway>) -> tokio::task::JoinHandle<()> {
 pub fn router(gateway: Arc<Gateway>) -> Router {
     Router::new()
         .route("/v1/chat/completions", post(handle_http))
+        .route("/v1/models", get(|State(gateway): State<Arc<Gateway>>| async move {
+            let models = if gateway.admissions_open() { gateway.executor.models(now_ms(), gateway.sale_price_atomic) } else { Vec::new() };
+            ([("cache-control", "no-store")], Json(json!({"object":"list","data":models})))
+        }))
         .route("/health", get(|State(gateway): State<Arc<Gateway>>| async move { Json(json!({"status":"ok", "service":"covenant-compute-x402", "protocol":"x402-v2", "admissions_enabled":gateway.admissions_open(), "revision":option_env!("COVENANT_BUILD_REVISION").unwrap_or("unknown")})) }))
         .layer(DefaultBodyLimit::max(64 * 1024))
         .with_state(gateway)

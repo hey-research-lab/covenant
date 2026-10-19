@@ -186,3 +186,34 @@ provides a different instance from the coordinator; a failure affecting both
 Render services or their shared infrastructure can still prevent observation.
 Before enabling, confirm fresh journal timestamps and exercise delivery with
 isolated fixtures. No paid rental is needed to qualify this observer.
+
+## Model-specific quoted prices
+
+Activate tariffs only with the full `compute-x402-image` build, which also includes
+the rental observer. The observer-only `compute-rental-watchdog-image` overlay
+preserves its pinned legacy payment runtime and cannot activate tariffs. Any
+tariff setting on that overlay locks new admissions while legacy payment recovery
+continues; its original flat-price operation remains available without tariffs.
+
+Set `COVENANT_GATEWAY_TARIFFS_JSON` to an approved array of paired `retail` and
+`native` versioned tariffs. The supervisor writes immutable configuration files
+for both gateway and node. Native tariff matching must be deployed on the
+coordinator before enabling the pair. Only the currently qualified provider model
+and output limit are accepted; this does not add unqualified models.
+
+New clients opt in with `pricing: "model_tariff_v1"`. Requests without that field
+retain the original flat prices and receipt shape. The public `/v1/models` lists
+the configured retail schedule while admissions are open. Each new 402 freezes
+its retail amount and signed native execution before returning the quote. Saved
+quotes never use a changed schedule. Malformed optional pricing configuration
+latches new admissions off while the essential gateway and payment verifier
+continue recovery. Repair configuration and review the latch before clearing it;
+do not reset identities, budgets or journals.
+
+The gateway upgrades journal version 2 to 3 while retaining the exact namespace,
+financial entries and signed records. Version 3 prevents an old binary from
+reinterpreting a tariff quote as a flat-price job. Roll back by disabling new
+admissions on the new binary, preserving settlement and cleanup. Do not deploy a
+version-2-only gateway or restore an old monetary snapshot over the new journal.
+See [pricing and limits](../../docs/compute-inference-tariffs.md) and the
+[release evidence](../../docs/compute-model-pricing-release-evidence.md).

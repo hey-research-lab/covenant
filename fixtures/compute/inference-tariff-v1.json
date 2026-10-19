@@ -1,0 +1,295 @@
+{
+  "version": 1,
+  "note": "Public synthetic arithmetic fixtures; not live offers or default prices.",
+  "cases": [
+    {
+      "name": "round_up_once",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "price_micro_usdc": 102
+    },
+    {
+      "name": "single_token_ceil",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1,
+      "now_ms": 20,
+      "price_micro_usdc": 101
+    },
+    {
+      "name": "max_cap",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 4096,
+      "now_ms": 20,
+      "price_micro_usdc": 105
+    },
+    {
+      "name": "inclusive_start",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 10,
+      "price_micro_usdc": 102
+    },
+    {
+      "name": "exclusive_expiry",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 100,
+      "error": true
+    },
+    {
+      "name": "before_start",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 9,
+      "error": true
+    },
+    {
+      "name": "zero_cap",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 0,
+      "now_ms": 20,
+      "error": true
+    },
+    {
+      "name": "over_max_cap",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 4097,
+      "now_ms": 20,
+      "error": true
+    },
+    {
+      "name": "invalid_revision_zero",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 0,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "error": true
+    },
+    {
+      "name": "new_revision_kept",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 2,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "expected_revision": 2,
+      "price_micro_usdc": 102
+    },
+    {
+      "name": "pinned_revision_mismatch",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 2,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "expected_revision": 1,
+      "error": true
+    },
+    {
+      "name": "unknown_version",
+      "tariff": {
+        "schema_version": 2,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "error": true
+    },
+    {
+      "name": "legacy_without_tariff",
+      "tariff": null,
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "price_micro_usdc": null
+    },
+    {
+      "name": "legacy_cannot_satisfy_pin",
+      "tariff": null,
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "expected_revision": 1,
+      "error": true
+    },
+    {
+      "name": "zero_price",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 0,
+        "output_cap_micro_usdc_per_million": 0,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "error": true
+    },
+    {
+      "name": "exact_division",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1000000,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "price_micro_usdc": 1100
+    },
+    {
+      "name": "large_intermediate_exact",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "model",
+        "base_micro_usdc": 1,
+        "output_cap_micro_usdc_per_million": 1000000000000,
+        "max_output_tokens": 4000000000,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 4000000000,
+      "now_ms": 20,
+      "price_micro_usdc": 4000000000000001
+    },
+    {
+      "name": "invalid_any_model",
+      "tariff": {
+        "schema_version": 1,
+        "id": "test-model",
+        "revision": 1,
+        "model": "any",
+        "base_micro_usdc": 100,
+        "output_cap_micro_usdc_per_million": 1001,
+        "max_output_tokens": 4096,
+        "valid_from_ms": 10,
+        "valid_until_ms": 100
+      },
+      "requested_output_cap": 1000,
+      "now_ms": 20,
+      "error": true
+    }
+  ]
+}

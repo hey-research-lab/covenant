@@ -793,6 +793,7 @@ async fn generate_content(
     // uses, so a request here means the same job as a chat on the CLI, the
     // MCP server, and the OpenAI and Anthropic front doors.
     let args = InferArgs {
+        tariff_id: None,
         prompt: None,
         messages: Some(messages),
         images: None,

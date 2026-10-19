@@ -6,6 +6,7 @@ import bs58 from 'bs58';
 import { z } from 'zod';
 import { assert, sha256, stable, strictJson, verifyComputeResult } from './proof.mjs';
 import { Journal } from './journal.mjs';
+import { validatePaymentTransaction } from './payment.mjs';
 
 export const SOLANA_GENESIS = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
 export const NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
@@ -15,6 +16,7 @@ export const requestSchema = z.object({
   messages: z.array(z.object({ role: z.enum(['system', 'user', 'assistant']), content: z.string().min(1).max(64_000) }).strict()).min(1).max(32),
   max_tokens: z.number().int().min(1).max(8192),
   temperature: z.number().finite().min(0).max(2).multipleOf(0.01).optional(),
+  pricing: z.literal('model_tariff_v1').optional(),
 }).strict();
 const amount = value => { assert(Number.isSafeInteger(value) && value > 0, 'invalid_spend_cap'); return value; };
 function url(value, local = false) {
@@ -110,6 +112,26 @@ export class CovenantX402Client {
     address(extra.feePayer); assert(extra.feePayer !== this.payer, 'buyer_must_not_pay_solana_fees');
     return { quote, price: Number(price) };
   }
+  validateAuthorization(payment, quote) {
+    const authorization = strictJson(Buffer.from(payment, 'base64').toString('utf8'));
+    assert(authorization.x402Version === 2 && stable(authorization.accepted) === stable(quote), 'authorization_quote_mismatch');
+    validatePaymentTransaction(VersionedTransaction.deserialize(Buffer.from(authorization.payload.transaction, 'base64')), quote, this.payer);
+    return authorization;
+  }
+  cachedResult(row, request, requestId, digest) {
+    const required = strictJson(row.quote);
+    const { quote, price } = this.validateQuote(required, digest, true);
+    this.validateAuthorization(row.payment, quote);
+    const complete = strictJson(row.result);
+    assert(complete.status === 'completed' && complete.requestId === requestId && complete.requestSha256 === digest, 'cached_request_mismatch');
+    assert(complete.amountMicroUsdc === row.amount && row.amount === price, 'cached_amount_mismatch');
+    const verified = verifyComputeResult(complete.result, { request, requestSha256: digest, quoteId: quote.extra.quoteId, gatewayBuyer: this.gatewayBuyer, operators: this.operators });
+    assert(complete.text === verified.text, 'cached_text_mismatch');
+    const settlement = complete.settlement;
+    assert(settlement?.success === true && settlement.network === NETWORK && settlement.payer === this.payer, 'settlement_identity_mismatch');
+    assert(typeof settlement.transaction === 'string' && bs58.decode(settlement.transaction).length === 64, 'invalid_settlement_signature');
+    return complete;
+  }
   async verifySettlement(header, payment) {
     assert(header?.length < 8192, 'missing_payment_response');
     const settlement = strictJson(Buffer.from(header, 'base64').toString('utf8'));
@@ -127,11 +149,12 @@ export class CovenantX402Client {
   async purchase({ requestId, ...input }) {
     assert(typeof requestId === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(requestId), 'stable_uuid_request_id_required');
     const request = requestSchema.parse(input);
+    for (const optional of ['temperature', 'pricing']) if (request[optional] === undefined) delete request[optional];
     const messages = request.messages.map(({ role, content }) => ({ role, content }));
     assert(Buffer.byteLength(JSON.stringify(messages)) <= this.maxInputBytes, 'input_byte_limit_exceeded');
     const body = stable(request); assert(Buffer.byteLength(body) <= 128_000, 'request_too_large');
     const digest = sha256(body); let row = this.journal.claim(requestId, body, digest);
-    if (row.result) return strictJson(row.result);
+    if (row.result) return this.cachedResult(row, request, requestId, digest);
     const owner = row.owner;
     try {
       assert(await this.rpc('getGenesisHash') === SOLANA_GENESIS, 'rpc_network_mismatch');
@@ -144,7 +167,8 @@ export class CovenantX402Client {
         const { price } = this.validateQuote(required, digest);
         this.journal.reserve(requestId, owner, required, price); row = this.journal.get(requestId);
       }
-      const required = strictJson(row.quote); this.validateQuote(required, digest, Boolean(row.payment));
+      const required = strictJson(row.quote); const { quote, price } = this.validateQuote(required, digest, Boolean(row.payment));
+      assert(row.amount === price, 'reserved_amount_mismatch');
       if (!row.payment) {
         const payload = await this.http.createPaymentPayload(required);
         assert(payload.x402Version === 2 && stable(payload.accepted) === stable(required.accepts[0]), 'sdk_changed_payment_requirements');
@@ -153,6 +177,7 @@ export class CovenantX402Client {
         this.validateQuote(required, digest);
         this.journal.signed(requestId, owner, payment); row = this.journal.get(requestId);
       }
+      this.validateAuthorization(row.payment, quote);
       this.journal.check(requestId, owner);
       const response = await this.post(requestId, body, row.payment);
       if (response.status === 202) { await response.body?.cancel(); return { status: 'pending', requestId, requestSha256: digest }; }

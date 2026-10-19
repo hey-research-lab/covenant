@@ -725,6 +725,7 @@ async fn native_signed_response_fixture_and_request_validation() {
         max_tokens: 100,
         max_input_bytes: 4096,
         approved_operators: vec![operator.agent_id().pubkey_base58()],
+        tariffs: None,
     });
     let rail = Arc::new(Rail {
         settles: AtomicUsize::new(0),
@@ -1028,4 +1029,347 @@ async fn latch_raised_during_payment_verification_prevents_paid_dispatch() {
         .is_err());
     assert_eq!(executor.calls.load(Ordering::SeqCst), 0);
     assert_eq!(gateway.disk.lock().await.used_reserve(), 0);
+}
+
+struct VariableQuoteExecutor {
+    base: Execute,
+    retail: std::sync::atomic::AtomicU64,
+    prepares: AtomicUsize,
+}
+#[async_trait]
+impl Executor for VariableQuoteExecutor {
+    fn prepare(&self, request: &Value) -> Result<PreparedExecution> {
+        self.prepares.fetch_add(1, Ordering::SeqCst);
+        self.base.prepare(request)
+    }
+    fn quote(&self, request: &Value, _: u64, now: u64) -> Result<ExecutionQuote> {
+        Ok(ExecutionQuote {
+            prepared: self.prepare(request)?,
+            amount_atomic: self.retail.load(Ordering::SeqCst),
+            expires_at_ms: now + 90_000,
+        })
+    }
+    async fn execute(
+        &self,
+        prepared: &PreparedExecution,
+    ) -> std::result::Result<Value, ExecutionFailure> {
+        self.base.execute(prepared).await
+    }
+}
+
+#[tokio::test]
+async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_repricing() {
+    let dir = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    let executor = Arc::new(VariableQuoteExecutor {
+        base: Execute {
+            identity: LocalIdentity::generate("quote@local"),
+            calls: AtomicUsize::new(0),
+        },
+        retail: std::sync::atomic::AtomicU64::new(12),
+        prepares: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(
+        dir.path(),
+        "unchanged-legacy-namespace",
+        1000,
+        50,
+        rail.clone(),
+        executor.clone(),
+    )
+    .unwrap();
+    let request = json!({"prompt":"frozen"});
+    let GatewayReply::PaymentRequired(first) = gateway
+        .handle(request.clone(), None, None, 1000)
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    let job = gateway.disk.lock().await.journal.entries[&first.quote_id]
+        .quoted_execution
+        .as_ref()
+        .unwrap()
+        .job_envelopes[0]
+        .payload
+        .job_id;
+    assert_eq!(first.amount_atomic, 12);
+    assert_eq!(executor.prepares.load(Ordering::SeqCst), 1);
+    drop(gateway);
+    executor.retail.store(25, Ordering::SeqCst);
+    let gateway = Gateway::open(
+        dir.path(),
+        "unchanged-legacy-namespace",
+        1000,
+        50,
+        rail,
+        executor.clone(),
+    )
+    .unwrap();
+    let GatewayReply::PaymentRequired(replayed) = gateway
+        .handle(request.clone(), Some(first.quote_id), None, 1001)
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(replayed, first);
+    let GatewayReply::Complete { output, .. } = gateway
+        .handle(
+            request.clone(),
+            Some(first.quote_id),
+            Some("auth-one"),
+            1002,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(output["job"], job.to_string());
+    assert_eq!(executor.prepares.load(Ordering::SeqCst), 1);
+    let GatewayReply::PaymentRequired(second) = gateway
+        .handle(request.clone(), None, None, 1003)
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(second.amount_atomic, 25);
+    assert!(matches!(
+        gateway
+            .handle(request, Some(first.quote_id), Some("auth-one"), 1004)
+            .await
+            .unwrap(),
+        GatewayReply::Complete { .. }
+    ));
+    assert_eq!(executor.base.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
+    let dir = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    let executor = Arc::new(VariableQuoteExecutor {
+        base: Execute {
+            identity: LocalIdentity::generate("legacy@local"),
+            calls: AtomicUsize::new(0),
+        },
+        retail: std::sync::atomic::AtomicU64::new(12),
+        prepares: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(
+        dir.path(),
+        "legacy",
+        1000,
+        50,
+        rail.clone(),
+        executor.clone(),
+    )
+    .unwrap();
+    let request = json!({"prompt":"legacy"});
+    let GatewayReply::PaymentRequired(first) = gateway
+        .handle(request.clone(), None, None, 1000)
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    drop(gateway);
+    let file = dir.path().join("gateway.json");
+    let mut old: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+    old["version"] = json!(2);
+    old["entries"][first.quote_id.to_string()]
+        .as_object_mut()
+        .unwrap()
+        .remove("quoted_execution");
+    std::fs::write(&file, serde_json::to_vec(&old).unwrap()).unwrap();
+    executor.retail.store(80, Ordering::SeqCst);
+    let gateway = Gateway::open(dir.path(), "legacy", 1000, 50, rail, executor.clone()).unwrap();
+    assert!(matches!(
+        gateway
+            .handle(
+                request,
+                Some(first.quote_id),
+                Some("old-authorization"),
+                1001
+            )
+            .await
+            .unwrap(),
+        GatewayReply::Complete { .. }
+    ));
+    let disk = gateway.disk.lock().await;
+    assert_eq!(
+        disk.journal.entries[&first.quote_id].terms.amount_atomic,
+        12
+    );
+    assert_eq!(disk.used_reserve(), 10);
+    assert_eq!(disk.journal.reserve_micro_usdc, 1000);
+    assert_eq!(disk.journal.version, 3);
+}
+
+#[tokio::test]
+async fn refusing_retail_below_native_precedes_payment_offer() {
+    let dir = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("cost@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(dir.path(), "cost", 1000, 9, rail, executor.clone()).unwrap();
+    assert!(gateway
+        .handle(json!({"prompt":"hi"}), None, None, 1000)
+        .await
+        .is_err());
+    assert_eq!(gateway.disk.lock().await.journal.entries.len(), 0);
+    assert_eq!(executor.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn real_buyer_tariff_quotes_are_opt_in_and_preserve_legacy_payloads() {
+    use covenant_compute_buyer::durable_budget::DurableBudget;
+    use covenant_compute_protocol::{parse_tariff_input, InferenceTariff};
+    let dir = tempfile::tempdir().unwrap();
+    let identity = Arc::new(LocalIdentity::generate("pricing-buyer@local"));
+    let config = BuyerConfig {
+        coordinator_url: "https://compute.example".into(),
+        poll_interval: std::time::Duration::from_millis(1),
+        referral_code: None,
+        rpc_url: None,
+    };
+    let now = now_ms();
+    let native = InferenceTariff {
+        schema_version: 1,
+        id: "haiku-native".into(),
+        revision: 1,
+        model: "claude-haiku-4.5".into(),
+        base_micro_usdc: 10000,
+        output_cap_micro_usdc_per_million: 7_500_000,
+        max_output_tokens: 2048,
+        valid_from_ms: now - 1000,
+        valid_until_ms: now + 3_600_000,
+    };
+    let mut retail = native.clone();
+    retail.id = "haiku-retail".into();
+    retail.base_micro_usdc = 12000;
+    retail.output_cap_micro_usdc_per_million = 9_000_000;
+    let executor = buyer::BuyerExecutor {
+        budget: DurableBudget::open(
+            dir.path(),
+            &identity.agent_id().pubkey_base58(),
+            &config.coordinator_url,
+            1_000_000,
+        )
+        .unwrap(),
+        config,
+        identity,
+        http: reqwest::Client::new(),
+        model: "claude-haiku-4.5".into(),
+        offer_micro_usdc: 30000,
+        max_tokens: 2048,
+        max_input_bytes: 4096,
+        approved_operators: vec![],
+        tariffs: Some(Arc::new(
+            pricing::TariffBook::new(vec![pricing::ModelTariff { native, retail }]).unwrap(),
+        )),
+    };
+    let mut request = json!({"model":"claude-haiku-4.5","messages":[{"role":"user","content":"Hello"}],"max_tokens":256});
+    let legacy = executor.quote(&request, 50000, now).unwrap();
+    assert_eq!(legacy.amount_atomic, 50000);
+    assert_eq!(legacy.prepared.maximum_cost_micro_usdc, 30000);
+    assert_eq!(legacy.prepared.job_envelopes[0].payload.input.len(), 2);
+    assert!(legacy.prepared.job_envelopes[0]
+        .payload
+        .capability_requirement
+        .inference_tariff
+        .is_none());
+    request["pricing"] = json!("model_tariff_v1");
+    let quoted = executor.quote(&request, 50000, now).unwrap();
+    assert_eq!(quoted.amount_atomic, 14304);
+    assert_eq!(quoted.prepared.maximum_cost_micro_usdc, 11920);
+    let envelope = &quoted.prepared.job_envelopes[0];
+    assert_eq!(envelope.payload.input.len(), 3);
+    let native_quote = parse_tariff_input(&envelope.payload.input)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        native_quote.price_micro_usdc,
+        envelope.payload.price_micro_usdc
+    );
+    assert_eq!(
+        envelope.payload.capability_requirement.inference_tariff,
+        Some(native_quote)
+    );
+    executor
+        .validate_admission(&quoted.prepared, envelope.payload.issued_at_ms + 74_000)
+        .unwrap();
+    assert!(executor
+        .validate_admission(&quoted.prepared, envelope.payload.issued_at_ms + 75_000)
+        .is_err());
+    assert_eq!(quoted.expires_at_ms, envelope.payload.issued_at_ms + 75_000);
+    // A payer arriving just before expiry retains the full 45-second delivery
+    // margin before the node rejects the frozen envelope as stale.
+    assert!(
+        quoted.expires_at_ms - 1 + 45_000
+            < envelope.payload.issued_at_ms + covenant_compute_protocol::JOB_FRESHNESS_WINDOW_MS
+    );
+    request["max_tokens"] = json!(2048);
+    assert_eq!(
+        executor.quote(&request, 50000, now).unwrap().amount_atomic,
+        30432
+    );
+    request["pricing"] = json!("unknown");
+    assert!(executor.quote(&request, 50000, now).is_err());
+    request["pricing"] = Value::Null;
+    assert!(executor.quote(&request, 50000, now).is_err());
+    assert!(executor.budget.pending(now).unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn queued_retention_uses_time_after_the_journal_lock() {
+    use std::{future::Future, task::Poll, time::Duration};
+    for recover in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let gateway = Gateway::open(
+            directory.path(),
+            "buyer/coord",
+            100,
+            12,
+            Arc::new(Rail {
+                settles: AtomicUsize::new(0),
+                finalized: false.into(),
+            }),
+            Arc::new(Execute {
+                identity: LocalIdentity::generate("clock@local"),
+                calls: AtomicUsize::new(0),
+            }),
+        )
+        .unwrap();
+        let mut held = gateway.disk.lock().await;
+        let mut retention = std::pin::pin!(async {
+            if recover {
+                gateway.recover_pending(1000).await
+            } else {
+                gateway.purge_expired(1000).await
+            }
+        });
+        // Poll until queued behind an operation holding the financial journal.
+        assert!(
+            std::future::poll_fn(|cx| Poll::Ready(retention.as_mut().poll(cx).is_pending())).await
+        );
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        held.journal.watermark_ms = 1010;
+        drop(held);
+        retention.await.unwrap();
+        assert!(gateway.disk.lock().await.journal.watermark_ms >= 1030);
+    }
 }

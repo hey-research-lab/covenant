@@ -99,6 +99,7 @@ Usage:
 
 Buy flags (infer, embed, run):
   --model <id>          require an operator serving this model (infer, embed)
+  --tariff-id <id>      infer: exact model tariff; requires --model and --max-tokens
   --gpu-class <class>   require this GPU class (e.g. rtx-4090, h100) or cpu; see `capacity`
   --min-vram-gb <gb>    require at least this much VRAM, in whole GB
   --min-reputation-bps <bps>  require operators rated >= this (8000 = 80%); refunds if none clear
@@ -279,7 +280,8 @@ async fn main() -> anyhow::Result<()> {
                 "--min-reputation-bps",
                 "a whole number of basis points (8000 = 80%)",
             )?;
-            let price = take_price(&mut args)?;
+            let mut price = take_price(&mut args)?;
+            let tariff_id = take_flag_value(&mut args, "--tariff-id");
             let deadline_ms = take_flag_value(&mut args, "--deadline-ms")
                 .map(|v| v.parse())
                 .transpose()
@@ -302,8 +304,43 @@ async fn main() -> anyhow::Result<()> {
                 .collect::<anyhow::Result<Vec<_>>>()?;
             let mut input = infer_input(system, messages_file, prompt, images, generation)?;
             input.extend(tools);
+            let ctx = load_ctx()?;
+            if let Some(tariff_id) = tariff_id {
+                let existing = if let Some(key) = &idempotency_key {
+                    let home = prepared_home()?;
+                    let book = PurchaseBook::open(&home.join("purchases-cli.jsonl"))?;
+                    book.lookup(&format!(
+                        "{}:{key}",
+                        ctx.identity.agent_id().pubkey_base58()
+                    ))
+                } else {
+                    None
+                };
+                price = Some(if let Some(entry) = existing {
+                    covenant_compute_buyer::tariffs::replay_tariff_quote(
+                        &mut input,
+                        &entry.envelope,
+                        &tariff_id,
+                        price,
+                    )?
+                } else {
+                    covenant_compute_buyer::tariffs::price_input(
+                        &ctx.http,
+                        &ctx.config,
+                        &mut input,
+                        &tariff_id,
+                        model.as_deref(),
+                        gpu_class.as_deref(),
+                        min_vram_gb,
+                        min_reputation_bps,
+                        price,
+                        ctx.max_price_micro_usdc,
+                    )
+                    .await?
+                });
+            }
             cmd_buy(
-                &load_ctx()?,
+                &ctx,
                 JobKind::InferenceCall,
                 input,
                 model,
@@ -1392,7 +1429,7 @@ async fn preview_buy(
     };
 
     if json_out {
-        let doc = preview_value(
+        let mut doc = preview_value(
             kind,
             model.as_deref(),
             gpu_class.as_deref(),
@@ -1403,6 +1440,10 @@ async fn preview_buy(
             cap,
             input.len(),
         );
+        if let Some(tariff) = covenant_compute_protocol::parse_tariff_input(&input)? {
+            doc["inference_tariff"] = serde_json::to_value(tariff)?;
+            doc["price_source"] = serde_json::json!("versioned_inference_tariff");
+        }
         println!("{}", serde_json::to_string_pretty(&doc)?);
         return Ok(());
     }
@@ -3831,6 +3872,7 @@ mod tests {
                 buyer: buyer.agent_id(),
                 kind: JobKind::InferenceCall,
                 capability_requirement: CapabilityRequirement {
+                    inference_tariff: None,
                     gpu_class: None,
                     min_vram_gb: None,
                     model_id: None,
@@ -3915,6 +3957,7 @@ mod tests {
                     buyer: buyer.agent_id(),
                     kind: JobKind::InferenceCall,
                     capability_requirement: CapabilityRequirement {
+                        inference_tariff: None,
                         gpu_class: None,
                         min_vram_gb: None,
                         model_id: None,

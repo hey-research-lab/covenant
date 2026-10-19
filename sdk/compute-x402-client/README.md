@@ -2,7 +2,7 @@
 
 Buy inference from Covenant with Solana USDC using standard x402 V2. The package provides a Coinbase AgentKit action and an official LangChain tool usable in LangGraph agents. Both use the same payment journal, spending limits and signed-result verification. The configured Solana wallet signs the actual SPL-token transfer through `walletProvider.signTransaction`.
 
-Version 0.1.0 completed funded AgentKit acceptance and is available as an immutable [GitHub release](https://github.com/open-covenant/covenant/releases/tag/codex-compute-x402-client-v0.1.0). Version 0.2.0 adds LangChain/LangGraph support; its local framework tests are distinct from the new integration's funded production acceptance. Compatibility does not imply a partnership or endorsement.
+Version 0.1.0 completed funded AgentKit acceptance and is available as an immutable [GitHub release](https://github.com/open-covenant/covenant/releases/tag/codex-compute-x402-client-v0.1.0). Version 0.2.0 added LangChain/LangGraph support. Version 0.3.0 is the model-tariff release candidate; its local qualification does not establish production deployment or funded acceptance. Compatibility does not imply a partnership or endorsement.
 
 ## Install
 
@@ -12,7 +12,7 @@ Until a registry release is published, install the checked source package from
 this release branch:
 
 ```sh
-git clone --filter=blob:none --branch codex/compute-langchain-release \
+git clone --filter=blob:none --branch codex/compute-model-pricing \
   https://github.com/open-covenant/covenant.git covenant-x402
 cd covenant-x402/sdk/compute-x402-client
 npm ci --ignore-scripts
@@ -20,7 +20,7 @@ npm test
 npm pack
 
 # In the application that will use the client:
-npm install /absolute/path/to/covenant-compute-x402-client-0.2.0.tgz
+npm install /absolute/path/to/covenant-compute-x402-client-0.3.0.tgz
 ```
 
 The packaged `demo.mjs` is also available at
@@ -49,6 +49,7 @@ const inference = covenantInferenceTool({
   client,
   requestId: savedPurchaseUuid, // application persists this before the first run
   model: enabledModel,
+  pricing: 'model_tariff_v1', // optional application-owned opt-in
   maxTokens: 2048,
   temperature: 0.2,
   systemPrompt: 'Draft only. You have no account access and have taken no actions. Do not claim refunds, escalation or account changes.',
@@ -103,6 +104,7 @@ const action = kit.getActions().find(a => a.name === 'covenant_inference');
 const result = JSON.parse(await action.invoke({
   requestId: 'ae81b592-a97e-425b-a315-987bc2dfd782',
   model: enabledModel,
+  pricing: 'model_tariff_v1', // omit to retain legacy fixed-price behavior
   messages: [{ role: 'user', content: 'Return a complete, self-contained HTML webpage for an interactive meeting cost calculator. Include CSS and JavaScript inline, no external resources. Return HTML only.' }],
   max_tokens: 2048,
   temperature: 0.2,
@@ -136,7 +138,13 @@ Customer payment and operator receipt amounts are separate: the former is the ga
 
 ## Retry and spending semantics
 
+Opt in to model-specific upfront quotes with `pricing: 'model_tariff_v1'` on a purchase or the application-configured LangChain/LangGraph tool. Omitting it preserves the legacy fixed-price request and signed result. A configured tariff combines a model's base price with the requested `max_tokens` output cap. `maxPaymentMicroUsdc` is a ceiling, not a fixed charge: the exact accepted quote is reserved and returned as `amountMicroUsdc`. This is upfront pricing for the requested cap, not billing or refunds based on tokens actually generated. Model, cap and pricing-mode changes require a new purchase UUID.
+
+An opted-in result must carry the native tariff snapshot in both the signed job input and routing requirement. The client checks its model, revision, validity at job issue time, output cap and exact rounded native job price. A missing tariff is refused. The x402 customer payment is checked separately; the operator tariff does not prescribe a gateway markup. The same optional `pricing` setting is supported by `runSupportDemo` and saved in its workflow identity.
+
 The SQLite journal synchronizes processes sharing the same journal file, buyer wallet and gateway. It reserves the quote amount before signing and saves the complete authorization before sending it. A retry must use the same UUID and identical request. Completed results are reused; incomplete requests resend the exact original authorization. A pending result or unknown network outcome never causes a fresh payment to be signed.
+
+Tariff changes affect new quotes. A resumed purchase retains its original quoted amount, model, output cap and signed payment. Completed replay rechecks the saved quote, amount, signed request and receipt against the current configured identities without making a network request.
 
 The cumulative ceiling includes **all reserved and completed purchases**, without a time reset. Failed or expired ambiguous authorizations stay reserved. Do not delete or replace the journal to retry. If an authorization expires before settlement, reconcile the transaction and gateway state before deciding on a separate purchase. A process that crashes while holding a request claim leaves it locked for up to five minutes; the money reservation remains afterward. This is conservative behavior, not automatic refund accounting.
 

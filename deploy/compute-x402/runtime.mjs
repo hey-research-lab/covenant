@@ -33,6 +33,27 @@ export function latch(file,reason){
 export function missing(file){try{fs.lstatSync(file);return false;}catch(error){return error.code==='ENOENT';}}
 export function clearStartingLatch(file){fs.unlinkSync(file);syncDirectory(file);}
 export function explicitBoolean(env,name){if(!['true','false'].includes(env[name]))throw Error(`Explicit ${name} required`);return env[name]==='true';}
+// Content-addressed configuration never replaces the files behind a running
+// operator. Financial journals and old quote snapshots are independent of it.
+export function materializeTariffs(env,data){
+  const encoded=env.COVENANT_GATEWAY_TARIFFS_JSON;
+  if(encoded===undefined)return {};
+  if(typeof encoded!=='string'||Buffer.byteLength(encoded)>262144)throw Error('Invalid tariff configuration');
+  const rows=JSON.parse(encoded);
+  if(!Array.isArray(rows)||rows.length<1||rows.length>32||rows.some(row=>!row||typeof row!=='object'||Array.isArray(row)||Object.keys(row).sort().join(',')!=='native,retail'||!row.native||!row.retail))throw Error('Invalid tariff configuration');
+  const numeric=['schema_version','revision','base_micro_usdc','output_cap_micro_usdc_per_million','max_output_tokens','valid_from_ms','valid_until_ms'];
+  for(const row of rows)for(const tariff of [row.native,row.retail]){
+    if(numeric.some(key=>!Number.isSafeInteger(tariff[key])||tariff[key]<0))throw Error('Tariff exceeds SDK-safe integer range');
+    const maximum=BigInt(tariff.base_micro_usdc)+(BigInt(tariff.max_output_tokens)*BigInt(tariff.output_cap_micro_usdc_per_million)+999999n)/1000000n;
+    if(maximum>BigInt(Number.MAX_SAFE_INTEGER))throw Error('Tariff price exceeds SDK-safe integer range');
+  }
+  const gatewayBytes=Buffer.from(JSON.stringify(rows)),nativeBytes=Buffer.from(JSON.stringify(rows.map(row=>row.native)));
+  const digest=crypto.createHash('sha256').update(gatewayBytes).digest('hex');
+  const directory=path.join(data,'tariffs');privateDirectory(directory);
+  const gateway=path.join(directory,`${digest}-gateway.json`),native=path.join(directory,`${digest}-native.json`);
+  seed(gateway,gatewayBytes.toString('base64'));seed(native,nativeBytes.toString('base64'));
+  return {COVENANT_GATEWAY_TARIFFS_FILE:gateway,COVENANT_COMPUTE_NODE_TARIFFS_FILE:native};
+}
 export function startInferenceOperator(group,env){
   // The node's serving mode is the default command; `serve` is not a subcommand.
   return group.start('inference operator','covenant-compute-node',[],env,true);

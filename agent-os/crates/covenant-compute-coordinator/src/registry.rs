@@ -400,6 +400,7 @@ mod tests {
 
     fn profile(identity: &LocalIdentity) -> CapabilityProfile {
         CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -425,6 +426,7 @@ mod tests {
             buyer: buyer.agent_id(),
             kind: JobKind::BatchJob,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: None,

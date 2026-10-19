@@ -60,3 +60,32 @@ test('hung optional workers are killed without terminating payment recovery',asy
  group.start('bridge','bridge',[],{});group.start('operator','operator',[],{},true);group.failOptional('failed');
  await new Promise(resolve=>setTimeout(resolve,15));assert.deepEqual(events,['latched','operator:SIGTERM','operator:SIGKILL']);assert.deepEqual(exits,[]);
 });
+
+test('tariffs materialize together without replacing old configuration or monetary state',async t=>{
+ const {materializeTariffs}=await import('./runtime.mjs');
+ const tariff={schema_version:1,id:'haiku',revision:1,model:'haiku',base_micro_usdc:10000,output_cap_micro_usdc_per_million:7500000,max_output_tokens:2048,valid_from_ms:1,valid_until_ms:9999999999999};
+ const dir=fixture(t),rows=[{native:tariff,retail:{...tariff,base_micro_usdc:12000}}];
+ assert.deepEqual(materializeTariffs({},dir),{});
+ const env={COVENANT_GATEWAY_TARIFFS_JSON:JSON.stringify(rows)};
+ const first=materializeTariffs(env,dir),again=materializeTariffs(env,dir);
+ assert.deepEqual(first,again);
+ assert.deepEqual(JSON.parse(fs.readFileSync(first.COVENANT_GATEWAY_TARIFFS_FILE)),rows);
+ assert.deepEqual(JSON.parse(fs.readFileSync(first.COVENANT_COMPUTE_NODE_TARIFFS_FILE)),[rows[0].native]);
+ rows[0].retail.base_micro_usdc=13000;
+ const second=materializeTariffs({COVENANT_GATEWAY_TARIFFS_JSON:JSON.stringify(rows)},dir);
+ assert.notEqual(second.COVENANT_GATEWAY_TARIFFS_FILE,first.COVENANT_GATEWAY_TARIFFS_FILE);
+ assert.equal(JSON.parse(fs.readFileSync(first.COVENANT_GATEWAY_TARIFFS_FILE))[0].retail.base_micro_usdc,12000);
+ fs.writeFileSync(second.COVENANT_COMPUTE_NODE_TARIFFS_FILE,'corrupt');
+ assert.throws(()=>materializeTariffs({COVENANT_GATEWAY_TARIFFS_JSON:JSON.stringify(rows)},dir),/mismatch/);
+ for(const value of ['[]','{}','null','[{}]','not json'])assert.throws(()=>materializeTariffs({COVENANT_GATEWAY_TARIFFS_JSON:value},dir));
+});
+
+test('unsafe tariff integers fail before materialization can round them',async t=>{
+ const {materializeTariffs}=await import('./runtime.mjs'),dir=fixture(t);
+ const tariff={schema_version:1,id:'haiku',revision:1,model:'haiku',base_micro_usdc:10000,output_cap_micro_usdc_per_million:7500000,max_output_tokens:2048,valid_from_ms:1,valid_until_ms:9999999999999};
+ for(const change of [{revision:9007199254740992},{base_micro_usdc:Number.MAX_SAFE_INTEGER}]){
+  const rows=[{native:{...tariff,...change},retail:{...tariff,...change}}];
+  assert.throws(()=>materializeTariffs({COVENANT_GATEWAY_TARIFFS_JSON:JSON.stringify(rows)},dir),/SDK-safe/);
+ }
+ assert.equal(fs.existsSync(path.join(dir,'tariffs')),false);
+});

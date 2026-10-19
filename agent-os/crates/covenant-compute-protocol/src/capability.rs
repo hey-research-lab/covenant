@@ -140,6 +140,9 @@ impl PriceAsk {
 /// is untrusted-hardware tier at launch regardless of the flag.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapabilityProfile {
+    /// Explicit, versioned fixed-price output-cap tariffs. Empty preserves legacy pricing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inference_tariffs: Vec<crate::InferenceTariff>,
     pub operator: AgentId,
     pub hardware: HardwareClass,
     pub vram_gb: u32,
@@ -183,6 +186,9 @@ pub struct KindModels {
 /// `select_operator`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapabilityRequirement {
+    /// Buyer-signed tariff snapshot; absent preserves the legacy envelope bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_tariff: Option<crate::InferenceTariffQuote>,
     pub gpu_class: Option<String>,
     pub min_vram_gb: Option<u32>,
     pub model_id: Option<String>,
@@ -209,6 +215,26 @@ impl CapabilityProfile {
             .unwrap_or(self.price)
     }
 
+    /// Whole-job floor shared by routing and admission. Tariff quotes are exact offers;
+    /// legacy asks retain their existing unit semantics.
+    pub fn job_floor_micro_usdc(&self, req: &CapabilityRequirement) -> u64 {
+        req.inference_tariff
+            .as_ref()
+            .map(|q| q.price_micro_usdc)
+            .unwrap_or_else(|| {
+                self.ask_for(req.kind)
+                    .job_floor_micro_usdc(req.kind, req.max_duration_secs)
+            })
+    }
+
+    pub fn satisfies_at(&self, req: &CapabilityRequirement, now_ms: u64) -> bool {
+        self.satisfies(req)
+            && req
+                .inference_tariff
+                .as_ref()
+                .is_none_or(|quote| quote.tariff.valid_at(now_ms))
+    }
+
     /// The models this profile serves `kind` with.
     pub fn models_for(&self, kind: JobKind) -> &[String] {
         self.kind_models
@@ -222,6 +248,17 @@ impl CapabilityProfile {
     /// states must hold against this profile. An absent constraint
     /// (`None`) is satisfied by any profile.
     pub fn satisfies(&self, req: &CapabilityRequirement) -> bool {
+        if let Some(quote) = &req.inference_tariff {
+            if req.kind != JobKind::InferenceCall
+                || quote.validate().is_err()
+                || req.model_id.as_ref().is_none_or(|model| {
+                    canonical_model(model) != canonical_model(&quote.tariff.model)
+                })
+                || !self.inference_tariffs.contains(&quote.tariff)
+            {
+                return false;
+            }
+        }
         if !self.job_kinds.contains(&req.kind) {
             return false;
         }
@@ -330,6 +367,28 @@ impl CapabilityProfile {
                 validate_label("a served model name", model)?;
             }
         }
+        if self.inference_tariffs.len() > MAX_MODELS_SERVED {
+            return Err(ProtocolError::Invalid("too many inference tariffs".into()));
+        }
+        let mut tariff_ids = std::collections::HashSet::new();
+        for tariff in &self.inference_tariffs {
+            tariff.validate()?;
+            if !tariff_ids.insert((&tariff.id, tariff.revision)) {
+                return Err(ProtocolError::Invalid(
+                    "duplicate tariff id/revision".into(),
+                ));
+            }
+            if !self.job_kinds.contains(&JobKind::InferenceCall)
+                || !self
+                    .models_for(JobKind::InferenceCall)
+                    .iter()
+                    .any(|m| m == "any" || canonical_model(m) == canonical_model(&tariff.model))
+            {
+                return Err(ProtocolError::Invalid(
+                    "tariff model is not served by this profile".into(),
+                ));
+            }
+        }
         match &self.hardware {
             HardwareClass::ConsumerGpu { model } | HardwareClass::DatacenterGpu { model } => {
                 validate_label("the hardware model", model)?;
@@ -417,6 +476,9 @@ pub fn model_matches(served: &str, required: &str) -> bool {
 /// serves the pairing right now, and what it asks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapacityEntry {
+    /// Live tariff supply with hardware kept together to avoid aggregate price/hardware mismatches.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inference_tariffs: Vec<crate::InferenceTariffOffer>,
     pub kind: JobKind,
     /// Canonical model reference ([`canonical_model`]), or `"any"` for
     /// generic exec nodes that serve whatever a job names.
@@ -467,6 +529,7 @@ mod tests {
 
     fn profile() -> CapabilityProfile {
         CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: AgentId::new("operator@local", [3u8; 32]),
             hardware: HardwareClass::ConsumerGpu {
                 model: "rtx-4090".into(),
@@ -486,6 +549,7 @@ mod tests {
 
     fn requirement() -> CapabilityRequirement {
         CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: Some("rtx-4090".into()),
             min_vram_gb: Some(16),
             model_id: Some("llama-3-8b".into()),
@@ -538,6 +602,7 @@ mod tests {
             min_score_bps: 0,
             min_bond_micro_usdc: 0,
             entries: vec![CapacityEntry {
+                inference_tariffs: Vec::new(),
                 kind: JobKind::InferenceCall,
                 model: "llama-3-8b".into(),
                 operators: 1,
@@ -589,6 +654,7 @@ mod tests {
         assert_eq!(p.ask_for(JobKind::AgentCheck).micro_usdc, 5_000);
         assert_eq!(p.ask_for(JobKind::AgentTask), p.price);
         let ask = |kind, model: &str| CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some(model.into()),
@@ -651,6 +717,7 @@ mod tests {
         p.job_kinds = vec![JobKind::Embedding];
         p.models_served = vec!["nomic-embed-text".into()];
         let req = CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: Some("nomic-embed-text".into()),
@@ -799,6 +866,7 @@ mod tests {
     #[test]
     fn satisfies_ignores_absent_constraints() {
         let req = CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -812,6 +880,7 @@ mod tests {
     #[test]
     fn satisfies_matches_a_cpu_only_node_by_the_cpu_class_case_insensitively() {
         let cpu_node = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: AgentId::new("operator@local", [3u8; 32]),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -826,6 +895,7 @@ mod tests {
             kind_models: Vec::new(),
         };
         let demand = |class: &str, kind: JobKind| CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: Some(class.into()),
             min_vram_gb: None,
             model_id: None,

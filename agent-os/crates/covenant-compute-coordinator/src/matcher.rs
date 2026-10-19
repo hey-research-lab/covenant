@@ -43,9 +43,7 @@ pub(crate) fn in_standing(record: &OperatorRecord, now_ms: u64, cutoff_ms: u64) 
 /// cover. A lease priced any other way (a flat `PerJob` ask) still
 /// floors on the whole window, unchanged.
 fn operator_job_floor(profile: &CapabilityProfile, requirement: &CapabilityRequirement) -> u64 {
-    profile
-        .ask_for(requirement.kind)
-        .job_floor_micro_usdc(requirement.kind, requirement.max_duration_secs)
+    profile.job_floor_micro_usdc(requirement)
 }
 
 /// The committed stake an operator must hold to win organic work.
@@ -236,7 +234,7 @@ pub async fn select_operator_excluding(
         .filter(|(_, record)| {
             in_standing(record, now_ms, cutoff_ms)
                 && operator_job_floor(&record.profile, requirement) <= offered_micro_usdc
-                && record.profile.satisfies(requirement)
+                && record.profile.satisfies_at(requirement, now_ms)
         })
         .filter(|(key, record)| {
             record.staked && bond.admits(&record.profile, bonds.status(key).committed_micro_usdc)
@@ -307,7 +305,9 @@ pub async fn cheapest_capable_ask_above_offer(
     // trust or bond floor, which no higher offer fixes.
     let mut above: Vec<(String, u64)> = Vec::new();
     for (key, record) in registry.snapshot() {
-        if !in_standing(&record, now_ms, cutoff_ms) || !record.profile.satisfies(requirement) {
+        if !in_standing(&record, now_ms, cutoff_ms)
+            || !record.profile.satisfies_at(requirement, now_ms)
+        {
             continue;
         }
         let ask = operator_job_floor(&record.profile, requirement);
@@ -370,6 +370,7 @@ pub async fn capacity_view(
     bond: BondFloor,
 ) -> CapacityView {
     struct Row {
+        inference_tariffs: Vec<covenant_compute_protocol::InferenceTariffOffer>,
         operators: usize,
         min_ask_micro_usdc: u64,
         min_ask_unit: PriceUnit,
@@ -448,6 +449,7 @@ pub async fn capacity_view(
                 let row = rows
                     .entry((*kind, (*model).to_string()))
                     .or_insert_with(|| Row {
+                        inference_tariffs: Vec::new(),
                         operators: 0,
                         min_ask_micro_usdc: ask.micro_usdc,
                         min_ask_unit: ask.unit,
@@ -456,6 +458,22 @@ pub async fn capacity_view(
                         gpu_classes: Vec::new(),
                         tee_capable: false,
                     });
+                if *kind == JobKind::InferenceCall {
+                    for tariff in &profile.inference_tariffs {
+                        if tariff.valid_at(now_ms)
+                            && (canonical_model(&tariff.model) == *model || *model == "any")
+                        {
+                            let offer = covenant_compute_protocol::InferenceTariffOffer {
+                                tariff: tariff.clone(),
+                                gpu_class: gpu_class.clone(),
+                                vram_gb: profile.vram_gb,
+                            };
+                            if !row.inference_tariffs.contains(&offer) {
+                                row.inference_tariffs.push(offer);
+                            }
+                        }
+                    }
+                }
                 row.operators += 1;
                 if ask.micro_usdc < row.min_ask_micro_usdc {
                     row.min_ask_micro_usdc = ask.micro_usdc;
@@ -476,6 +494,7 @@ pub async fn capacity_view(
         .map(|((kind, model), mut row)| {
             row.gpu_classes.sort_unstable();
             CapacityEntry {
+                inference_tariffs: row.inference_tariffs,
                 kind,
                 model,
                 operators: row.operators,
@@ -511,6 +530,7 @@ mod tests {
 
     fn requirement() -> CapabilityRequirement {
         CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -559,6 +579,7 @@ mod tests {
     fn register(registry: &OperatorRegistry, display: &str, micro_usdc: u64) -> String {
         let identity = LocalIdentity::generate(display);
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -578,6 +599,101 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn tariffs_match_exact_snapshot_below_legacy_ask_and_expire_with_capacity() {
+        use covenant_compute_protocol::InferenceTariff;
+        let registry = OperatorRegistry::new();
+        let identity = LocalIdentity::generate("tariff@local");
+        let tariff = InferenceTariff {
+            schema_version: 1,
+            id: "model-price".into(),
+            revision: 1,
+            model: "model".into(),
+            base_micro_usdc: 10,
+            output_cap_micro_usdc_per_million: 1_000_000,
+            max_output_tokens: 100,
+            valid_from_ms: 0,
+            valid_until_ms: 2000,
+        };
+        let profile = CapabilityProfile {
+            inference_tariffs: vec![tariff.clone()],
+            operator: identity.agent_id(),
+            hardware: HardwareClass::CpuOnly,
+            vram_gb: 0,
+            models_served: vec!["model".into()],
+            job_kinds: vec![JobKind::InferenceCall],
+            price: PriceAsk {
+                unit: PriceUnit::PerJob,
+                micro_usdc: 100,
+            },
+            tee_capable: false,
+            kind_prices: vec![],
+            kind_models: vec![],
+        };
+        registry
+            .register(
+                &RegisterRequest::sign(profile, payout_for("tariff"), &identity).unwrap(),
+                0,
+                None,
+                false,
+            )
+            .unwrap();
+        let quote = tariff.quote(20, 1000).unwrap();
+        let mut req = requirement();
+        req.kind = JobKind::InferenceCall;
+        req.model_id = Some("model".into());
+        req.inference_tariff = Some(quote.clone());
+        let choose = |req, now| {
+            select(
+                &registry,
+                &NoReputation,
+                req,
+                quote.price_micro_usdc,
+                now,
+                Duration::from_secs(45),
+                0,
+            )
+        };
+        assert_eq!(
+            choose(&req, 1000).await,
+            Some(identity.agent_id().pubkey_base58())
+        );
+        assert!(choose(&req, 2000).await.is_none());
+        let mut changed = req.clone();
+        changed.inference_tariff.as_mut().unwrap().tariff.revision += 1;
+        assert!(choose(&changed, 1000).await.is_none());
+        let mut legacy = req.clone();
+        legacy.inference_tariff = None;
+        assert!(
+            choose(&legacy, 1000).await.is_none(),
+            "legacy calls retain the flat ask"
+        );
+        let bonds = OperatorBonds::new();
+        let live = capacity_view(
+            &registry,
+            &NoReputation,
+            &bonds,
+            1000,
+            Duration::from_secs(45),
+            0,
+            BondFloor::OPEN,
+        )
+        .await;
+        assert_eq!(live.entries[0].inference_tariffs[0].tariff, tariff);
+        assert_eq!(live.entries[0].inference_tariffs[0].gpu_class, "cpu");
+        let expired = capacity_view(
+            &registry,
+            &NoReputation,
+            &bonds,
+            2000,
+            Duration::from_secs(45),
+            0,
+            BondFloor::OPEN,
+        )
+        .await;
+        assert!(expired.entries[0].inference_tariffs.is_empty());
+    }
+
+    #[tokio::test]
     async fn native_empty_checks_never_match_legacy_ordinary_or_any_workers() {
         let registry = OperatorRegistry::new();
         let image = "covenant-compute-check:rust";
@@ -585,6 +701,7 @@ mod tests {
         let add = |display: &str, models: Vec<String>, ask| {
             let identity = LocalIdentity::generate(display);
             let profile = CapabilityProfile {
+                inference_tariffs: Vec::new(),
                 operator: identity.agent_id(),
                 hardware: HardwareClass::CpuOnly,
                 vram_gb: 0,
@@ -611,6 +728,7 @@ mod tests {
         add("legacy@local", vec![image.into()], 1);
         add("wildcard@local", vec!["any".into()], 1);
         let req = CapabilityRequirement {
+            inference_tariff: None,
             kind: JobKind::AgentCheck,
             model_id: Some(model.clone()),
             ..requirement()
@@ -805,6 +923,7 @@ mod tests {
             let registry = OperatorRegistry::new();
             for id in order {
                 let profile = CapabilityProfile {
+                    inference_tariffs: Vec::new(),
                     operator: id.agent_id(),
                     hardware: HardwareClass::CpuOnly,
                     vram_gb: 0,
@@ -922,6 +1041,7 @@ mod tests {
         let registry = OperatorRegistry::new();
         let identity = LocalIdentity::generate("offline@local");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -1192,6 +1312,7 @@ mod tests {
     ) -> String {
         let identity = LocalIdentity::generate(display);
         let base = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -1247,6 +1368,7 @@ mod tests {
         // Fresh but self-declared Offline: standing-gated out.
         let offline = LocalIdentity::generate("offline@local");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: offline.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -1613,6 +1735,7 @@ mod tests {
 
     fn lease_requirement(max_duration_secs: u32) -> CapabilityRequirement {
         CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,
@@ -1768,6 +1891,7 @@ mod tests {
         let registry = OperatorRegistry::new();
         let identity = LocalIdentity::generate("flat@local");
         let profile = CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,
@@ -1829,6 +1953,7 @@ mod tests {
 
     fn priced_profile(unit: PriceUnit, micro_usdc: u64) -> CapabilityProfile {
         CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: LocalIdentity::generate("priced@local").agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,

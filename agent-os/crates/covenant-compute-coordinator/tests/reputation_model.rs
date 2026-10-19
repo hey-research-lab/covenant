@@ -286,6 +286,7 @@ async fn random_audit_histories_derive_exact_reputation_for_every_operator() {
 
 fn requirement() -> CapabilityRequirement {
     CapabilityRequirement {
+        inference_tariff: None,
         gpu_class: None,
         min_vram_gb: None,
         model_id: None,
@@ -308,6 +309,7 @@ fn payout_for(display: &str) -> String {
 fn register(registry: &OperatorRegistry, display: &str, micro_usdc: u64) -> String {
     let identity = LocalIdentity::generate(display);
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,

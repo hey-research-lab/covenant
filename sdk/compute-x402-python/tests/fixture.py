@@ -43,12 +43,14 @@ class Wallet:
 
 class Fixture:
     def __init__(self, tmp_path, *, first_status=None, bad_quote=None, bad_result=None,
-                 wrong_rpc=False, balance="1000000", bad_settlement=None):
+                 wrong_rpc=False, balance="1000000", bad_settlement=None, price=None, bad_job=None):
         self.wallet = Wallet(Keypair())
         self.buyer, self.operator, self.fee, self.seller = [Keypair() for _ in range(4)]
         self.calls, self.quotes, self.sends, self.payments, self.confirmed = [], 0, 0, [], {}
         self.first_status, self.bad_quote, self.bad_result = first_status, bad_quote, bad_result
         self.wrong_rpc, self.balance, self.bad_settlement = wrong_rpc, balance, bad_settlement
+        self.price, self.saved_quotes = price, {}
+        self.bad_job = bad_job
         self.config = dict(gateway_url="https://compute.example", rpc_url="https://rpc.example/",
                            pay_to=str(self.seller.pubkey()), gateway_buyer=str(self.buyer.pubkey()),
                            operators=[str(self.operator.pubkey())], wallet=self.wallet,
@@ -81,8 +83,8 @@ class Fixture:
             return httpx.Response(200, content=compact({"jsonrpc": "2.0", "id": 1, "result": result}))
         assert str(req.url) == "https://compute.example/v1/chat/completions"
         digest, quote_id = sha256(stable(body)), req.headers["idempotency-key"]
-        quote = {"scheme": "exact", "network": NETWORK, "asset": USDC,
-                 "amount": "1000", "payTo": str(self.seller.pubkey()), "maxTimeoutSeconds": 90,
+        quote = self.saved_quotes.get(quote_id) or {"scheme": "exact", "network": NETWORK, "asset": USDC,
+                 "amount": str(int(self.price(body))) if self.price else "1000", "payTo": str(self.seller.pubkey()), "maxTimeoutSeconds": 90,
                  "extra": {"feePayer": str(self.fee.pubkey()), "quoteId": quote_id,
                            "requestSha256": digest, "expiresAtMs": now_ms() + 90_000,
                            "memo": f"covenant.x402.v2:{quote_id}:{digest}"}}
@@ -90,11 +92,13 @@ class Fixture:
             self.quotes += 1
             if self.bad_quote:
                 self.bad_quote(quote)
+            self.saved_quotes[quote_id] = quote
             return httpx.Response(402, headers={"PAYMENT-REQUIRED": encode({"x402Version": 2, "resource": {"url": str(req.url)}, "accepts": [quote]})}, content="{}")
         self.sends += 1
         payment_header = req.headers["payment-signature"]
         self.payments.append(payment_header)
         payload = strict_json(decode64(payment_header))
+        assert payload["accepted"] == quote
         tx = VersionedTransaction.from_bytes(decode64(payload["payload"]["transaction"]))
         validate_transaction(tx, payload["accepted"], self.wallet.address, legacy_allowed=True)
         signatures = list(tx.signatures)
@@ -109,8 +113,19 @@ class Fixture:
         generation = {"max_tokens": body["max_tokens"]}
         if "temperature" in body:
             generation["temperature"] = body["temperature"]
-        envelope = wrapper(self.buyer, {"job_id": quote_id, "kind": "inference_call", "capability_requirement": {"kind": "inference_call", "model_id": body["model"]}, "input": [{"type": "json", "value": {"messages": body["messages"]}}, {"type": "json", "value": {"generation": generation}}], "price_micro_usdc": 900}, "payload", "covenant.compute.job.v1\n", "buyer")
-        receipt = wrapper(self.operator, {"job_id": quote_id, "job_hash_hex": sha256(envelope["payload_json"]), "result_hash_hex": sha256(stable(output)), "price_micro_usdc": 900, "status": "ok"}, "receipt", "covenant.compute.receipt.v1\n", "operator")
+        job = {"job_id": quote_id, "kind": "inference_call", "capability_requirement": {"kind": "inference_call", "model_id": body["model"]}, "input": [{"type": "json", "value": {"messages": body["messages"]}}, {"type": "json", "value": {"generation": generation}}], "price_micro_usdc": 900}
+        if body.get("pricing") == "model_tariff_v1":
+            issued = now_ms()
+            tariff = dict(schema_version=1, id="fixture-tariff", revision=1, model=body["model"], base_micro_usdc=500,
+                          output_cap_micro_usdc_per_million=1001, max_output_tokens=8192, valid_from_ms=issued-1000, valid_until_ms=issued+90_000)
+            native_quote = dict(tariff=tariff, requested_output_cap=body["max_tokens"], price_micro_usdc=500+(int(body["max_tokens"])*1001+999999)//1000000)
+            job["capability_requirement"]["inference_tariff"] = strict_json(compact(native_quote))
+            job["input"].append({"type": "json", "value": {"inference_tariff": native_quote}})
+            job.update(price_micro_usdc=native_quote["price_micro_usdc"], issued_at_ms=issued)
+        if self.bad_job:
+            self.bad_job(job)
+        envelope = wrapper(self.buyer, job, "payload", "covenant.compute.job.v1\n", "buyer")
+        receipt = wrapper(self.operator, {"job_id": quote_id, "job_hash_hex": sha256(envelope["payload_json"]), "result_hash_hex": sha256(stable(output)), "price_micro_usdc": job["price_micro_usdc"], "status": "ok"}, "receipt", "covenant.compute.receipt.v1\n", "operator")
         response = {"choices": [{"message": {"role": "assistant", "content": output[0]["text"]}}], "covenant": {"envelope": envelope, "receipt": receipt, "output": output, "output_json": stable(output), "request_sha256": digest, "quote_id": quote_id, "job_id": quote_id}}
         if self.bad_result:
             self.bad_result(response)

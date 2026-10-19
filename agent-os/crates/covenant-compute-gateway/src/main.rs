@@ -3,7 +3,32 @@
 use covenant_compute_buyer::{durable_budget::DurableBudget, BuyerConfig};
 use covenant_compute_gateway::{bridge::SvmBridge, buyer::BuyerExecutor, Gateway};
 use covenant_identity::LocalIdentity;
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
+
+fn tariff_configuration_latch(directory: &Path) -> anyhow::Result<()> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    match options.open(directory.join("admissions.disabled")) {
+        Ok(mut file) => {
+            file.write_all(b"Invalid model tariff configuration; review before new admissions\n")?;
+            file.sync_all()?;
+            std::fs::File::open(directory)?.sync_all()?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error.into()),
+    }
+    Ok(())
+}
 
 fn required(name: &str) -> anyhow::Result<String> {
     let value = std::env::var(name).map_err(|_| anyhow::anyhow!("{name} must be configured"))?;
@@ -65,6 +90,28 @@ async fn main() -> anyhow::Result<()> {
         required("COVENANT_GATEWAY_FEE_PAYER")?,
         required("COVENANT_GATEWAY_RESOURCE_URL")?,
     )?);
+    let model = required("COVENANT_GATEWAY_MODEL")?;
+    let max_tokens: u32 = required("COVENANT_GATEWAY_MAX_TOKENS")?.parse()?;
+    let tariff_configuration = std::env::var("COVENANT_GATEWAY_TARIFFS_FILE")
+        .ok()
+        .map(|path| {
+            let path = PathBuf::from(path);
+            anyhow::ensure!(path.is_absolute(), "tariffs file must be absolute");
+            let book = covenant_compute_gateway::pricing::TariffBook::load(&path)?;
+            book.validate_single_provider(&model, max_tokens)?;
+            Ok::<_, anyhow::Error>(Arc::new(book))
+        })
+        .transpose();
+    let (tariffs, tariff_configuration_ok) = match tariff_configuration {
+        Ok(tariffs) => (tariffs, true),
+        Err(_) => {
+            // Optional new pricing cannot strand already-admitted payments.
+            // The durable latch also prevents the supervisor's paid node probe.
+            tariff_configuration_latch(&directory)?;
+            eprintln!("Invalid model tariff configuration; payment recovery only");
+            (None, false)
+        }
+    };
     let executor = Arc::new(BuyerExecutor {
         config: BuyerConfig {
             coordinator_url: coordinator.clone(),
@@ -75,11 +122,12 @@ async fn main() -> anyhow::Result<()> {
         identity: identity.clone(),
         http: covenant_compute_buyer::http_client(),
         budget,
-        model: required("COVENANT_GATEWAY_MODEL")?,
+        model,
         offer_micro_usdc: offer,
-        max_tokens: required("COVENANT_GATEWAY_MAX_TOKENS")?.parse()?,
+        max_tokens,
         max_input_bytes,
         approved_operators,
+        tariffs,
     });
     let namespace = format!(
         "{}\0{coordinator}\0{}\0{}\0{offer}\0{max_input_bytes}\0{operator_namespace}",
@@ -98,7 +146,8 @@ async fn main() -> anyhow::Result<()> {
             std::env::var("COVENANT_GATEWAY_ALLOW_RESERVE_INCREASE").as_deref() == Ok("true"),
         )?
         .with_admissions_enabled(
-            std::env::var("COVENANT_GATEWAY_ADMISSIONS_ENABLED").as_deref() != Ok("false"),
+            tariff_configuration_ok
+                && std::env::var("COVENANT_GATEWAY_ADMISSIONS_ENABLED").as_deref() != Ok("false"),
         ),
     );
     let _retention = covenant_compute_gateway::spawn_retention(gateway.clone());

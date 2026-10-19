@@ -152,6 +152,7 @@ async fn main() {
     // The broker operator: owns no hardware, rents per session.
     let operator_identity = LocalIdentity::generate("operator@canary");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator_identity.agent_id(),
         hardware: HardwareClass::CpuOnly,
         vram_gb: 0,
@@ -236,6 +237,7 @@ async fn main() {
         buyer: buyer.agent_id(),
         kind: JobKind::LeaseSession,
         capability_requirement: CapabilityRequirement {
+            inference_tariff: None,
             gpu_class: None,
             min_vram_gb: None,
             model_id: None,

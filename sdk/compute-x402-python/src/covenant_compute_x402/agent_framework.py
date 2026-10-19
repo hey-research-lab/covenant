@@ -41,6 +41,7 @@ def covenant_inference_tool(
     *, client: CovenantX402Client, request_id: str, model: str,
     max_tokens: int = 2048, temperature: float | None = 0.2,
     system_prompt: str | None = None, checkpoint_before_dispatch: bool = False,
+    pricing: str | None = None,
 ) -> FunctionTool:
     """Return an official FunctionTool with prompt-only, strict arguments.
 
@@ -59,7 +60,7 @@ def covenant_inference_tool(
     fixed = validate_request(model, [
         *([{"role": "system", "content": system_prompt}] if system_prompt is not None else []),
         {"role": "user", "content": "configuration validation"},
-    ], max_tokens, temperature)
+    ], max_tokens, temperature, pricing)
     if not callable(getattr(client, "purchase", None)):
         raise TypeError("covenant_x402_client_required")
 
@@ -68,6 +69,7 @@ def covenant_inference_tool(
     fixed_request_id, fixed_model = request_id, fixed["model"]
     fixed_max_tokens, fixed_temperature = fixed["max_tokens"], fixed.get("temperature")
     fixed_system_prompt = fixed["messages"][0]["content"] if system_prompt is not None else None
+    fixed_pricing = fixed.get("pricing")
 
     async def invoke(prompt: str) -> dict[str, Any]:
         args = InferenceArguments.model_validate({"prompt": prompt})
@@ -76,7 +78,8 @@ def covenant_inference_tool(
         messages.append({"role": "user", "content": args.prompt})
         return await client.purchase(request_id=fixed_request_id, model=fixed_model,
                                      messages=messages, max_tokens=fixed_max_tokens,
-                                     temperature=fixed_temperature)
+                                     temperature=fixed_temperature,
+                                     **({"pricing": fixed_pricing} if fixed_pricing is not None else {}))
 
     return FunctionTool(
         name="covenant_inference",

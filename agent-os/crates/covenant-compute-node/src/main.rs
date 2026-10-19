@@ -2649,6 +2649,19 @@ async fn main() -> anyhow::Result<()> {
     let (hardware, vram_gb) = resolve_hardware().await;
     let kind_models = agent_kind_models(&executor_kind, &kani_profiles, kani_author, &job_kinds);
     let profile = CapabilityProfile {
+        inference_tariffs: match std::env::var("COVENANT_COMPUTE_NODE_TARIFFS_FILE") {
+            Ok(path) => {
+                let bytes = std::fs::read(&path).context("read configured inference tariffs")?;
+                anyhow::ensure!(
+                    bytes.len() <= 256 * 1024,
+                    "inference tariffs file exceeds 256 KiB"
+                );
+                serde_json::from_slice(&bytes)
+                    .context("parse explicit inference tariffs JSON array")?
+            }
+            Err(std::env::VarError::NotPresent) => Vec::new(),
+            Err(e) => return Err(anyhow::anyhow!("inference tariffs file path: {e}")),
+        },
         operator: identity.agent_id(),
         hardware,
         vram_gb,
@@ -2674,6 +2687,9 @@ async fn main() -> anyhow::Result<()> {
     // underpaid, with no downstream gate to catch it. Refuse it at boot,
     // the model twin of the job-kind and single-model checks above; the
     // coordinator refuses the same defect at registration.
+    profile
+        .validate_labels()
+        .context("validate configured capability profile and inference tariffs")?;
     if let Err(e) = profile.validate_lease_pricing() {
         anyhow::bail!(
             "{e}. Set COVENANT_COMPUTE_NODE_PRICE_UNIT to per_lease_hour (or per_job) for a \
@@ -4159,6 +4175,7 @@ mod tests {
 
     fn test_profile(identity: &LocalIdentity) -> CapabilityProfile {
         CapabilityProfile {
+            inference_tariffs: Vec::new(),
             operator: identity.agent_id(),
             hardware: HardwareClass::CpuOnly,
             vram_gb: 0,

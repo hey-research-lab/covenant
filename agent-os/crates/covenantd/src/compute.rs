@@ -353,6 +353,16 @@ async fn record_compute_job(
     Ok(receipt_id)
 }
 
+fn infer_preparation_error(args: &InferArgs, error: BuyerError) -> ComputeError {
+    // Tariff preparation consumes tariff_id before validating the input. Keep
+    // malformed caller input in the daemon's InvalidArgs category; discovery
+    // and other buyer failures must retain their original error classification.
+    match args.input() {
+        Err(message) => ComputeError::InvalidArgs(message),
+        Ok(_) => ComputeError::Buyer(error),
+    }
+}
+
 /// The `compute.infer` call bound to one payer: parse, then the shared
 /// paid-dispatch path below.
 pub async fn run_infer_call(
@@ -362,9 +372,22 @@ pub async fn run_infer_call(
     payer: &AgentId,
     arguments: serde_json::Value,
 ) -> Result<ToolCallResult, ComputeError> {
-    let args: InferArgs =
+    let mut args: InferArgs =
         serde_json::from_value(arguments).map_err(|e| ComputeError::InvalidArgs(e.to_string()))?;
-    let input = args.input().map_err(ComputeError::InvalidArgs)?;
+    let existing = args.idempotency_key.as_ref().and_then(|key| {
+        state
+            .purchases
+            .lookup(&format!("{}:{key}", payer.pubkey_base58()))
+    });
+    let input = covenant_compute_buyer::tariffs::prepare_infer_args_for_purchase(
+        &http_client(),
+        &buyer_config(&state.config),
+        &mut args,
+        state.config.max_price_micro_usdc,
+        existing.as_ref().map(|entry| &entry.envelope),
+    )
+    .await
+    .map_err(|error| infer_preparation_error(&args, error))?;
     dispatch_paid_job(
         state,
         ctx,
@@ -604,7 +627,7 @@ pub async fn run_stream_start_call(
     payer: &AgentId,
     arguments: serde_json::Value,
 ) -> Result<ToolCallResult, ComputeError> {
-    let args: InferArgs =
+    let mut args: InferArgs =
         serde_json::from_value(arguments).map_err(|e| ComputeError::InvalidArgs(e.to_string()))?;
     // Streaming returns a job_id before the drain settles, so it can't
     // dedupe on a key the way compute.infer does. Refuse the key rather
@@ -624,7 +647,14 @@ pub async fn run_stream_start_call(
              with dry_run to see the price and routing first, then stream."
         )));
     }
-    let input = args.input().map_err(ComputeError::InvalidArgs)?;
+    let input = covenant_compute_buyer::tariffs::prepare_infer_args(
+        &http_client(),
+        &buyer_config(&state.config),
+        &mut args,
+        state.config.max_price_micro_usdc,
+    )
+    .await
+    .map_err(|error| infer_preparation_error(&args, error))?;
 
     let cap = state.config.max_price_micro_usdc;
     let price = resolve_offer(
@@ -911,7 +941,7 @@ async fn dispatch_paid_job(
         )
         .await?;
         let deadline_ms = deadline_ms.unwrap_or(state.config.default_deadline_ms);
-        let preview = preview_value(
+        let mut preview = preview_value(
             kind,
             model.as_deref(),
             gpu_class.as_deref(),
@@ -922,6 +952,12 @@ async fn dispatch_paid_job(
             cap,
             input.len(),
         );
+        if let Some(tariff) = covenant_compute_buyer::parse_tariff_input(&input)
+            .map_err(|e| ComputeError::InvalidArgs(e.to_string()))?
+        {
+            preview["inference_tariff"] = serde_json::to_value(tariff).unwrap_or_default();
+            preview["price_source"] = serde_json::json!("versioned_inference_tariff");
+        }
         return Ok(ToolCallResult::ok(vec![Content::json(preview)]));
     }
     let price = resolve_offer(
@@ -1579,6 +1615,7 @@ mod tests {
                 buyer: payer.clone(),
                 kind: JobKind::InferenceCall,
                 capability_requirement: CapabilityRequirement {
+                    inference_tariff: None,
                     gpu_class: None,
                     min_vram_gb: None,
                     model_id: None,
@@ -2421,16 +2458,18 @@ mod tests {
             budget: budget.as_ref(),
             issuer: &issuer,
         };
-        let err = run_infer_call(
-            &state(100_000),
-            &ctx,
-            &identity,
-            &payer,
+        for arguments in [
             serde_json::json!({"model": "llama-3-8b"}),
-        )
-        .await
-        .expect_err("missing prompt");
-        assert!(matches!(err, ComputeError::InvalidArgs(_)), "got: {err}");
+            serde_json::json!({"model": "llama-3-8b", "tariff_id": "test", "max_tokens": 64}),
+        ] {
+            let err = run_infer_call(&state(100_000), &ctx, &identity, &payer, arguments)
+                .await
+                .expect_err("missing prompt or messages");
+            assert!(
+                matches!(&err, ComputeError::InvalidArgs(message) if message == "one of prompt or messages is required"),
+                "got: {err}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -2443,8 +2482,13 @@ mod tests {
 
         for (arguments, wants) in [
             (serde_json::json!({}), "InvalidArgs"),
+            (serde_json::json!({"tariff_id": "test"}), "InvalidArgs"),
             (
                 serde_json::json!({"prompt": "hi", "messages": []}),
+                "InvalidArgs",
+            ),
+            (
+                serde_json::json!({"prompt": "hi", "messages": [], "tariff_id": "test"}),
                 "InvalidArgs",
             ),
             (

@@ -171,6 +171,7 @@ impl Harness {
 async fn register_lease_node(url: &str, coordinator_pubkey: String, accepting: bool) {
     let operator = LocalIdentity::generate("operator@test");
     let profile = CapabilityProfile {
+        inference_tariffs: Vec::new(),
         operator: operator.agent_id(),
         hardware: HardwareClass::ConsumerGpu {
             model: "rtx-4090".into(),

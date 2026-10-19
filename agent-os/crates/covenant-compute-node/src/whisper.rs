@@ -411,6 +411,7 @@ mod tests {
             buyer: AgentId::new("buyer@local", [1u8; 32]),
             kind: JobKind::Transcription,
             capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
                 gpu_class: None,
                 min_vram_gb: None,
                 model_id: Some("whisper-1".into()),

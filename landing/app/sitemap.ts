@@ -22,6 +22,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE}/compute-prices`, lastModified, changeFrequency: "hourly", priority: 0.8 },
     { url: `${SITE}/compute-status`, lastModified, changeFrequency: "hourly", priority: 0.8 },
     ...(rentalChecksRelease.accepted ? [{ url: `${SITE}/compute-rental-checks`, lastModified, changeFrequency: "hourly" as const, priority: 0.8 }] : []),
+    { url: `${SITE}/compute-work`, lastModified, changeFrequency: "hourly", priority: 0.8 },
     { url: `${SITE}/blog/compute`, lastModified, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE}/blog/covenant-payai`, lastModified, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE}/faq`, lastModified, changeFrequency: "monthly", priority: 0.7 },

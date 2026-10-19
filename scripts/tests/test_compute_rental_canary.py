@@ -2,6 +2,7 @@
 """Subprocess contract tests: these never contact a coordinator or rent a GPU."""
 
 import fcntl
+import base64
 import importlib.util
 import json
 import os
@@ -10,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 import shutil
 import time
 
@@ -42,6 +43,9 @@ if args and args[0] == "evidence":
     if op == "preflight":
         out.update(host_key_binding="missing" if scenario == "missing_binding" else "authenticated", cleanup="provider_readback", provider_limits_checked=True, provider_reservation_micro_usd=350000)
     elif op == "access":
+        if scenario in ("log_pending", "marker_conflict"):
+            print(json.dumps({"version": 1, "verified": False, "error_code": "provider_log_not_ready" if scenario == "log_pending" else "provider_marker_conflict"}), file=sys.stderr)
+            sys.exit(1)
         out.update(binding={"verified": scenario != "unverified_host", "source": "operator_signed_ready", "job_id": request["job_id"]},
                    ssh={"host": "other.example.com" if scenario == "wrong_host" else "gpu.example.com", "port": 2201, "user": "root", "public_key": "ssh-ed25519 " + base64.b64encode(b"a" * 64).decode()})
         if scenario == "stale_evidence": out["observed_at_unix"] -= 1000
@@ -56,12 +60,15 @@ elif args and args[0] == "cli":
     elif args[0] == "capacity":
         emit({"entries": [] if scenario == "no_capacity" else [{"kind": "lease_session", "operators": 1, "max_vram_gb": 24, "min_ask_unit": "per_gpu_second", "min_ask_micro_usdc": 1, "gpu_classes": ["rtx-4090"]}]})
     elif args[0] == "balance":
-        charged = 0 if not state["closed"] or scenario == "refunded" else 37
+        charged = state.get("prior_charged", 0) + (0 if not state["closed"] or scenario == "refunded" else 37)
         deposited = 0 if scenario in ("underfunded", "explicit_deposit") and not state.get("deposit") else 10000
         emit({"balance": {"deposited_micro_usdc": deposited, "withdrawn_micro_usdc": 0, "charged_micro_usdc": charged, "available_micro_usdc": deposited - charged - (100 if scenario == "refund_missing" and state["closed"] else 0)}})
     elif args[0] == "deposit":
         state["deposit"] = True; save(); emit({"credited": True})
     elif args[:2] == ["lease", "open"]:
+        if state["closed"]:
+            state["prior_charged"] = state.get("prior_charged", 0) + 37
+            state["closed"] = False
         job = args[args.index("--job-id") + 1]
         state["job"] = job
         # The monetary reservation and recovery ID already exist before dispatch.
@@ -124,11 +131,12 @@ class CanarySubprocessTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def run_canary(self, scenario="success", preflight=False, recover_only=False):
+    def run_canary(self, scenario="success", preflight=False, recover_only=False, acceptance_retry_of=None, retry_once=True):
         path = self.root / "config.json"
         path.write_text(json.dumps(self.config))
         result = subprocess.run([sys.executable, str(CANARY), "--config", str(path),
-                                 "--state-dir", str(self.root / "state")] + (["--preflight"] if preflight else []) + (["--recover-only"] if recover_only else []),
+                                 "--state-dir", str(self.root / "state")] + (["--preflight"] if preflight else []) + (["--recover-only"] if recover_only else [])
+                                + ((["--once"] if retry_once else []) + ["--acceptance-retry-of", acceptance_retry_of] if acceptance_retry_of is not None else []),
                                 env={**os.environ, "CANARY_FIXTURE": str(self.root), "CANARY_SCENARIO": scenario},
                                 capture_output=True, text=True, timeout=15)
         self.assertTrue(result.stdout, result.stderr)
@@ -188,6 +196,120 @@ class CanarySubprocessTests(unittest.TestCase):
         self.assertEqual(verdict["reason"], "host_key_binding_unverified")
         self.assertTrue(verdict["provider_cleanup_verified"])
         self.assertFalse(any(call and call[0] == "-F" for call in self.calls()))
+
+    def test_original_failure_survives_successful_settlement_and_cleanup(self):
+        code, verdict = self.run_canary("marker_conflict")
+        self.assertEqual(code, 1)
+        self.assertEqual(verdict["failure_stage"], "ssh_identity")
+        self.assertEqual(verdict["stage"], "provider_cleanup")
+        self.assertEqual(verdict["reason"], "provider_marker_conflict")
+        self.assertEqual(verdict["evidence_error_code"], "provider_marker_conflict")
+        self.assertTrue(verdict["provider_cleanup_verified"])
+        self.assertTrue(verdict["settlement_verified_onchain"])
+        self.assertEqual(self.opened(), 1)
+        self.assertFalse(any(call and call[0] == "-F" for call in self.calls()))
+        public = json.loads((self.root / "public" / "state.json").read_text())
+        self.assertEqual(public["latest"]["stage"], "ssh_identity")
+        self.assertNotIn("evidence_error_code", public["latest"])
+
+    def test_pending_logs_exhaust_readiness_then_close_without_another_purchase(self):
+        code, verdict = self.run_canary("log_pending")
+        self.assertEqual(code, 1)
+        self.assertEqual(verdict["failure_stage"], "ssh_identity")
+        self.assertEqual(verdict["reason"], "readiness_timeout")
+        self.assertEqual(verdict["evidence_error_code"], "provider_log_not_ready")
+        self.assertTrue(verdict["provider_cleanup_verified"])
+        self.assertTrue(verdict["settlement_verified_onchain"])
+        self.assertEqual(self.opened(), 1)
+        self.assertFalse((self.root / "state" / "active.json").exists())
+
+    def test_internal_contenders_cannot_hide_finished_paid_result(self):
+        _, paid = self.run_canary("marker_conflict")
+        directory = self.root / "state"
+        contenders = []
+        for index, reason in enumerate(("another_canary_is_running", "no_unresolved_rental")):
+            row = {**paid, "run_id": "10000000-0000-4000-8000-00000000000" + str(index),
+                   "job_id": None, "started_at_unix": paid["started_at_unix"] + index + 1,
+                   "finished_at_unix": paid["finished_at_unix"], "verdict": "blocked", "reason": reason}
+            path = directory / "runs" / (row["run_id"] + ".json")
+            path.write_text(json.dumps(row)); contenders.append(path)
+        public = MODULE.publish_public_state(directory, MODULE.load_config(self.root / "config.json"))
+        self.assertEqual(public["latest"]["run_id"], paid["run_id"])
+        self.assertEqual(len(public["history"]), 1)
+        self.assertTrue(all(path.exists() for path in contenders))
+
+    def test_explicit_acceptance_retry_preserves_failed_cost_and_is_consumed_once(self):
+        _, prior = self.run_canary("marker_conflict")
+        path = self.root / "state" / "budget.json"
+        original = json.loads(path.read_text())["entries"][0]
+        code, retried = self.run_canary(acceptance_retry_of=prior["job_id"])
+        self.assertEqual((code, retried["verdict"]), (0, "success"), retried)
+        journal = json.loads(path.read_text())
+        self.assertEqual(len(journal["entries"]), 2)
+        self.assertEqual(journal["entries"][0], original)
+        self.assertEqual(journal["entries"][1]["retry_of_job_id"], prior["job_id"])
+        self.assertEqual(journal["entries"][1]["active"]["retry_of_job_id"], prior["job_id"])
+        self.assertNotEqual(retried["job_id"], prior["job_id"])
+        self.assertEqual(sum(row["counted_micro_usd"] for row in journal["entries"]), 742074)
+        for reference in (prior["job_id"], retried["job_id"]):
+            code, rejected = self.run_canary(acceptance_retry_of=reference)
+            self.assertEqual((code, rejected["reason"]), (2, "acceptance_retry_not_latest_unused"))
+        self.assertEqual(self.opened(), 2)
+
+    def test_acceptance_retry_requires_once_and_exact_failed_proof(self):
+        _, prior = self.run_canary("marker_conflict")
+        calls = len(self.calls())
+        for preflight, recover_only, retry_once in ((False, False, False), (True, False, True)):
+            code, rejected = self.run_canary(preflight=preflight, recover_only=recover_only, retry_once=retry_once,
+                                             acceptance_retry_of=prior["job_id"])
+            self.assertEqual((code, rejected["reason"]), (2, "acceptance_retry_requires_once"))
+        proof_path = self.root / "state" / "runs" / (prior["run_id"] + ".json")
+        for change in ({"verdict": "success"}, {"balance_reconciled": False}, {"provider_cleanup_verified": False},
+                       {"settlement_verified_onchain": False}, {"settlement_verdict": "payout_pending"},
+                       {"job_id": "10000000-0000-4000-8000-000000000003"}, {"charged_micro_usdc": 0},
+                       {"recovery_only": True}, {"finished_at_unix": None}):
+            proof_path.write_text(json.dumps({**prior, **change}))
+            code, rejected = self.run_canary(acceptance_retry_of=prior["job_id"])
+            self.assertEqual((code, rejected["reason"]), (2, "acceptance_retry_prior_not_verified_failed"), change)
+        self.assertEqual(len(self.calls()), calls)
+        self.assertEqual(self.opened(), 1)
+
+    def test_uncertain_acceptance_retry_keeps_reservation_and_never_resubmits(self):
+        _, prior = self.run_canary("marker_conflict")
+        code, failed = self.run_canary("ambiguous_launch", acceptance_retry_of=prior["job_id"])
+        self.assertEqual(code, 1)
+        self.assertEqual(failed["reason"], "launch_outcome_unknown_do_not_retry")
+        journal = json.loads((self.root / "state" / "budget.json").read_text())
+        self.assertIsNone(journal["entries"][1]["resolved_at_unix"])
+        self.assertEqual(journal["entries"][1]["counted_micro_usd"], 371300)
+        self.assertEqual(journal["entries"][1]["retry_of_job_id"], prior["job_id"])
+        self.run_canary("ambiguous_launch", acceptance_retry_of=prior["job_id"])
+        self.assertEqual(self.opened(), 2)
+
+    def test_acceptance_retry_rechecks_daily_and_total_caps_without_changing_prior_entries(self):
+        _, prior = self.run_canary("marker_conflict")
+        path = self.root / "state" / "budget.json"
+        original = json.loads(path.read_text())
+        for amount, reason in ((2000000, "daily_budget_exhausted"), (20000000, "pilot_budget_exhausted")):
+            journal = json.loads(json.dumps(original))
+            journal["entries"][0]["counted_micro_usd"] = amount
+            path.write_text(json.dumps(journal))
+            before = path.read_bytes()
+            code, rejected = self.run_canary(acceptance_retry_of=prior["job_id"])
+            self.assertEqual((code, rejected["reason"]), (2, reason))
+            self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(self.opened(), 1)
+
+    def test_concurrent_acceptance_retry_cannot_reserve_or_dispatch(self):
+        _, prior = self.run_canary("marker_conflict")
+        path = self.root / "state" / "budget.json"
+        before = path.read_bytes()
+        with (self.root / "state" / "run.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            code, rejected = self.run_canary(acceptance_retry_of=prior["job_id"])
+        self.assertEqual((code, rejected["reason"]), (2, "another_canary_is_running"))
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(self.opened(), 1)
 
     def test_probe_failure_and_timeout_close_verify_and_cleanup(self):
         for scenario in ("probe_failure", "probe_timeout"):
@@ -452,6 +574,61 @@ class BudgetTests(unittest.TestCase):
     def active(self, number):
         return {"job_id": "00000000-0000-4000-8000-" + str(number).zfill(12), "run_id": "run-" + str(number)}
 
+    def verified_failed(self):
+        active = self.active(1) | {"run_id": "10000000-0000-4000-8000-000000000001", "launch_pending": False,
+                                  "settlement_verified": True, "cleanup_verified": True, "charged_micro_usdc": 13010}
+        self.budget.reserve(active, now=100000)
+        with patch.object(MODULE.time, "time", return_value=100010):
+            self.budget.resolve(active, 13010)
+        record = {"version": 1, "run_id": active["run_id"], "job_id": active["job_id"], "verdict": "failed",
+                  "finished_at_unix": 100010, "settlement_verdict": "verified_onchain",
+                  "settlement_verified_onchain": True, "balance_reconciled": True, "provider_cleanup_verified": True,
+                  "charged_micro_usdc": 13010, "refunded_micro_usdc": 107230}
+        (self.directory / "runs").mkdir()
+        MODULE.atomic_json(self.directory / "runs" / (active["run_id"] + ".json"), record)
+        return active
+
+    def test_retry_reservation_survives_crash_before_dispatch_and_cannot_be_reused(self):
+        prior = self.verified_failed()
+        preserved = json.loads(json.dumps(self.budget.value["entries"][0]))
+        original_save = self.budget.save
+        def crash_after_fsync():
+            original_save()
+            raise KeyboardInterrupt()
+        with patch.object(self.budget, "save", side_effect=crash_after_fsync), self.assertRaises(KeyboardInterrupt):
+            self.budget.reserve(self.active(2), now=100020, acceptance_retry_of=prior["job_id"])
+        reloaded = MODULE.Budget(self.directory, self.config)
+        self.assertEqual(reloaded.value["entries"][0], preserved)
+        self.assertEqual(reloaded.active()["job_id"], self.active(2)["job_id"])
+        self.assertEqual(reloaded.active()["retry_of_job_id"], prior["job_id"])
+        self.assertEqual(reloaded.totals(100020)["pilot_reserved_micro_usd"], 384010 + 491240)
+        with self.assertRaisesRegex(MODULE.CanaryError, "unresolved_rental"):
+            reloaded.reserve(self.active(3), now=100021, acceptance_retry_of=prior["job_id"])
+        self.assertEqual(len(reloaded.value["entries"]), 2)
+
+    def test_retry_rejects_wrong_window_old_reference_latch_and_unknown_launch(self):
+        prior = self.verified_failed()
+        with self.assertRaisesRegex(MODULE.CanaryError, "acceptance_retry_wrong_window"):
+            self.budget.check_acceptance_retry(prior["job_id"], 100000 + MODULE.WINDOW_SECONDS)
+        with self.assertRaisesRegex(MODULE.CanaryError, "acceptance_retry_not_latest_unused"):
+            self.budget.check_acceptance_retry(self.active(9)["job_id"], 100020)
+        for invalid in ("../../secret", "00000000-0000-0000-0000-000000000000", "not-a-job"):
+            with self.assertRaisesRegex(MODULE.CanaryError, "invalid_acceptance_retry_job"):
+                self.budget.check_acceptance_retry(invalid, 100020)
+        prior["launch_pending"] = True
+        with self.assertRaisesRegex(MODULE.CanaryError, "acceptance_retry_prior_not_verified_failed"):
+            self.budget.check_acceptance_retry(prior["job_id"], 100020)
+        prior["launch_pending"] = False
+        self.budget.value["latched_reason"] = "provider_budget_breach"
+        with self.assertRaisesRegex(MODULE.CanaryError, "provider_budget_breach"):
+            self.budget.check_acceptance_retry(prior["job_id"], 100020)
+
+    def test_regular_scheduler_cannot_consume_acceptance_retry(self):
+        self.verified_failed()
+        with self.assertRaisesRegex(MODULE.CanaryError, "window_already_reserved"):
+            self.budget.reserve(self.active(2), now=100020)
+        self.assertEqual(len(self.budget.value["entries"]), 1)
+
     def test_unresolved_reservation_never_ages_out(self):
         self.budget.reserve(self.active(1), now=100000)
         totals = self.budget.totals(now=100000 + 100 * MODULE.DAY_SECONDS)
@@ -484,6 +661,111 @@ class BudgetTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.CanaryError, "daily_budget_exhausted"):
             self.budget.reserve(self.active(5), now=11 * MODULE.WINDOW_SECONDS)
         self.assertEqual(len(self.budget.value["entries"]), 4)
+
+
+class EvidenceRetryTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.runner = MODULE.Canary.__new__(MODULE.Canary)
+        self.runner.directory = Path(self.temporary.name)
+        self.runner.record = {"stage": "ssh_identity", "run_id": "10000000-0000-4000-8000-000000000001"}
+        self.runner.active = {"job_id": "10000000-0000-4000-8000-000000000002"}
+        self.runner.config = {"poll_secs": 1, "command_timeout_secs": 45, "ssh_private_key": "fixture",
+                              "expected_gpu_model": "L40S", "min_gpu_memory_mib": 1024}
+        self.runner.env = {}
+        self.runner.readiness_deadline = 3
+        self.clock = [0.0]
+        self.runner.checkpoint = lambda stage: self.runner.record.update(stage=stage)
+        self.runner.save_active = Mock()
+        self.view = {"status": "accepted", "access": {"endpoint": "ssh root@gpu.example.com -p 22"}}
+        self.runner.view = Mock(return_value=self.view)
+        self.evidence = {"provider_instance_id": "vast:123",
+                         "binding": {"verified": True, "source": "provider_authenticated", "job_id": self.runner.active["job_id"]},
+                         "ssh": {"host": "gpu.example.com", "port": 22, "user": "root",
+                                 "public_key": "ssh-ed25519 " + base64.b64encode(b"a" * 64).decode()}}
+        self.monotonic = patch.object(MODULE.time, "monotonic", side_effect=lambda: self.clock[0])
+        self.sleep = patch.object(MODULE.time, "sleep", side_effect=lambda seconds: self.clock.__setitem__(0, self.clock[0] + seconds))
+        self.monotonic.start(); self.sleep.start()
+
+    def tearDown(self):
+        self.sleep.stop(); self.monotonic.stop(); self.temporary.cleanup()
+
+    def test_pending_copy_then_missing_marker_then_same_lease_success(self):
+        self.runner.evidence = Mock(side_effect=[MODULE.CanaryError("provider_log_not_ready"),
+                                                 MODULE.CanaryError("provider_marker_not_ready"), self.evidence])
+        self.runner.run_process = Mock(return_value=(0, "GPU-fixture, L40S, 45000\n", ""))
+        self.runner.probe(self.view)
+        self.assertTrue(self.runner.record["gpu_probe_verified"])
+        self.assertEqual(self.runner.evidence.call_count, 3)
+        self.assertEqual(self.runner.view.call_count, 2)
+        self.assertEqual(self.runner.readiness_deadline, 3)
+        self.assertEqual(self.clock[0], 2)
+        self.assertEqual(self.runner.run_process.call_count, 1)  # strict SSH only
+
+    def test_missing_marker_cannot_reset_original_deadline(self):
+        self.runner.evidence = Mock(side_effect=MODULE.CanaryError("provider_marker_not_ready"))
+        self.runner.run_process = Mock()
+        with self.assertRaisesRegex(MODULE.CanaryError, "readiness_timeout"):
+            self.runner.probe(self.view)
+        self.assertEqual(self.clock[0], 3)
+        self.assertEqual(self.runner.evidence.call_count, 3)
+        self.runner.run_process.assert_not_called()
+
+    def test_mismatch_conflict_http_and_unknown_errors_never_retry(self):
+        for code in ("provider_marker_conflict", "provider_marker_mismatch", "provider_http_error",
+                     "provider_evidence_invalid", "provider_unavailable", "subprocess_failed"):
+            self.runner.evidence = Mock(side_effect=MODULE.CanaryError(code))
+            with self.subTest(code=code), self.assertRaisesRegex(MODULE.CanaryError, code):
+                self.runner.probe(self.view)
+            self.assertEqual(self.runner.evidence.call_count, 1)
+            self.runner.view.assert_not_called()
+        self.assertEqual(self.clock[0], 0)
+
+    def test_changed_or_terminal_lease_stops_retry_before_second_evidence(self):
+        for current, reason in (({"status": "completed"}, "lease_ended_before_probe"),
+                                ({"status": "accepted", "access": {"endpoint": "ssh root@evil.example.com -p 22"}}, "ssh_endpoint_binding_mismatch")):
+            self.clock[0] = 0
+            self.runner.evidence = Mock(side_effect=MODULE.CanaryError("provider_marker_not_ready"))
+            self.runner.view.return_value = current
+            with self.subTest(reason=reason), self.assertRaisesRegex(MODULE.CanaryError, reason):
+                self.runner.probe(self.view)
+            self.assertEqual(self.runner.evidence.call_count, 1)
+
+    def test_readiness_subprocess_bound_does_not_restrict_cleanup(self):
+        self.clock[0] = 2.75
+        with patch.object(MODULE.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "{}", "")) as run:
+            self.runner.run_process(["offline"])
+            self.assertEqual(run.call_args.kwargs["timeout"], .25)
+            self.clock[0] = 4
+            with self.assertRaisesRegex(MODULE.CanaryError, "readiness_timeout"):
+                self.runner.run_process(["offline"])
+            self.assertEqual(run.call_count, 1)
+            self.runner.record["stage"] = "provider_cleanup"
+            self.runner.run_process(["offline"])
+            self.assertEqual(run.call_args.kwargs["timeout"], 45)
+
+    def test_error_contract_rejects_injection_duplicates_unknown_and_extra_fields(self):
+        valid = '{"version":1,"verified":false,"error_code":"provider_marker_conflict"}'
+        invalid = [valid + " secret", valid.replace('"version":1', '"version":true'),
+                   valid.replace('"version":1', '"version":1,"version":1'),
+                   valid.replace('"verified":false', '"verified":false,"secret":"token"'),
+                   valid.replace("provider_marker_conflict", "https://secret.example/token"),
+                   "secret" * 300, "[]", "null", "{}"]
+        for error in invalid:
+            self.runner.run_process = Mock(return_value=(1, "private stdout", error))
+            with self.subTest(error=error[:40]), self.assertRaisesRegex(MODULE.CanaryError, "subprocess_failed"):
+                self.runner.json_process(["offline"], evidence_errors=True)
+            self.assertNotIn("evidence_error_code", self.runner.record)
+        self.runner.run_process = Mock(return_value=(1, "private stdout", valid))
+        with self.assertRaisesRegex(MODULE.CanaryError, "provider_marker_conflict"):
+            self.runner.json_process(["offline"], evidence_errors=True)
+        self.assertEqual(self.runner.record["evidence_error_code"], "provider_marker_conflict")
+        self.assertNotIn("secret", json.dumps(self.runner.record))
+        with self.assertRaisesRegex(MODULE.CanaryError, "subprocess_failed"):
+            self.runner.json_process(["cli"])
+        self.runner.run_process = Mock(return_value=(-1, "", valid))
+        with self.assertRaisesRegex(MODULE.CanaryError, "subprocess_timeout"):
+            self.runner.json_process(["offline"], evidence_errors=True)
 
 
 class WindowTests(unittest.TestCase):

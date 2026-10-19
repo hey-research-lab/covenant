@@ -36,6 +36,11 @@ PRIVATE_RUN_LIMIT = 1024
 TERMINAL = {"completed", "failed", "refunded", "rejected", "cancelled"}
 GPU_PROBE = "nvidia-smi --query-gpu=uuid,name,memory.total --format=csv,noheader,nounits"
 JOB_IN_STDERR = re.compile(r"lease ([0-9a-f-]{36}) opened —")
+EVIDENCE_ERROR_CODES = {"provider_evidence_invalid", "provider_http_error", "provider_unavailable",
+                        "provider_log_not_ready", "provider_marker_not_ready",
+                        "provider_marker_mismatch", "provider_marker_conflict"}
+PENDING_ACCESS_CODES = {"provider_log_not_ready", "provider_marker_not_ready"}
+INTERNAL_NO_CHECK_REASONS = {"another_canary_is_running", "no_unresolved_rental"}
 
 
 class CanaryError(Exception):
@@ -202,12 +207,22 @@ class Budget:
         entries = self.value.get("entries")
         if not isinstance(entries, list) or len(entries) > 128:
             raise CanaryError("invalid_budget_journal", "blocked")
-        ids = set()
+        ids, retry_sources = set(), set()
+        previous = None
         for entry in entries:
             job = entry.get("job_id")
             if not isinstance(job, str) or str(uuid.UUID(job)) != job or job in ids:
                 raise CanaryError("invalid_budget_journal", "blocked")
             ids.add(job)
+            retry_of = entry.get("retry_of_job_id")
+            if retry_of is not None:
+                if (previous is None or retry_of != previous["job_id"] or retry_of in retry_sources
+                        or previous.get("retry_of_job_id") is not None
+                        or previous.get("resolved_at_unix") is None
+                        or entry.get("active", {}).get("retry_of_job_id") != retry_of
+                        or entry.get("reserved_at_unix", -1) // WINDOW_SECONDS != previous["reserved_at_unix"] // WINDOW_SECONDS):
+                    raise CanaryError("invalid_acceptance_retry_journal", "blocked")
+                retry_sources.add(retry_of)
             for name in ("reserved_at_unix", "buyer_reserved_micro_usdc", "provider_reserved_micro_usd", "fee_reserved_micro_usd", "storage_reserved_micro_usd", "counted_micro_usd"):
                 integer(entry.get(name), "budget_" + name)
             if entry.get("resolved_at_unix") is not None:
@@ -215,6 +230,7 @@ class Budget:
             floor = entry["provider_reserved_micro_usd"] + entry["fee_reserved_micro_usd"] + entry["storage_reserved_micro_usd"]
             if entry["counted_micro_usd"] < floor or (entry.get("resolved_at_unix") is None and entry["counted_micro_usd"] < floor + entry["buyer_reserved_micro_usdc"]):
                 raise CanaryError("invalid_budget_journal", "blocked")
+            previous = entry
         if sum(entry.get("resolved_at_unix") is None for entry in entries) > 1:
             raise CanaryError("multiple_unresolved_rentals", "blocked")
 
@@ -240,7 +256,50 @@ class Budget:
             return "daily_budget_exhausted"
         return None
 
-    def reserve(self, active, now=None):
+    def check_acceptance_retry(self, job_id, now=None):
+        """One explicit release retry; never a scheduler or recovery policy."""
+        now = int(time.time()) if now is None else now
+        try:
+            valid_id = isinstance(job_id, str) and str(uuid.UUID(job_id)) == job_id and uuid.UUID(job_id).int != 0
+        except ValueError:
+            valid_id = False
+        if not valid_id:
+            raise CanaryError("invalid_acceptance_retry_job", "blocked")
+        reason = self.pause_reason(now)
+        if reason:
+            raise CanaryError(reason, "blocked")
+        entries = self.value["entries"]
+        if (not entries or entries[-1]["job_id"] != job_id or entries[-1].get("retry_of_job_id") is not None
+                or any(entry.get("retry_of_job_id") == job_id for entry in entries)):
+            raise CanaryError("acceptance_retry_not_latest_unused", "blocked")
+        prior = entries[-1]
+        if prior["reserved_at_unix"] // WINDOW_SECONDS != now // WINDOW_SECONDS:
+            raise CanaryError("acceptance_retry_wrong_window", "blocked")
+        try:
+            run_id = prior["run_id"]
+            if str(uuid.UUID(run_id)) != run_id:
+                raise ValueError()
+            record = read_json(self.path.parent / "runs" / (run_id + ".json"))
+            active = prior["active"]
+            charged = integer(record.get("charged_micro_usdc"), "retry_charge", maximum=prior["buyer_reserved_micro_usdc"])
+            floor = sum(prior[name] for name in ("provider_reserved_micro_usd", "fee_reserved_micro_usd", "storage_reserved_micro_usd"))
+            valid = (record.get("version") == 1 and record.get("run_id") == run_id and record.get("job_id") == job_id
+                     and record.get("verdict") == "failed" and record.get("recovery_only") is not True
+                     and record.get("settlement_verdict") == "verified_onchain"
+                     and all(record.get(name) is True for name in ("settlement_verified_onchain", "balance_reconciled", "provider_cleanup_verified"))
+                     and type(record.get("finished_at_unix")) is int
+                     and prior["reserved_at_unix"] <= prior["resolved_at_unix"] <= record["finished_at_unix"] <= now
+                     and active.get("job_id") == job_id and active.get("run_id") == run_id
+                     and active.get("launch_pending") is False and active.get("settlement_verified") is True
+                     and active.get("cleanup_verified") is True and active.get("charged_micro_usdc") == charged
+                     and record.get("refunded_micro_usdc") == prior["buyer_reserved_micro_usdc"] - charged
+                     and prior["counted_micro_usd"] == charged + floor)
+            if not valid:
+                raise ValueError()
+        except (OSError, ValueError, TypeError, KeyError, CanaryError):
+            raise CanaryError("acceptance_retry_prior_not_verified_failed", "blocked") from None
+
+    def reserve(self, active, now=None, acceptance_retry_of=None):
         now = int(time.time()) if now is None else now
         reason = self.pause_reason(now)
         if reason:
@@ -248,7 +307,10 @@ class Budget:
         entries = self.value["entries"]
         if len(entries) >= 128:
             raise CanaryError("pilot_entry_limit", "blocked")
-        if entries and now // WINDOW_SECONDS <= max(e["reserved_at_unix"] // WINDOW_SECONDS for e in entries):
+        if acceptance_retry_of is not None:
+            self.check_acceptance_retry(acceptance_retry_of, now)
+            active["retry_of_job_id"] = acceptance_retry_of
+        elif entries and now // WINDOW_SECONDS <= max(e["reserved_at_unix"] // WINDOW_SECONDS for e in entries):
             raise CanaryError("window_already_reserved", "blocked")
         entry = {"job_id": active["job_id"], "run_id": active["run_id"], "reserved_at_unix": now,
                  "buyer_reserved_micro_usdc": self.config["lease_ceiling"],
@@ -256,6 +318,8 @@ class Budget:
                  "fee_reserved_micro_usd": self.config["fee_reservation_micro_usd"],
                  "storage_reserved_micro_usd": self.config["storage_reservation_micro_usd"],
                  "counted_micro_usd": self.config["operating_ceiling"], "resolved_at_unix": None, "active": active}
+        if acceptance_retry_of is not None:
+            entry["retry_of_job_id"] = acceptance_retry_of
         entries.append(entry)
         self.save()  # contains the complete recovery record BEFORE any paid command
 
@@ -296,6 +360,8 @@ class Canary:
         self.directory, self.config, self.record = directory, config, record
         self.active_path = directory / "active.json"
         self.active = None
+        self.readiness_deadline = None
+        self.acceptance_retry_of = None
         self.budget = Budget(directory, config)
         self.env = dict(os.environ)
         self.env.update({
@@ -313,10 +379,16 @@ class Canary:
 
     def run_process(self, argv, payload=None):
         # No shell, no credentials in diagnostics or persisted stdout/stderr.
+        timeout = self.config["command_timeout_secs"]
+        if self.readiness_deadline is not None and self.record["stage"] in {"ready", "ssh_identity"}:
+            remaining = self.readiness_deadline - time.monotonic()
+            if remaining <= 0:
+                raise CanaryError("readiness_timeout")
+            timeout = min(timeout, remaining)
         try:
             result = subprocess.run(argv, input=None if payload is None else json.dumps(payload),
                                     text=True, capture_output=True, env=self.env,
-                                    timeout=self.config["command_timeout_secs"], check=False)
+                                    timeout=timeout, check=False)
         except subprocess.TimeoutExpired as error:
             return -1, self.text(error.stdout), self.text(error.stderr)
         except OSError:
@@ -329,9 +401,30 @@ class Canary:
     def text(value):
         return value.decode("utf-8", "replace") if isinstance(value, bytes) else (value or "")
 
-    def json_process(self, argv, payload=None):
-        code, output, _ = self.run_process(argv, payload)
+    def json_process(self, argv, payload=None, evidence_errors=False):
+        code, output, error = self.run_process(argv, payload)
         if code != 0:
+            # Only the evidence adapter's exact, bounded contract is accepted.
+            # Never retain raw stderr, messages, URLs or arbitrary reason text.
+            if evidence_errors and code != -1 and isinstance(error, str) and len(error) <= 1024:
+                try:
+                    def unique(pairs):
+                        result = {}
+                        for key, value in pairs:
+                            if key in result:
+                                raise ValueError()
+                            result[key] = value
+                        return result
+                    diagnostic = json.loads(error, object_pairs_hook=unique)
+                    if (isinstance(diagnostic, dict) and set(diagnostic) == {"version", "verified", "error_code"}
+                            and type(diagnostic["version"]) is int and diagnostic["version"] == 1
+                            and diagnostic["verified"] is False
+                            and isinstance(diagnostic["error_code"], str)
+                            and diagnostic["error_code"] in EVIDENCE_ERROR_CODES):
+                        self.record["evidence_error_code"] = diagnostic["error_code"]
+                        raise CanaryError(diagnostic["error_code"])
+                except (ValueError, TypeError):
+                    pass
             raise CanaryError("subprocess_timeout" if code == -1 else "subprocess_failed")
         try:
             return json.loads(output)
@@ -348,7 +441,7 @@ class Canary:
             request.update({"job_id": self.active.get("job_id"),
                             "provider_instance_id": self.active.get("provider_instance_id"),
                             "lease_view": view})
-        evidence = self.json_process(self.config["evidence_command"], request)
+        evidence = self.json_process(self.config["evidence_command"], request, evidence_errors=True)
         if not isinstance(evidence, dict) or evidence.get("version") != 1 or evidence.get("operation") != operation:
             raise CanaryError("invalid_evidence", "blocked")
         if operation != "preflight":
@@ -411,11 +504,14 @@ class Canary:
                        "buyer_home": self.config["buyer_home"], "launch_started_unix": time.time(),
                        "lease_ceiling": self.config["lease_ceiling"], "balance_before": balance,
                        "launch_pending": True}
-        self.budget.reserve(active)
+        self.budget.reserve(active, acceptance_retry_of=self.acceptance_retry_of)
         self.active = active
         self.record["job_id"] = job_id
         self.save_active()
         self.checkpoint("launch")
+        # One deadline covers dispatch, coordinator readiness and authenticated
+        # host-log readiness; retries cannot start a fresh readiness allowance.
+        self.readiness_deadline = time.monotonic() + self.config["readiness_timeout_secs"]
         args = ["lease", "open", "--job-id", job_id, "--duration-secs", str(self.config["duration_secs"]),
                 "--rate", str(self.config["rate_micro_usdc_per_sec"]), "--ssh-key", self.config["ssh_public_key"],
                 "--min-vram-gb", str(self.config["min_vram_gb"]), "--no-wait", "--json"]
@@ -460,11 +556,32 @@ class Canary:
             if view.get("status") in TERMINAL:
                 raise CanaryError("lease_ended_before_probe")
             return view if view.get("access") else None
-        return self.poll(self.config["readiness_timeout_secs"], check)
+        return self.poll(max(0, self.readiness_deadline - time.monotonic()), check)
 
     def probe(self, view):
         self.checkpoint("ssh_identity")
-        evidence = self.evidence("access", view)
+        while True:
+            if time.monotonic() >= self.readiness_deadline:
+                raise CanaryError("readiness_timeout")
+            try:
+                evidence = self.evidence("access", view)
+                if time.monotonic() >= self.readiness_deadline:
+                    raise CanaryError("readiness_timeout")
+                break
+            except CanaryError as error:
+                if error.code not in PENDING_ACCESS_CODES:
+                    raise
+                remaining = self.readiness_deadline - time.monotonic()
+                if remaining <= 0:
+                    raise
+                time.sleep(min(self.config["poll_secs"], remaining))
+                # Recheck the same lease before another read-only evidence call.
+                # Never open/resubmit a job or accept a changed endpoint.
+                current = self.view()
+                if current.get("status") in TERMINAL:
+                    raise CanaryError("lease_ended_before_probe")
+                if current.get("access") != view.get("access"):
+                    raise CanaryError("ssh_endpoint_binding_mismatch", "blocked")
         instance = evidence.get("provider_instance_id")
         if not isinstance(instance, str) or not instance:
             raise CanaryError("missing_provider_identity", "blocked")
@@ -595,7 +712,7 @@ class Canary:
             self.active["provider_cost_micro_usd"] = integer(evidence.get("provider_cost_micro_usd"), "provider_cost_micro_usd")
         self.save_active()
 
-    def run(self, preflight_only, recover_only=False):
+    def run(self, preflight_only, recover_only=False, acceptance_retry_of=None):
         self.active = self.budget.active()
         if self.active_path.exists():
             secondary = read_json(self.active_path)
@@ -604,6 +721,10 @@ class Canary:
                 raise CanaryError("orphan_active_record", "blocked")
             if self.active is None:
                 self.active_path.unlink()  # resolved atomically before a previous interrupted unlink
+        if acceptance_retry_of is not None:
+            self.budget.check_acceptance_retry(acceptance_retry_of)
+            self.acceptance_retry_of = acceptance_retry_of
+            self.record["retry_of_job_id"] = acceptance_retry_of
         if self.active:
             if self.active.get("coordinator_url") != self.config["coordinator_url"] or self.active.get("buyer_home") != self.config["buyer_home"]:
                 raise CanaryError("active_rental_config_mismatch", "blocked")
@@ -641,6 +762,7 @@ class Canary:
             try:
                 operation()
             except Exception as error:
+                self.record.setdefault("failure_stage", self.record["stage"])
                 errors.append(error.code if isinstance(error, CanaryError) else type(error).__name__)
         if self.active.get("settlement_verified") and self.active.get("cleanup_verified"):
             self.budget.resolve(self.active, self.active["charged_micro_usdc"], self.active.get("provider_cost_micro_usd"))
@@ -712,11 +834,14 @@ def public_run(record):
     if verdict == "preflight_only":
         verdict, reason = "blocked", "preflight_only"
     reason = reason if isinstance(reason, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,79}", reason) else None
+    stage = record.get("stage")
+    if verdict in {"failed", "blocked"} and record.get("failure_stage") in PUBLIC_STAGES:
+        stage = record["failure_stage"]
     row = {"run_id": run_id, "job_id": valid_uuid(record.get("job_id")),
            "started_at_unix": integer(record.get("started_at_unix"), "started_at_unix"),
            "finished_at_unix": None if record.get("finished_at_unix") is None else integer(record["finished_at_unix"], "finished_at_unix"),
            "verdict": verdict if verdict in PUBLIC_VERDICTS else "failed",
-           "stage": record.get("stage") if record.get("stage") in PUBLIC_STAGES else "configuration",
+           "stage": stage if stage in PUBLIC_STAGES else "configuration",
            "reason": reason, "gpu_model": None}
     model = record.get("gpu_model")
     if isinstance(model, str) and re.fullmatch(r"[A-Za-z0-9 ._()+/-]{1,80}", model):
@@ -737,7 +862,7 @@ def monitor_state(records, created_at, now, enabled=True, last_success_window=No
     """
     by_window, last_success = {}, last_success_at
     for row in records:
-        if row.get("verdict") == "preflight_only" or row.get("reason") in {"another_canary_is_running", "window_already_reserved", "preflight_only"}:
+        if row.get("verdict") == "preflight_only" or row.get("reason") in INTERNAL_NO_CHECK_REASONS | {"window_already_reserved", "preflight_only"}:
             continue
         if row.get("finished_at_unix") is None:
             continue
@@ -784,6 +909,9 @@ def publish_public_state(state_dir, config, enabled=True, next_due=None):
             pause = "daily_budget_exhausted"
         enabled = bool(enabled and pause not in PAUSES)
         records = [read_json(path) for path in (directory / "runs").glob("*.json")]
+        # Internal lock contention and empty recovery checks are not rental
+        # attempts. Keep their private verdicts without hiding the actual check.
+        records = [row for row in records if row.get("reason") not in INTERNAL_NO_CHECK_REASONS]
         records.sort(key=lambda r: (r["started_at_unix"], r.get("finished_at_unix") or now, r["run_id"]), reverse=True)
         rows = [public_run(row) for row in records[:HISTORY_LIMIT]]
         monitor = monitor_state(records, journal["created_at_unix"], now, enabled,
@@ -833,6 +961,7 @@ def main(argv=None):
     parser.add_argument("--state-dir", required=True)
     parser.add_argument("--preflight", action="store_true", help="read-only; never a passing rental verdict")
     parser.add_argument("--once", action="store_true", help="one run or recovery; never a background scheduler")
+    parser.add_argument("--acceptance-retry-of", help="with --once only: one explicit same-window retry of an exactly verified failed rental")
     parser.add_argument("--recover-only", action="store_true", help="reconcile an existing rental; never authorize a new one")
     parser.add_argument("--monitor", action="store_true", help="publish heartbeat and check missing windows; never rent")
     parser.add_argument("--disabled", action="store_true", help="with --monitor, publish intentionally disabled scheduling")
@@ -842,7 +971,7 @@ def main(argv=None):
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "runs").mkdir(exist_ok=True)
     if args.monitor:
-        if args.preflight or args.once or args.recover_only:
+        if args.preflight or args.once or args.recover_only or args.acceptance_retry_of:
             parser.error("--monitor cannot be combined with --once or --preflight")
         try:
             state = monitor_once(directory, load_config(args.config), enabled=not args.disabled)
@@ -862,6 +991,8 @@ def main(argv=None):
         signal.signal(signum, interrupted)
     atomic_json(directory / "runs" / (record["run_id"] + ".json"), record)
     try:
+        if args.acceptance_retry_of is not None and (not args.once or args.preflight or args.recover_only):
+            raise CanaryError("acceptance_retry_requires_once", "blocked")
         lock = open(directory / "run.lock", "a")
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -869,8 +1000,9 @@ def main(argv=None):
         except BlockingIOError:
             raise CanaryError("another_canary_is_running", "blocked") from None
         runner = Canary(directory, load_config(args.config), record)
-        runner.run(args.preflight, args.recover_only)
+        runner.run(args.preflight, args.recover_only, args.acceptance_retry_of)
     except (Exception, KeyboardInterrupt) as error:
+        record["failure_stage"] = record["stage"]
         record["verdict"] = error.verdict if isinstance(error, CanaryError) else "failed"
         record["reason"] = error.code if isinstance(error, CanaryError) else type(error).__name__
     finally:
@@ -882,6 +1014,7 @@ def main(argv=None):
             try:
                 errors = runner.reconcile()
             except Exception as error:
+                record.setdefault("failure_stage", record["stage"])
                 errors = [error.code if isinstance(error, CanaryError) else type(error).__name__]
             if errors:
                 record["reconciliation_errors"] = errors

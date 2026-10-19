@@ -298,6 +298,26 @@ describe('RunStore', () => {
     expect(() => store.save(run({ status: 'completed' }))).toThrow(/persistence failed/);
     expect(store.persistenceReady).toBe(false);
   });
+
+  it('retains a pinned non-GPU session through pruning and restart', () => {
+    const path = storePath();
+    const key = 'a'.repeat(64);
+    const fingerprint = 'b'.repeat(64);
+    const store = new RunStore(path, key);
+    store.save(run({ id: 'pinned', sessionId: key, requestFingerprint: fingerprint }));
+    for (let index = 0; index < 101; index += 1) {
+      store.save(
+        run({
+          id: `other-${index}`,
+          updatedAt: new Date(Date.UTC(2026, 7, 23, 0, 0, index)).toISOString(),
+        }),
+      );
+    }
+    expect(store.list()).toHaveLength(100);
+    const restored = new RunStore(path, key);
+    expect(restored.replay(key, fingerprint)).toMatchObject({ id: 'pinned', status: 'failed' });
+    expect(() => restored.replay(key, 'c'.repeat(64))).toThrow(IdempotencyConflictError);
+  });
 });
 
 function storePath(): string {

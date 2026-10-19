@@ -70,15 +70,18 @@ async function boot(
     failTerminalPersist?: boolean;
     recovered?: boolean;
     stored?: unknown[];
+    allowedRunKey?: string;
+    directory?: string;
   } = {},
 ) {
   vi.resetModules();
-  const directory = mkdtempSync(join(tmpdir(), 'gpu-server-'));
-  directories.push(directory);
+  const directory = options.directory ?? mkdtempSync(join(tmpdir(), 'gpu-server-'));
+  if (!options.directory) directories.push(directory);
   const runPath = join(directory, 'runs.json');
   for (const [name, value] of Object.entries({
     NODE_ENV: 'test',
     CODER_AUTH_TOKEN: options.auth ?? token,
+    CODER_ALLOWED_RUN_KEY: options.allowedRunKey,
     CODER_BACKEND: 'anthropic',
     CODER_MODEL: 'claude-sonnet-4-6',
     ANTHROPIC_API_KEY: 'unused-provider-test-key',
@@ -229,6 +232,7 @@ async function boot(
     createSandbox,
     check,
     runPath,
+    directory,
     setReady(value: boolean) {
       ready = value;
     },
@@ -252,6 +256,71 @@ const request = (id: string, gpu = true) => ({
 });
 
 describe('GPU gateway authorization and lifecycle', () => {
+  it('rejects every different run key before readiness, reservation, or provider work', async () => {
+    const gateway = await boot({ allowedRunKey: 'a'.repeat(64) });
+    gateway.setReady(false);
+    for (const gpu of [true, false]) {
+      const response = await gateway.post(request('b'.repeat(64), gpu));
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({
+        error: 'run key is not authorized for this gateway',
+      });
+    }
+    expect(gateway.check).not.toHaveBeenCalled();
+    expect(gateway.createSandbox).not.toHaveBeenCalled();
+    expect(gateway.backend).not.toHaveBeenCalled();
+    expect(gateway.launch).not.toHaveBeenCalled();
+    expect(JSON.parse(readFileSync(gateway.runPath, 'utf8'))).toEqual([]);
+    expect(await (await gateway.get('/v1/budget')).json()).toMatchObject({
+      reserved: 0,
+      active: 0,
+      dailyUsd: 0,
+    });
+  });
+
+  it('replays the pinned run across restart without a new sandbox, model turn, or GPU booking', async () => {
+    const key = 'a'.repeat(64);
+    const body = request(key);
+    const gateway = await boot({ allowedRunKey: key });
+    const response = await gateway.post(body);
+    expect(response.status).toBe(200);
+    const { run_id } = (await response.json()) as { run_id: string };
+    await untilStatus(gateway, run_id, 'stopping');
+    const replay = await gateway.post(body);
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual({ run_id });
+    expect((await gateway.post({ ...body, input: 'different work' })).status).toBe(409);
+    gateway.reports.set(key, settled(key));
+    await gateway.reconcileCompute();
+    await untilStatus(gateway, run_id, 'completed');
+    expect(gateway.createSandbox).toHaveBeenCalledOnce();
+    expect(gateway.backend).toHaveBeenCalledOnce();
+    expect(gateway.launch).toHaveBeenCalledOnce();
+    gateway.server.closeAllConnections();
+    await new Promise<void>((resolve) => gateway.server.close(() => resolve()));
+
+    const restarted = await boot({
+      allowedRunKey: key,
+      directory: gateway.directory,
+      enabled: false,
+    });
+    restarted.setReady(false);
+    const restored = await restarted.post(body);
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toEqual({ run_id });
+    expect((await restarted.post(request('b'.repeat(64)))).status).toBe(403);
+    expect((await restarted.post({ ...body, max_cost_usd: 0.6 })).status).toBe(409);
+    expect(restarted.check).not.toHaveBeenCalled();
+    expect(restarted.createSandbox).not.toHaveBeenCalled();
+    expect(restarted.backend).not.toHaveBeenCalled();
+    expect(restarted.launch).not.toHaveBeenCalled();
+    expect(await (await restarted.get('/v1/budget')).json()).toMatchObject({
+      reserved: 0,
+      active: 0,
+      dailyUsd: 0.13045,
+    });
+  });
+
   it('advertises GPU only after recovery, opt-in, and authentication configuration', async () => {
     const gateway = await boot({ recovered: false });
     expect(await (await gateway.get('/v1/capabilities')).json()).toMatchObject({

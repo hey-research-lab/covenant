@@ -3,10 +3,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
+import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {createSmokeRpc,MAINNET_GENESIS} from './smoke-rpc.mjs';
 import {validateImage,smokeEnvironment,verifyHealth,fixtureDiagnostics} from './smoke.mjs';
-import {closedDiscovery,verifyClosedDiscovery} from './smoke.mjs';
+import {closedDiscovery,verifyClosedDiscovery,brandingReads,readSmokeResponse,smoke} from './smoke.mjs';
 const revision='a'.repeat(40),image=`ghcr.io/open-covenant/covenant/compute-node-public@sha256:${'b'.repeat(64)}`;
 test('container qualification requires immutable package and exact revision',()=>{
  validateImage(image,revision);
@@ -57,6 +58,66 @@ test('closed discovery smoke performs only three public GETs and requires no-sto
   if(url.endsWith('/openapi.json'))response.body.paths={'/v1/chat/completions':{post:{}}};
   return response;
  }));
+});
+test('branding smoke verifies official binaries and canonical metadata with only bounded GET/HEAD reads',async()=>{
+ const assetRoot=new URL('../../agent-os/crates/covenant-compute-gateway/src/branding/',import.meta.url);
+ const definitions=[
+  ['/', 'index.html','text/html; charset=utf-8',false],
+  ['/favicon.ico','favicon.ico','image/x-icon',false],
+  ['/brand/covenant-icon-02026997.png','covenant-icon-02026997.png','image/png',true],
+  ['/brand/covenant-banner-4b58cf6c.png','covenant-banner-4b58cf6c.png','image/png',true],
+  ['/brand/style.css','style.css','text/css; charset=utf-8',false],
+ ];
+ const fixtures=new Map(await Promise.all(definitions.map(async([route,file,type,immutable])=>{
+  let bytes=await readFile(new URL(file,assetRoot));
+  if(route==='/')bytes=Buffer.from(bytes.toString('utf8').replaceAll('{{ORIGIN}}','https://smoke.invalid'));
+  return [route,{status:200,bodyBase64:bytes.toString('base64'),contentLength:String(bytes.length),contentType:type,paymentRequired:false,
+   cacheControl:immutable?'public, max-age=31536000, immutable':'public, max-age=300',
+   contentSecurityPolicy:"default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",noSniff:'nosniff',referrerPolicy:'no-referrer'}];
+ })));
+ const calls=[];
+ const http=async(url,options,encoding,maximum)=>{
+  assert.equal(new URL(url).origin,'http://127.0.0.1:10000');
+  assert.deepEqual(options.headers,{host:'attacker.invalid'});assert.equal(encoding,'base64');
+  assert(Number.isSafeInteger(maximum)&&maximum>0&&maximum<=162000);
+  assert(['GET','HEAD'].includes(options.method));assert.equal(options.body,undefined);
+  const route=new URL(url).pathname;calls.push([route,options.method]);
+  const response={...fixtures.get(route)};
+  if(options.method==='HEAD')response.bodyBase64='';
+  return response;
+ };
+ await brandingReads(http);
+ assert.deepEqual(calls,definitions.flatMap(([route])=>[[route,'GET'],[route,'HEAD']]));
+ for(const mutation of [
+  (r,route,method)=>{if(route==='/'&&method==='GET')r.bodyBase64=Buffer.from(Buffer.from(r.bodyBase64,'base64').toString().replaceAll('https://smoke.invalid','https://attacker.invalid')).toString('base64');},
+  (r,route,method)=>{if(route.includes('icon-')&&method==='GET'){const bytes=Buffer.from(r.bodyBase64,'base64');bytes[0]^=1;r.bodyBase64=bytes.toString('base64');}},
+  r=>{r.contentType='application/octet-stream';},r=>{r.cacheControl='no-store';},
+  r=>{r.contentSecurityPolicy="default-src *";},r=>{r.noSniff=null;},r=>{r.paymentRequired=true;},
+  (r,route,method)=>{if(method==='HEAD')r.bodyBase64=Buffer.from('unexpected body').toString('base64');},
+  (r,route,method)=>{if(route==='/'&&method==='GET'){r.bodyBase64=Buffer.alloc(8193).toString('base64');r.contentLength='8193';}},
+ ]){
+  await assert.rejects(brandingReads(async(url,...args)=>{
+   const response=await http(url,...args);mutation(response,new URL(url).pathname,args[0].method);return response;
+  }));
+ }
+});
+test('HTTP smoke transport bounds advertised and streamed bodies before parsing',async()=>{
+ const json=await readSmokeResponse(new Response('{"ok":true}',{headers:{'content-type':'application/json'}}));
+ assert.deepEqual(json.body,{ok:true});
+ const binary=await readSmokeResponse(new Response(Uint8Array.of(0,128,255)),'base64',3);
+ assert.equal(binary.bodyBase64,'AID/');
+ assert.equal((await readSmokeResponse(new Response(null,{headers:{'content-length':'3'}}),'base64',3)).bodyBase64,'');
+ await assert.rejects(readSmokeResponse(new Response('x',{headers:{'content-length':'4'}}),'base64',3),/body bound/);
+ await assert.rejects(readSmokeResponse(new Response('xxxx'),'base64',3),/body bound/);
+ await assert.rejects(readSmokeResponse(new Response('x'),'base64',262145),/bounds/);
+ await assert.rejects(readSmokeResponse(new Response('x'),'text',3),/bounds/);
+ let cancelled=false;
+ const streaming=new ReadableStream({pull(controller){controller.enqueue(new Uint8Array(2));},cancel(){cancelled=true;}});
+ await assert.rejects(readSmokeResponse(new Response(streaming),'base64',3),/body bound/);
+ assert.equal(cancelled,true);
+});
+test('branding smoke is an explicit boolean opt-in',async()=>{
+ await assert.rejects(smoke(image,revision,revision,false,'true'),/boolean/);
 });
 test('isolated RPC permits only genesis and counts forbidden dispatch attempts',async t=>{
  assert.throws(()=>createSmokeRpc('devnet'));

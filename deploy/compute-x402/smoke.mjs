@@ -70,6 +70,61 @@ export async function closedDiscovery(http){
   assert.equal(openapi.body.info.title,'Covenant Compute');
   assert.deepEqual(openapi.body.paths,{});
 }
+const BRANDING_CSP="default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const BRANDING_ROUTES=[
+  {path:'/',type:'text/html; charset=utf-8',maximum:8192,cache:'public, max-age=300'},
+  {path:'/favicon.ico',type:'image/x-icon',maximum:3000,cache:'public, max-age=300',sha:'2b5136747b64db4eba4bd7f43c41af6c970bdd4680f4d9c0af4854174c9e4d1a'},
+  {path:'/brand/covenant-icon-02026997.png',type:'image/png',maximum:56000,cache:'public, max-age=31536000, immutable',sha:'02026997226a417d29b16bd90b19893965217e0ed3d71b80daf7ab1cba10264a'},
+  {path:'/brand/covenant-banner-4b58cf6c.png',type:'image/png',maximum:162000,cache:'public, max-age=31536000, immutable',sha:'4b58cf6c68c0179b911953aef8dc1aac872860272de2ac0bd1db3104d7d11d4c'},
+  {path:'/brand/style.css',type:'text/css; charset=utf-8',maximum:4096,cache:'public, max-age=300'},
+];
+export async function brandingReads(http){
+  for(const route of BRANDING_ROUTES){
+    let length;
+    for(const method of ['GET','HEAD']){
+      const response=await http(`http://127.0.0.1:10000${route.path}`,{method,headers:{host:'attacker.invalid'}},'base64',route.maximum);
+      assert.equal(response.status,200);assert.equal(response.paymentRequired,false);
+      assert.equal(response.contentType,route.type);assert.equal(response.cacheControl,route.cache);
+      assert.equal(response.contentSecurityPolicy,BRANDING_CSP);assert.equal(response.noSniff,'nosniff');assert.equal(response.referrerPolicy,'no-referrer');
+      assert.equal(typeof response.bodyBase64,'string');
+      const bytes=Buffer.from(response.bodyBase64,'base64');
+      assert.equal(bytes.toString('base64'),response.bodyBase64,'Canonical binary transport required');
+      assert(bytes.length<=route.maximum,'Branding response exceeded bound');
+      if(method==='HEAD'){
+        assert.equal(bytes.length,0);assert.equal(response.contentLength,String(length));continue;
+      }
+      length=bytes.length;assert(length>0);assert.equal(response.contentLength,String(length));
+      if(route.sha)assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),route.sha,'Official branding asset changed');
+      if(route.path==='/'){
+        const html=bytes.toString('utf8');
+        for(const expected of ['<title>Covenant Compute</title>',
+          'rel="canonical" href="https://smoke.invalid/"',
+          'property="og:url" content="https://smoke.invalid/"',
+          'property="og:image" content="https://smoke.invalid/brand/covenant-banner-4b58cf6c.png"',
+          'property="og:image:width" content="3000"','property="og:image:height" content="1000"',
+          'rel="icon" href="/brand/covenant-icon-02026997.png" type="image/png" sizes="512x512"',
+          'href="/openapi.json"'])assert(html.includes(expected),'Canonical merchant metadata required');
+        for(const forbidden of ['attacker.invalid','{{ORIGIN}}','<script','<form'])assert(!html.includes(forbidden),'Unexpected merchant HTML');
+      }
+    }
+  }
+}
+// Serialized into the isolated image for HTTP checks. Keep it self-contained:
+// it uses only platform globals and enforces a bound while consuming the body.
+export async function readSmokeResponse(response,encoding='json',maximum=131072){
+  if(!['json','base64'].includes(encoding)||!Number.isSafeInteger(maximum)||maximum<1||maximum>262144)throw Error('Invalid smoke response bounds');
+  const advertised=response.headers.get('content-length');
+  if(advertised!==null&&(!/^\d+$/.test(advertised)||Number(advertised)>maximum))throw Error('Smoke response exceeded body bound');
+  const chunks=[];let length=0;
+  for await(const chunk of response.body??[]){
+    length+=chunk.byteLength;if(length>maximum)throw Error('Smoke response exceeded body bound');chunks.push(chunk);
+  }
+  const bytes=Buffer.concat(chunks,length);
+  return {status:response.status,...(encoding==='json'?{body:JSON.parse(bytes.toString('utf8'))}:{bodyBase64:bytes.toString('base64')}),
+    paymentRequired:response.headers.has('payment-required'),cacheControl:response.headers.get('cache-control'),
+    contentType:response.headers.get('content-type'),contentLength:advertised,contentSecurityPolicy:response.headers.get('content-security-policy'),
+    noSniff:response.headers.get('x-content-type-options'),referrerPolicy:response.headers.get('referrer-policy')};
+}
 async function docker(args,label){
   try{return (await exec('docker',args,{timeout:180_000,maxBuffer:2*1024*1024})).stdout.trim();}
   catch{throw Error(`Container smoke failed during ${label}`);}
@@ -101,15 +156,15 @@ async function mainnetObservation(){
   assert(response.ok,'Read-only mainnet genesis RPC unavailable');const result=await response.json();
   assert.equal(result.result,MAINNET_GENESIS,'Unexpected mainnet genesis');return result.result;
 }
-export async function smoke(image,revision,imageRevision=revision,discovery=false){
-  assert.equal(typeof discovery,'boolean');
+export async function smoke(image,revision,imageRevision=revision,discovery=false,branding=false){
+  assert.equal(typeof discovery,'boolean');assert.equal(typeof branding,'boolean');
   validateImage(image,revision);validateImage(image,imageRevision);process.umask(0o077);
   const genesis=await mainnetObservation(),temporary=await fs.mkdtemp(path.join(os.tmpdir(),'covenant-x402-smoke-'));
   const suffix=crypto.randomBytes(6).toString('hex'),network=`covenant-smoke-${suffix}`,volume=`covenant-smoke-${suffix}`,app=`covenant-gateway-${suffix}`,rpc=`covenant-rpc-${suffix}`;
   const envFile=path.join(temporary,'private.env');
   await fs.writeFile(envFile,Object.entries(smokeEnvironment()).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600});
-  const http=async(url,options={})=>{
-    const script=`const options=${JSON.stringify(options)};const r=await fetch(${JSON.stringify(url)},{...options,headers:{'cache-control':'no-cache',pragma:'no-cache',...options.headers},redirect:'error',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(3000)});process.stdout.write(JSON.stringify({status:r.status,body:await r.json(),paymentRequired:r.headers.has('payment-required'),cacheControl:r.headers.get('cache-control')}));`;
+  const http=async(url,options={},encoding='json',maximum=131072)=>{
+    const script=`const readSmokeResponse=${readSmokeResponse.toString()};const options=${JSON.stringify(options)};const r=await fetch(${JSON.stringify(url)},{...options,headers:{'cache-control':'no-cache',pragma:'no-cache',...options.headers},redirect:'error',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(3000)});process.stdout.write(JSON.stringify(await readSmokeResponse(r,${JSON.stringify(encoding)},${JSON.stringify(maximum)})));`;
     return JSON.parse(await docker(['exec','--user','node',app,'node','--input-type=module','-e',script],'private HTTP check'));
   };
   const ready=async()=>{
@@ -133,6 +188,7 @@ export async function smoke(image,revision,imageRevision=revision,discovery=fals
     await docker(['exec','--user','node',app,'node','deploy/compute-x402/operator-cli-check.mjs'],'packaged operator serving command');
     await docker(['exec','--user','node',app,'node','/smoke/state.mjs','record'],'private state recording');
     if(discovery)await closedDiscovery(http);
+    if(branding)await brandingReads(http);
     const refused=await http('http://127.0.0.1:10000/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'claude-haiku-4.5',messages:[{role:'user',content:'Never dispatch this smoke test'}],max_tokens:1})});
     assert.equal(refused.status,503);assert.equal(refused.paymentRequired,false);
     await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'initial read state continuity');
@@ -141,11 +197,12 @@ export async function smoke(image,revision,imageRevision=revision,discovery=fals
     await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'private state continuity');
     if(discovery){
       await closedDiscovery(http);
-      await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'restart discovery state continuity');
     }
+    if(branding)await brandingReads(http);
+    if(discovery||branding)await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'restart public reads state continuity');
     const audit=await http('http://smoke-rpc:14045/audit');
     assert.equal(audit.status,200);assert(audit.body.genesis>=2);assert.equal(audit.body.refused,0);assert.equal(audit.body.coordinator,0);
-    const result={image,revision,image_revision:imageRevision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,operator_cli_contract_verified:true,restart_state_preserved:true,closed_discovery_reads_verified:discovery,job_entries:0,paid_dispatches:0};
+    const result={image,revision,image_revision:imageRevision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,operator_cli_contract_verified:true,restart_state_preserved:true,closed_discovery_reads_verified:discovery,branding_reads_verified:branding,job_entries:0,paid_dispatches:0};
     if(process.env.GITHUB_STEP_SUMMARY)await fs.appendFile(process.env.GITHUB_STEP_SUMMARY,`\nContainer smoke passed: \`${image}\`\n\nExpected revision \`${revision}\`; 512MiB gateway cap; admissions disabled; persistent keys, seal and journal preserved across restart; zero paid dispatches.\n`);
     return result;
   }catch(error){
@@ -162,7 +219,8 @@ export async function smoke(image,revision,imageRevision=revision,discovery=fals
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   try{
     assert([undefined,'true','false'].includes(process.env.SMOKE_DISCOVERY),'SMOKE_DISCOVERY must be true or false');
-    console.log(JSON.stringify(await smoke(process.env.SMOKE_IMAGE,process.env.SMOKE_REVISION,process.env.SMOKE_IMAGE_REVISION??process.env.SMOKE_REVISION,process.env.SMOKE_DISCOVERY==='true')));
+    assert([undefined,'true','false'].includes(process.env.SMOKE_BRANDING),'SMOKE_BRANDING must be true or false');
+    console.log(JSON.stringify(await smoke(process.env.SMOKE_IMAGE,process.env.SMOKE_REVISION,process.env.SMOKE_IMAGE_REVISION??process.env.SMOKE_REVISION,process.env.SMOKE_DISCOVERY==='true',process.env.SMOKE_BRANDING==='true')));
   }
   catch(error){process.stderr.write(`${error instanceof assert.AssertionError?'Container smoke assertion failed':error.message}\n`);process.exitCode=1;}
 }

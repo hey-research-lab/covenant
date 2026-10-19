@@ -103,7 +103,7 @@ async function captureFiles(sandbox: {
 }
 
 assertProductionConfig();
-const runStore = new RunStore();
+const runStore = new RunStore(undefined, config.allowedRunKey);
 const runs = new Map<string, Run>(
   runStore
     .list()
@@ -1102,6 +1102,9 @@ export const server = createServer(async (req, res) => {
       const parsed = parseRunRequest(body);
       if (!parsed.ok) {
         return json(res, 400, { error: parsed.error });
+      }
+      if (config.allowedRunKey && parsed.value.session_id !== config.allowedRunKey) {
+        return json(res, 403, { error: 'run key is not authorized for this gateway' });
       }
       const fingerprint = runRequestFingerprint(parsed.value);
       const replay = runStore.replay(parsed.value.session_id, fingerprint);

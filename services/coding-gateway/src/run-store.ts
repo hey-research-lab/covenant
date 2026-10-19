@@ -58,7 +58,10 @@ export class RunStore {
   private readonly runs = new Map<string, StoredRun>();
   private persistenceError?: string;
 
-  constructor(private readonly path = process.env.RUN_STORE_PATH?.trim() || undefined) {
+  constructor(
+    private readonly path = process.env.RUN_STORE_PATH?.trim() || undefined,
+    private readonly pinnedSessionId?: string,
+  ) {
     this.load();
   }
 
@@ -170,7 +173,16 @@ export class RunStore {
     let pruned = false;
     while (ordered.length > MAX_RUNS || bytes > MAX_STORE_BYTES) {
       let index = ordered.length - 1;
-      while (index >= 0 && (!TERMINAL.has(ordered[index]!.status) || ordered[index]!.gpu)) index--;
+      // The pinned session is the durable one-run admission record, including
+      // when its original request had no GPU policy. Never prune it to reopen spend.
+      while (
+        index >= 0 &&
+        (!TERMINAL.has(ordered[index]!.status) ||
+          ordered[index]!.gpu ||
+          (this.pinnedSessionId !== undefined &&
+            ordered[index]!.sessionId === this.pinnedSessionId))
+      )
+        index--;
       const stale = index < 0 ? undefined : ordered.splice(index, 1)[0];
       if (!stale) throw new Error('run store cannot satisfy its persistence limit');
       this.runs.delete(stale.id);

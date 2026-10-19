@@ -742,6 +742,22 @@ mod discovery_tests {
         assert_eq!(std::fs::read_dir(&namespace).unwrap().count(), 1);
         server.abort();
     }
+    #[test]
+    fn x402scan_sample_passes_the_real_buyer_request_validator() {
+        // Captured from x402scan 5732bb83's sampler and discovery 1.7.5,
+        // using the OpenAPI fixture emitted by discovery_tests.rs.
+        let request: Value =
+            serde_json::from_str(include_str!("../testdata/x402scan-request.json")).unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let mut executor = executor(root.path(), "http://127.0.0.1:1", crate::now_ms());
+        executor.model = "example".into();
+        executor.max_tokens = 2048;
+        assert!(executor.validate_request(&request).is_ok());
+        assert!(executor.validate_request(&json!({})).is_err());
+        let mut legacy = request;
+        legacy.as_object_mut().unwrap().remove("pricing");
+        assert!(executor.validate_request(&legacy).is_ok());
+    }
     #[tokio::test]
     async fn capacity_wait_counts_against_tariff_delivery_margin() {
         let now = crate::now_ms();

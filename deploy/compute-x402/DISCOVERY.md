@@ -6,6 +6,12 @@ uncached observations. They do not reserve capacity or promise that a later quot
 will succeed. A closed admission latch returns an empty catalog; an unavailable
 dependency returns an unavailable response rather than a stale payable offer.
 
+The OpenAPI compatibility release also serves `GET /openapi.json` for x402scan.
+Its paid paths follow the same live availability checks. The image smoke verifies
+that this document has no paid paths when admissions are closed. Registration
+and its unpaid probe reconciliation are described in
+[the x402scan guide](../../docs/compute-x402scan.md).
+
 The manifest separates the legacy request, which omits `pricing`, from the
 `pricing: "model_tariff_v1"` request. The latter fixes its amount from the requested
 output cap, including ceiling to a whole micro-USDC unit. It does not bill actual

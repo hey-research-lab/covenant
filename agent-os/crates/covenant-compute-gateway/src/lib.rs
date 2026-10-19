@@ -854,6 +854,7 @@ pub fn router(gateway: Arc<Gateway>) -> Router {
     Router::new()
         .route("/v1/chat/completions", post(handle_http))
         .route("/.well-known/x402.json", get(discovery::manifest_http))
+        .route("/openapi.json", get(discovery::openapi_http))
         .route("/v1/models", get(discovery::models_http))
         .route("/health", get(|State(gateway): State<Arc<Gateway>>| async move { Json(json!({"status":"ok", "service":"covenant-compute-x402", "protocol":"x402-v2", "admissions_enabled":gateway.admissions_open(), "revision":option_env!("COVENANT_BUILD_REVISION").unwrap_or("unknown")})) }))
         .layer(DefaultBodyLimit::max(64 * 1024))

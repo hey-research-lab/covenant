@@ -114,6 +114,10 @@ impl TariffBook {
         Ok(())
     }
 
+    pub(crate) fn for_model(&self, model: &str) -> Option<&ModelTariff> {
+        self.0.get(model)
+    }
+
     pub fn models(&self, now: u64) -> Vec<Value> {
         self.0.values().filter(|row| row.retail.valid_at(now)).map(|row| json!({
             "id":row.retail.model,"object":"model","owned_by":"covenant",

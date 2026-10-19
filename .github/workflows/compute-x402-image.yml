@@ -54,6 +54,7 @@ jobs:
             node --test sdk/compute-x402-client/test/*.test.mjs
           npm test --prefix services/compute-inference-provider
           node --test deploy/compute-canary-watchdog.test.mjs deploy/compute-x402/runtime.test.mjs deploy/compute-x402/supervisor.test.mjs deploy/compute-x402/smoke.test.mjs
+          node --test deploy/compute-x402/accept-discovery.test.mjs
           node --check deploy/compute-x402/supervisor.mjs
           sh -n deploy/compute-x402/entrypoint.sh
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
@@ -86,6 +87,7 @@ jobs:
         env:
           SMOKE_IMAGE: ghcr.io/open-covenant/covenant/compute-node-public@${{ steps.image.outputs.digest }}
           SMOKE_REVISION: ${{ github.sha }}
+          SMOKE_DISCOVERY: 'true'
         run: node deploy/compute-x402/smoke.mjs
       - name: Record immutable image
         env:

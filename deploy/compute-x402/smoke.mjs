@@ -49,6 +49,23 @@ export function verifyHealth(value,revision){
   assert.equal(value.status,'ok');assert.equal(value.service,'covenant-compute-x402');
   assert.equal(value.protocol,'x402-v2');assert.equal(value.revision,revision);assert.equal(value.admissions_enabled,false);
 }
+export function verifyClosedDiscovery(manifest,catalog,started,ended){
+  assert(Number.isSafeInteger(manifest?.observedAtMs)&&manifest.observedAtMs>=started-5000&&manifest.observedAtMs<=ended+5000,'Fresh discovery observation required');
+  assert.deepEqual(manifest,{schemaVersion:1,x402Version:2,name:'Covenant Compute',
+    description:'Available text inference and its current exact Solana USDC payment terms.',
+    observedAtMs:manifest.observedAtMs,available:false,models:[],endpoints:[{path:'/v1/models',method:'GET',price:'free'}]});
+  assert.deepEqual(catalog,{object:'list',data:[]});
+}
+export async function closedDiscovery(http){
+  const started=Date.now();
+  const manifest=await http('http://127.0.0.1:10000/.well-known/x402.json');
+  const catalog=await http('http://127.0.0.1:10000/v1/models');
+  for(const response of [manifest,catalog]){
+    assert.equal(response.status,200);assert.equal(response.paymentRequired,false);
+    assert.equal(response.cacheControl,'no-store');
+  }
+  verifyClosedDiscovery(manifest.body,catalog.body,started,Date.now());
+}
 async function docker(args,label){
   try{return (await exec('docker',args,{timeout:180_000,maxBuffer:2*1024*1024})).stdout.trim();}
   catch{throw Error(`Container smoke failed during ${label}`);}
@@ -80,14 +97,15 @@ async function mainnetObservation(){
   assert(response.ok,'Read-only mainnet genesis RPC unavailable');const result=await response.json();
   assert.equal(result.result,MAINNET_GENESIS,'Unexpected mainnet genesis');return result.result;
 }
-export async function smoke(image,revision,imageRevision=revision){
+export async function smoke(image,revision,imageRevision=revision,discovery=false){
+  assert.equal(typeof discovery,'boolean');
   validateImage(image,revision);validateImage(image,imageRevision);process.umask(0o077);
   const genesis=await mainnetObservation(),temporary=await fs.mkdtemp(path.join(os.tmpdir(),'covenant-x402-smoke-'));
   const suffix=crypto.randomBytes(6).toString('hex'),network=`covenant-smoke-${suffix}`,volume=`covenant-smoke-${suffix}`,app=`covenant-gateway-${suffix}`,rpc=`covenant-rpc-${suffix}`;
   const envFile=path.join(temporary,'private.env');
   await fs.writeFile(envFile,Object.entries(smokeEnvironment()).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600});
   const http=async(url,options={})=>{
-    const script=`const r=await fetch(${JSON.stringify(url)},{...${JSON.stringify(options)},signal:AbortSignal.timeout(3000)});process.stdout.write(JSON.stringify({status:r.status,body:await r.json(),paymentRequired:r.headers.has('payment-required')}));`;
+    const script=`const options=${JSON.stringify(options)};const r=await fetch(${JSON.stringify(url)},{...options,headers:{'cache-control':'no-cache',pragma:'no-cache',...options.headers},redirect:'error',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(3000)});process.stdout.write(JSON.stringify({status:r.status,body:await r.json(),paymentRequired:r.headers.has('payment-required'),cacheControl:r.headers.get('cache-control')}));`;
     return JSON.parse(await docker(['exec','--user','node',app,'node','--input-type=module','-e',script],'private HTTP check'));
   };
   const ready=async()=>{
@@ -109,15 +127,21 @@ export async function smoke(image,revision,imageRevision=revision){
     await docker(['run','--detach','--name',app,'--memory','512m','--network',network,'--mount',`type=volume,source=${volume},target=/data`,'--mount',`type=bind,source=${path.join(here,'smoke-state.mjs')},target=/smoke/state.mjs,readonly`,'--env-file',envFile,image],'actual image entrypoint');
     await ready();
     await docker(['exec','--user','node',app,'node','deploy/compute-x402/operator-cli-check.mjs'],'packaged operator serving command');
+    await docker(['exec','--user','node',app,'node','/smoke/state.mjs','record'],'private state recording');
+    if(discovery)await closedDiscovery(http);
     const refused=await http('http://127.0.0.1:10000/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'claude-haiku-4.5',messages:[{role:'user',content:'Never dispatch this smoke test'}],max_tokens:1})});
     assert.equal(refused.status,503);assert.equal(refused.paymentRequired,false);
-    await docker(['exec','--user','node',app,'node','/smoke/state.mjs','record'],'private state recording');
+    await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'initial read state continuity');
     await docker(['restart','--time','15',app],'persistent volume restart');
     await ready();
     await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'private state continuity');
+    if(discovery){
+      await closedDiscovery(http);
+      await docker(['exec','--user','node',app,'node','/smoke/state.mjs','compare'],'restart discovery state continuity');
+    }
     const audit=await http('http://smoke-rpc:14045/audit');
     assert.equal(audit.status,200);assert(audit.body.genesis>=2);assert.equal(audit.body.refused,0);assert.equal(audit.body.coordinator,0);
-    const result={image,revision,image_revision:imageRevision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,operator_cli_contract_verified:true,restart_state_preserved:true,job_entries:0,paid_dispatches:0};
+    const result={image,revision,image_revision:imageRevision,mainnet_genesis_checked:true,isolated_network:true,gateway_memory_limit_mib:512,admissions_enabled:false,operator_cli_contract_verified:true,restart_state_preserved:true,closed_discovery_reads_verified:discovery,job_entries:0,paid_dispatches:0};
     if(process.env.GITHUB_STEP_SUMMARY)await fs.appendFile(process.env.GITHUB_STEP_SUMMARY,`\nContainer smoke passed: \`${image}\`\n\nExpected revision \`${revision}\`; 512MiB gateway cap; admissions disabled; persistent keys, seal and journal preserved across restart; zero paid dispatches.\n`);
     return result;
   }catch(error){
@@ -132,6 +156,9 @@ export async function smoke(image,revision,imageRevision=revision){
   }
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
-  try{console.log(JSON.stringify(await smoke(process.env.SMOKE_IMAGE,process.env.SMOKE_REVISION,process.env.SMOKE_IMAGE_REVISION??process.env.SMOKE_REVISION)));}
+  try{
+    assert([undefined,'true','false'].includes(process.env.SMOKE_DISCOVERY),'SMOKE_DISCOVERY must be true or false');
+    console.log(JSON.stringify(await smoke(process.env.SMOKE_IMAGE,process.env.SMOKE_REVISION,process.env.SMOKE_IMAGE_REVISION??process.env.SMOKE_REVISION,process.env.SMOKE_DISCOVERY==='true')));
+  }
   catch(error){process.stderr.write(`${error instanceof assert.AssertionError?'Container smoke assertion failed':error.message}\n`);process.exitCode=1;}
 }

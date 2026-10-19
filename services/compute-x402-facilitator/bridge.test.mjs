@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateKeyPairSigner, pipe, createTransactionMessage, setTransactionMessageFeePayer, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, partiallySignTransactionMessageWithSigners, getBase64EncodedWireTransaction } from '@solana/kit';
+import { generateKeyPairSigner, getBase58Decoder, pipe, createTransactionMessage, setTransactionMessageFeePayer, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, partiallySignTransactionMessageWithSigners, getBase64EncodedWireTransaction } from '@solana/kit';
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS, getTransferCheckedInstruction } from '@solana-program/token';
 import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from '@solana-program/compute-budget';
 import { toFacilitatorSvmSigner } from '@x402/svm';
@@ -9,6 +9,10 @@ import { createPricingPolicy, readTariffConfig } from './pricing.mjs';
 import { mkdtemp, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import { generateKeyPairSync } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 async function setup(options = {}) {
   const payer = await generateKeyPairSigner();
@@ -38,8 +42,9 @@ async function setup(options = {}) {
   let simulations = 0; signer.simulateTransaction = async () => { simulations++; };
   let signatures = 0; const sign = signer.signTransaction.bind(signer);
   signer.signTransaction = async (...args) => { signatures++; return sign(...args); };
-  const state = { sends: [], status: null, readback: null, loseResponse: false };
+  const state = { sends: [], rpcCalls: [], status: null, readback: null, loseResponse: false };
   const rpc = async (method, params) => {
+    state.rpcCalls.push(method);
     if (method === 'getGenesisHash') return RAILS[network].genesis;
     if (method === 'getSignatureStatuses') return { value: [state.status] };
     if (method === 'getTransaction') return state.readback;
@@ -57,6 +62,93 @@ function tariffs() {
     output_cap_micro_usdc_per_million: 7500000, max_output_tokens: 2048, valid_from_ms: 1000, valid_until_ms: 200000 };
   return [{ native, retail: { ...native, id: 'covenant-haiku-4.5-retail', base_micro_usdc: 12000, output_cap_micro_usdc_per_million: 9000000 } }];
 }
+
+test('readiness binds the loaded rail and complete pricing policy without payment activity', async () => {
+  const f = await setup({ config: { priceAtomic: '50000', tariffRows: tariffs() } });
+  const expected = { schemaVersion: 1, observedAtMs: 1000, pricingValid: true, scheme: 'exact',
+    network: f.config.network, asset: f.config.asset, assetDecimals: 6, payTo: f.config.payTo,
+    feePayer: f.config.feePayer, resourceUrl: f.config.resourceUrl, legacyPriceAtomic: '50000', retailTariffs: [tariffs()[0].retail] };
+  assert.deepEqual(f.bridge.readiness(), expected);
+  const changed = f.bridge.readiness(); changed.retailTariffs[0].base_micro_usdc++;
+  f.config.tariffRows[0].retail.revision++;
+  assert.deepEqual(f.bridge.readiness(), expected, 'mutable inputs or returned JSON cannot alter loaded policy');
+  assert.equal(f.signatures(), 0); assert.equal(f.simulations(), 0);
+  assert.deepEqual(f.state.rpcCalls, []); assert.deepEqual(f.state.sends, []);
+});
+
+test('readiness reports exact rotated policy and legacy-only policy, and refuses invalid configuration', async () => {
+  const f = await setup({ config: { priceAtomic: '50000', tariffRows: tariffs() } });
+  const rotated = tariffs(); rotated[0].retail.revision++;
+  assert.deepEqual(f.reopen({ tariffRows: rotated }).readiness().retailTariffs, [rotated[0].retail]);
+  assert.deepEqual(f.reopen({ tariffRows: undefined }).readiness().retailTariffs, []);
+  assert.equal(f.reopen({ priceAtomic: '60000' }).readiness().legacyPriceAtomic, '60000');
+  for (const config of [{ tariffRows: [] }, { tariffConfigError: true }, { priceAtomic: 'bad' }]) {
+    assert.throws(() => f.reopen(config).readiness(), /payment pricing unavailable/);
+  }
+  assert.deepEqual(f.state.rpcCalls, []); assert.equal(f.signatures(), 0); assert.equal(f.simulations(), 0);
+});
+
+test('authenticated server readiness fails closed while malformed-policy recovery health stays ready', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'covenant-readiness-http-'));
+  const network = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const publicBytes = publicKey.export({ type: 'spki', format: 'der' }).subarray(-32);
+  const bytes = Buffer.concat([privateKey.export({ type: 'pkcs8', format: 'der' }).subarray(-32), publicBytes]);
+  const address = getBase58Decoder().decode(publicBytes), keyFile = join(directory, 'disposable-key.json');
+  await writeFile(keyFile, JSON.stringify([...bytes]), { mode: 0o600 }); bytes.fill(0);
+  const calls = [];
+  const rpc = createServer(async (req, res) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks)); calls.push(body.method);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: RAILS[network].genesis }));
+  });
+  await new Promise(resolve => rpc.listen(0, '127.0.0.1', resolve));
+  let child;
+  try {
+    for (const valid of [true, false]) {
+      const portProbe = createServer();
+      await new Promise(resolve => portProbe.listen(0, '127.0.0.1', resolve));
+      const port = portProbe.address().port;
+      await new Promise(resolve => portProbe.close(resolve));
+      const tariffsFile = join(directory, 'tariffs.json');
+      await writeFile(tariffsFile, valid ? JSON.stringify(tariffs()) : '{broken');
+      child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
+        env: { PATH: process.env.PATH, HOME: directory,
+          COVENANT_GATEWAY_BRIDGE_SECRET: 'test-secret-with-at-least-32-characters',
+          COVENANT_GATEWAY_SOLANA_RPC: `http://127.0.0.1:${rpc.address().port}`,
+          COVENANT_GATEWAY_FEE_PAYER_KEY_FILE: keyFile, COVENANT_GATEWAY_NETWORK: network,
+          COVENANT_GATEWAY_ASSET: RAILS[network].asset, COVENANT_GATEWAY_PAY_TO: address,
+          COVENANT_GATEWAY_FEE_PAYER: address, COVENANT_GATEWAY_RESOURCE_URL: 'https://example.com/v1/chat/completions',
+          COVENANT_GATEWAY_PRICE_MICRO_USDC: '50000', COVENANT_GATEWAY_TARIFFS_FILE: tariffsFile,
+          COVENANT_GATEWAY_BRIDGE_PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      child.stderr.resume();
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('test server startup timeout')), 5000);
+        child.once('exit', () => { clearTimeout(timer); reject(new Error('test server exited before ready')); });
+        child.once('error', error => { clearTimeout(timer); reject(error); });
+        child.stdout.on('data', chunk => { if (String(chunk).includes('listening on loopback')) { clearTimeout(timer); resolve(); } });
+      });
+      const base = `http://127.0.0.1:${port}`, headers = { authorization: 'Bearer test-secret-with-at-least-32-characters' };
+      assert.equal((await fetch(`${base}/readiness`)).status, 401);
+      assert.equal((await fetch(`${base}/health`, { headers })).status, 200);
+      const response = await fetch(`${base}/readiness`, { headers });
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(response.status, valid ? 200 : 503);
+      const body = await response.json();
+      if (valid) { assert.equal(body.legacyPriceAtomic, '50000'); assert.deepEqual(body.retailTariffs, [tariffs()[0].retail]); }
+      else assert.deepEqual(body, { error: 'payment pricing unavailable' });
+      const exited = new Promise(resolve => child.once('exit', resolve)); child.kill('SIGTERM'); await exited; child = undefined;
+    }
+    assert.deepEqual(calls, ['getGenesisHash', 'getGenesisHash'], 'only startup identity checks; readiness never uses RPC');
+  } finally {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise(resolve => child.once('exit', resolve)); child.kill('SIGKILL'); await exited;
+    }
+    await new Promise(resolve => rpc.close(resolve)); await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('official verifier checks signed memo, amount and fee sponsorship before signing', async () => {
   const f = await setup();

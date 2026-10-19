@@ -6,6 +6,7 @@ import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import {createSmokeRpc,MAINNET_GENESIS} from './smoke-rpc.mjs';
 import {validateImage,smokeEnvironment,verifyHealth,fixtureDiagnostics} from './smoke.mjs';
+import {closedDiscovery,verifyClosedDiscovery} from './smoke.mjs';
 const revision='a'.repeat(40),image=`ghcr.io/open-covenant/covenant/compute-node-public@sha256:${'b'.repeat(64)}`;
 test('container qualification requires immutable package and exact revision',()=>{
  validateImage(image,revision);
@@ -25,6 +26,31 @@ test('smoke identities are fresh and both paid admission paths are disabled',()=
 test('readiness rejects the wrong build or enabled admissions',()=>{
  const health={status:'ok',service:'covenant-compute-x402',protocol:'x402-v2',revision,admissions_enabled:false};verifyHealth(health,revision);
  assert.throws(()=>verifyHealth({...health,admissions_enabled:true},revision));assert.throws(()=>verifyHealth({...health,revision:'unknown'},revision));
+});
+test('disabled discovery exposes only free empty catalog, without pricing or private fields',()=>{
+ const now=Date.now(),manifest={schemaVersion:1,x402Version:2,name:'Covenant Compute',
+  description:'Available text inference and its current exact Solana USDC payment terms.',observedAtMs:now,
+  available:false,models:[],endpoints:[{path:'/v1/models',method:'GET',price:'free'}]},catalog={object:'list',data:[]};
+ verifyClosedDiscovery(manifest,catalog,now,now);
+ for(const changed of [{...manifest,available:true},{...manifest,models:[{}]},{...manifest,bridge_secret:'forbidden'},
+  {...manifest,observedAtMs:now-5001},{...manifest,endpoints:[...manifest.endpoints,{path:'/v1/chat/completions',method:'POST'}]}]){
+  assert.throws(()=>verifyClosedDiscovery(changed,catalog,now,now));
+ }
+ assert.throws(()=>verifyClosedDiscovery(manifest,{object:'list',data:[{id:'unavailable-model'}]},now,now));
+});
+test('closed discovery smoke performs only two public GETs and requires no-store',async()=>{
+ const calls=[];
+ const http=async url=>{
+  calls.push(url);
+  const body=url.endsWith('/v1/models')?{object:'list',data:[]}:{schemaVersion:1,x402Version:2,name:'Covenant Compute',
+   description:'Available text inference and its current exact Solana USDC payment terms.',observedAtMs:Date.now(),
+   available:false,models:[],endpoints:[{path:'/v1/models',method:'GET',price:'free'}]};
+  return {status:200,body,paymentRequired:false,cacheControl:'no-store'};
+ };
+ await closedDiscovery(http);
+ assert.deepEqual(calls,['http://127.0.0.1:10000/.well-known/x402.json','http://127.0.0.1:10000/v1/models']);
+ await assert.rejects(closedDiscovery(async url=>({...await http(url),cacheControl:null})));
+ await assert.rejects(closedDiscovery(async url=>({...await http(url),paymentRequired:true})));
 });
 test('isolated RPC permits only genesis and counts forbidden dispatch attempts',async t=>{
  assert.throws(()=>createSmokeRpc('devnet'));

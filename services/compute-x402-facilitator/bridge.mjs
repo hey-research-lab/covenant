@@ -50,6 +50,13 @@ export function createBridge({ signer, config, rpc, now = Date.now, verifier }) 
     if (genesis !== RAILS[network].genesis) throw new Error('RPC network mismatch');
   }
   return {
+    readiness() {
+      const observedAtMs = now();
+      if (!pricing.valid || !Number.isSafeInteger(observedAtMs) || observedAtMs < 0) throw new Error('payment pricing unavailable');
+      // A read of loaded policy only: no verifier, RPC, signature or broadcast.
+      return { schemaVersion: 1, observedAtMs, pricingValid: true, scheme: 'exact',
+        network, asset, assetDecimals: 6, payTo, feePayer, resourceUrl, ...pricing.snapshot() };
+    },
     async verify({ paymentPayload: payload, paymentRequirements: terms, resourceUrl: url }) {
       requirements(terms, true);
       if (url !== resourceUrl || payload?.resource?.url !== resourceUrl || payload?.x402Version !== 2 || !isDeepStrictEqual(payload.accepted, terms)) throw new Rejected('payment payload does not match quote');

@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "package": 9,
+  "accepted": true,
+  "scope": "Live discovery and unpaid quote parity; no new paid inference or settlement acceptance",
+  "accepted_at": "2026-10-19T19:55:22.919Z",
+  "pull_request": "https://github.com/open-covenant/covenant/pull/364",
+  "runtime_source": "21925eb644458f59bcc3c8272efd7ca370da8031",
+  "image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:10bb42ef5d19d84a1435999ac652ba13938bdf18422d1ca2b603a2d4633541eb",
+  "deployment_id": "dep-dbb769m7bikc73er302g",
+  "public_base_url": "https://compute-inference.opencovenant.org",
+  "environment_values_preserved": 51,
+  "topology_preserved": true,
+  "deploy_posts": 1,
+  "provider": {
+    "approved_allowance_micro_usdc": 750000,
+    "additional_accounted_micro_usdc": 58,
+    "startup_calls": 1,
+    "lifetime_before_micro_usdc": 335634,
+    "lifetime_after_micro_usdc": 335692,
+    "historical_rows_preserved": 14,
+    "abandoned_loss_preserved_micro_usdc": 315360,
+    "unresolved": 0,
+    "lifetime_cap_micro_usdc": 1000000,
+    "daily_cap_micro_usdc": 1000000,
+    "budgets_reset_or_increased": false
+  },
+  "gateway": {
+    "historical_entries_preserved": 7,
+    "final_states": {
+      "complete": 6,
+      "failed": 1
+    },
+    "reserve_micro_usdc": 3000000,
+    "unpaid_quotes_created_total": 5,
+    "unpaid_quotes_normally_expired_total": 5
+  },
+  "native": {
+    "gateway_buyer_jobs_before": 7,
+    "gateway_buyer_jobs_after": 7,
+    "scoped_native_journal_unchanged_during_acceptance": true,
+    "active_jobs": 0,
+    "completed_unpaid_jobs": 0,
+    "open_transfer_attempts": 0
+  },
+  "get_only_acceptance": {
+    "schema_version": 1,
+    "accepted": true,
+    "observed_at": "2026-10-19T19:55:22.919Z",
+    "base_url": "https://compute-inference.opencovenant.org",
+    "revision": "21925eb644458f59bcc3c8272efd7ca370da8031",
+    "mode": "get_only",
+    "calls": {
+      "get": 3,
+      "unsigned_quote_post": 0
+    },
+    "wallet_files_read": 0,
+    "signatures_created": 0,
+    "payment_authorizations_sent": 0,
+    "before": {
+      "observed_at_ms": 1792439722584,
+      "manifest_sha256": "917cbb9254a99a72a3829c0f98548b89acdcc37d532c1891af36780b5172047b",
+      "catalog_sha256": "9949f954ebdede55b5bbc536d0cbccbb6f37bc8b57452f590f6ddec0563a2034"
+    },
+    "after": null,
+    "quotes": [],
+    "limitations": [
+      "Public availability is an observation, not a reservation.",
+      "GET responses do not establish unchanged private journals, provider costs or settlement state."
+    ]
+  },
+  "unsigned_quote_acceptance": {
+    "schema_version": 1,
+    "accepted": true,
+    "observed_at": "2026-10-19T19:52:55.508Z",
+    "base_url": "https://compute-inference.opencovenant.org",
+    "revision": "21925eb644458f59bcc3c8272efd7ca370da8031",
+    "mode": "unsigned_quotes",
+    "calls": {
+      "get": 6,
+      "unsigned_quote_post": 4
+    },
+    "wallet_files_read": 0,
+    "signatures_created": 0,
+    "payment_authorizations_sent": 0,
+    "before": {
+      "observed_at_ms": 1792439574505,
+      "manifest_sha256": "183e90727bee12bffc9b6788e960a624c18865d7f790095e7df009dec46d5415",
+      "catalog_sha256": "9949f954ebdede55b5bbc536d0cbccbb6f37bc8b57452f590f6ddec0563a2034"
+    },
+    "after": {
+      "observed_at_ms": 1792439575440,
+      "manifest_sha256": "719fcfa118ae4a6a74aab2284c02697c56a2469e63255830af04dd4ab05b67a0",
+      "catalog_sha256": "9949f954ebdede55b5bbc536d0cbccbb6f37bc8b57452f590f6ddec0563a2034"
+    },
+    "quotes": [
+      {
+        "pricing": "legacy",
+        "max_tokens": 1,
+        "quote_id": "51feec09-ac29-41e6-9ca2-6b9d6289d0bd",
+        "request_sha256": "a40b78323c980b812d1c677522f59e78f87f0f1cd9d8fe64f1e61ef1b193701a",
+        "amount_micro_usdc": 50000,
+        "expires_at_ms": 1792439649835
+      },
+      {
+        "pricing": "model_tariff_v1",
+        "max_tokens": 1,
+        "quote_id": "fb424c12-baeb-4a3b-b50d-c0e853847df6",
+        "request_sha256": "84fdbe4788e486eaf9f3013cab2f4f8d6807ba5677d03a088effa7713ee23111",
+        "amount_micro_usdc": 12009,
+        "expires_at_ms": 1792439649981
+      },
+      {
+        "pricing": "model_tariff_v1",
+        "max_tokens": 256,
+        "quote_id": "1ca8b27b-8452-48a5-92da-66f9c4b3e479",
+        "request_sha256": "2cca67d08d92aa0e35381ca58dcf83bcb0fdff1503547d408d98203029bc71e3",
+        "amount_micro_usdc": 14304,
+        "expires_at_ms": 1792439650110
+      },
+      {
+        "pricing": "model_tariff_v1",
+        "max_tokens": 2048,
+        "quote_id": "3458bce3-417b-4728-ba0a-59e4b592907a",
+        "request_sha256": "d6b7b604bf68f819322559c029ed8d1010dd6228daff2ea3d0c8886363218d43",
+        "amount_micro_usdc": 30432,
+        "expires_at_ms": 1792439650264
+      }
+    ],
+    "limitations": [
+      "Public availability is an observation, not a reservation.",
+      "GET responses do not establish unchanged private journals, provider costs or settlement state.",
+      "Unsigned quotes create retained unpaid gateway entries; no payment or inference completion is requested."
+    ]
+  },
+  "checker_correction": {
+    "first_attempt_stopped": "quote expiry",
+    "first_quote_id": "1f9372a1-3424-48f6-b197-2d94fdcdd0b3",
+    "first_quote_expired_before_rerun": true,
+    "server_ahead_of_client_end_ms": 54,
+    "native_quote_lifetime_ms": 75000,
+    "checker_clock_tolerance_ms": 5000,
+    "runtime_redeployment_required": false,
+    "acceptance_and_smoke_tests_passed": 24,
+    "checker_sha256": "3b2c7bd8bd334f723185392a3c2555e6f156a9527c73f0914c6a39d7628dcd7e"
+  },
+  "private_evidence_sha256": {
+    "runtime-before-deploy.private.json": "e431aad3b43446b92eb366564f6a6de5ba22ada3277dd5b0c2e672f9218b5a7a",
+    "runtime-after-startup.private.json": "7a781e7fc15b1f3e884693336c0fa5dd85421ae4eb8405ef893943d10da95039",
+    "runtime-after-quotes.private.json": "415ecf5212830d6c1706e35573edb54f029001839f83cc38fc717a02701621f0",
+    "runtime-final-accepted.private.json": "3c610e2ec75e5b0f748a027977130001daf4a9aa7b8607fa047b5068ab87b572",
+    "native-before-quotes.private.json": "6dc229d40c29e8e407ddad12e91f044ba71eb00a2aceb8cf33d95864c8bc09c0",
+    "native-final-accepted.private.json": "78c90a174759f2571bd055e2adfdda8466b6a53ef9465ad308db82c772e5f956",
+    "authenticated-quote-terms.json": "384207e212866e2504d023d92cb8da93fa6361e67a696f00f1447523237fdc86",
+    "startup-provider-evidence.json": "19fe59356d3345700e8360d4058bb7ef95073c47a6d838dcc008b3d8a27835d6",
+    "acceptance-first-quote-failure.json": "7a543f3779acb343de5d439ede1f39840a3c7a5aa41bc2512a4a4b3b6d4d3b25"
+  },
+  "limitations": [
+    "Availability is an observation, not a capacity reservation.",
+    "Unpaid quote preparation can sign native job envelopes but does not dispatch them.",
+    "This release does not claim paid inference completion, new settlement proof, or discovery-index adoption."
+  ]
+}

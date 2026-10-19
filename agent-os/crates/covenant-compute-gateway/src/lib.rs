@@ -4,6 +4,7 @@
 #![deny(unsafe_code)]
 pub mod bridge;
 pub mod buyer;
+pub mod discovery;
 pub mod pricing;
 
 use async_trait::async_trait;
@@ -104,6 +105,14 @@ pub trait PaymentRail: Send + Sync {
     fn asset_decimals(&self) -> u8 {
         6
     }
+    /// Read-only admission checks. Persisted executions and settlement must
+    /// remain independent of current catalog configuration and availability.
+    async fn check_offers(&self, _offers: &[discovery::DiscoveryOffer], _now: u64) -> Result<()> {
+        Ok(())
+    }
+    async fn check_price(&self, _amount_atomic: u64, _now: u64) -> Result<()> {
+        Ok(())
+    }
     /// Must cryptographically bind the payer, merchant, asset, amount and
     /// request memo. Simulation is admission only and never a receipt.
     fn authorization_id(&self, encoded_header: &str) -> Result<String>;
@@ -142,6 +151,10 @@ pub struct ExecutionFailure {
 }
 #[async_trait]
 pub trait Executor: Send + Sync {
+    /// Pure request validation, before any live dependency lookup or signing.
+    fn validate_request(&self, _request: &Value) -> Result<()> {
+        Ok(())
+    }
     /// No network submission here: all child ids must be signed and persisted
     /// together before the first execution, including batch requests.
     fn prepare(&self, request: &Value) -> Result<PreparedExecution>;
@@ -162,6 +175,22 @@ pub trait Executor: Send + Sync {
     }
     fn models(&self, _now: u64, _legacy_price: u64) -> Vec<Value> {
         Vec::new()
+    }
+    async fn discovery_offers(
+        &self,
+        _now: u64,
+        _legacy_price: u64,
+    ) -> Result<Vec<discovery::DiscoveryOffer>> {
+        Ok(Vec::new())
+    }
+    async fn check_available(
+        &self,
+        _request: &Value,
+        _now: u64,
+        _legacy_price: u64,
+        _remaining: u64,
+    ) -> Result<()> {
+        Ok(())
     }
     async fn execute(
         &self,
@@ -221,6 +250,22 @@ struct Disk {
     healthy: bool,
 }
 impl Disk {
+    fn require_quote_room(&self) -> Result<()> {
+        if self.journal.entries.len() >= 100_000
+            || self
+                .journal
+                .entries
+                .values()
+                .filter(|e| matches!(e.phase, Phase::Quoted))
+                .count()
+                >= 1024
+        {
+            return Err(GatewayError::Unavailable(
+                "journal admission limit reached".into(),
+            ));
+        }
+        Ok(())
+    }
     fn open(
         directory: &Path,
         namespace: String,
@@ -350,6 +395,8 @@ pub struct Gateway {
     sale_price_atomic: u64,
     admissions_enabled: bool,
     admissions_directory: PathBuf,
+    quote_preflights: tokio::sync::Semaphore,
+    discovery_reads: tokio::sync::Semaphore,
 }
 #[derive(Debug)]
 pub enum GatewayReply {
@@ -415,6 +462,8 @@ impl Gateway {
             sale_price_atomic: sale_price,
             admissions_enabled: true,
             admissions_directory: directory.into(),
+            quote_preflights: tokio::sync::Semaphore::new(4),
+            discovery_reads: tokio::sync::Semaphore::new(4),
         })
     }
     pub fn with_admissions_enabled(mut self, enabled: bool) -> Self {
@@ -467,11 +516,32 @@ impl Gateway {
             if payment_header.is_some() {
                 return Err(GatewayError::Payment("unknown or expired quote".into()));
             }
+            self.executor.validate_request(&request)?;
+            disk.require_quote_room()?;
+            let _permit = self
+                .quote_preflights
+                .try_acquire()
+                .map_err(|_| GatewayError::Unavailable("quote admission busy".into()))?;
+            let availability_started = std::time::Instant::now();
+            let availability_now = now;
+            let remaining = disk
+                .journal
+                .reserve_micro_usdc
+                .saturating_sub(disk.used_reserve());
+            // Anonymous catalog dependencies must not hold the mutex needed
+            // to recover or settle an already authorized purchase.
+            drop(disk);
+            self.executor
+                .check_available(&request, now, self.sale_price_atomic, remaining)
+                .await?;
+            self.require_admissions()?;
+            let now = after_wait(now, availability_started);
             // Validate before producing a payment offer, but never dispatch.
             let quote = self.executor.quote(&request, self.sale_price_atomic, now)?;
             if quote.amount_atomic == 0
                 || quote.prepared.job_envelopes.is_empty()
                 || quote.prepared.maximum_cost_micro_usdc == 0
+                || quote.prepared.maximum_cost_micro_usdc > remaining
                 || quote.amount_atomic < quote.prepared.maximum_cost_micro_usdc
                 || quote.expires_at_ms <= now
             {
@@ -479,17 +549,42 @@ impl Gateway {
                     "quote cannot cover execution or has expired".into(),
                 ));
             }
-            if disk.journal.entries.len() >= 100_000
-                || disk
+            self.rail.check_price(quote.amount_atomic, now).await?;
+            disk = self.disk.lock().await;
+            let now = after_wait(availability_now, availability_started);
+            disk.advance(now)?;
+            self.require_admissions()?;
+            // A concurrent request may have persisted this id while live
+            // checks ran. Never replace its original terms or child envelope.
+            if let Some(entry) = quote_id.and_then(|id| disk.journal.entries.get(&id)) {
+                if entry.terms.request_sha256 != digest {
+                    return Err(GatewayError::Invalid(
+                        "quote bound to another request".into(),
+                    ));
+                }
+                return if matches!(entry.phase, Phase::Quoted) {
+                    Ok(GatewayReply::PaymentRequired(entry.terms.clone()))
+                } else {
+                    Err(GatewayError::Payment(
+                        "original payment authorization required".into(),
+                    ))
+                };
+            }
+            self.executor.validate_admission(&quote.prepared, now)?;
+            if quote.expires_at_ms <= now {
+                return Err(GatewayError::Unavailable(
+                    "quote expired during readiness check".into(),
+                ));
+            }
+            disk.require_quote_room()?;
+            if quote.prepared.maximum_cost_micro_usdc
+                > disk
                     .journal
-                    .entries
-                    .values()
-                    .filter(|e| matches!(e.phase, Phase::Quoted))
-                    .count()
-                    >= 1024
+                    .reserve_micro_usdc
+                    .saturating_sub(disk.used_reserve())
             {
                 return Err(GatewayError::Unavailable(
-                    "journal admission limit reached".into(),
+                    "compute reserve changed during quote admission".into(),
                 ));
             }
             let terms = PaymentTerms {
@@ -758,10 +853,8 @@ pub fn spawn_retention(gateway: Arc<Gateway>) -> tokio::task::JoinHandle<()> {
 pub fn router(gateway: Arc<Gateway>) -> Router {
     Router::new()
         .route("/v1/chat/completions", post(handle_http))
-        .route("/v1/models", get(|State(gateway): State<Arc<Gateway>>| async move {
-            let models = if gateway.admissions_open() { gateway.executor.models(now_ms(), gateway.sale_price_atomic) } else { Vec::new() };
-            ([("cache-control", "no-store")], Json(json!({"object":"list","data":models})))
-        }))
+        .route("/.well-known/x402.json", get(discovery::manifest_http))
+        .route("/v1/models", get(discovery::models_http))
         .route("/health", get(|State(gateway): State<Arc<Gateway>>| async move { Json(json!({"status":"ok", "service":"covenant-compute-x402", "protocol":"x402-v2", "admissions_enabled":gateway.admissions_open(), "revision":option_env!("COVENANT_BUILD_REVISION").unwrap_or("unknown")})) }))
         .layer(DefaultBodyLimit::max(64 * 1024))
         .with_state(gateway)

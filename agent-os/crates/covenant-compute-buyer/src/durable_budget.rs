@@ -326,6 +326,43 @@ impl DurableBudget {
     pub fn status(&self, now: u64) -> Result<BudgetStatus> {
         self.transact(now, |state| Self::status_of(state, now))
     }
+    /// Observe the last atomically published budget without creating a lock or
+    /// journal, advancing its watermark, or rewriting any reservation. This is
+    /// discovery metadata, not a reservation; submit still checks under the
+    /// exclusive transaction lock. An atomic rename makes each read coherent
+    /// even when a writer concurrently publishes a newer snapshot.
+    pub fn snapshot(&self, now: u64) -> Result<BudgetStatus> {
+        let path = self.directory.join("budget.json");
+        let state = match std::fs::read(path) {
+            Ok(bytes) => serde_json::from_slice::<State>(&bytes)?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => State {
+                version: 1,
+                buyer: self.buyer.clone(),
+                endpoint: self.endpoint.clone(),
+                watermark_ms: 0,
+                limit_micro_usdc: self.limit,
+                entries: BTreeMap::new(),
+            },
+            Err(error) => return Err(error.into()),
+        };
+        if state.version != 1 || state.buyer != self.buyer || state.endpoint != self.endpoint {
+            return Err(BudgetError::Refused(
+                "budget namespace/version mismatch".into(),
+            ));
+        }
+        if state.limit_micro_usdc != self.limit {
+            return Err(BudgetError::Refused(
+                "processes sharing a buyer/endpoint must use the same persisted daily ceiling"
+                    .into(),
+            ));
+        }
+        if now < state.watermark_ms {
+            return Err(BudgetError::Refused(
+                "clock moved backwards; retain reservations and correct the clock".into(),
+            ));
+        }
+        Self::status_of(&state, now)
+    }
     fn status_of(state: &State, now: u64) -> Result<BudgetStatus> {
         let (pending, spent) = Self::totals(state, now)?;
         Ok(BudgetStatus {
@@ -501,6 +538,58 @@ mod tests {
             },
         )
         .unwrap()
+    }
+    #[test]
+    fn discovery_snapshot_creates_no_files_and_never_advances_or_reclaims_pending_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let identity = LocalIdentity::generate("snapshot@local");
+        let book = DurableBudget::open(
+            dir.path(),
+            &identity.agent_id().pubkey_base58(),
+            "https://compute.example",
+            100,
+        )
+        .unwrap();
+        assert_eq!(book.snapshot(100).unwrap().remaining_micro_usdc, 100);
+        assert_eq!(std::fs::read_dir(&book.directory).unwrap().count(), 0);
+        book.reserve(&envelope(&identity, 60), 100).unwrap();
+        let path = book.directory.join("budget.json");
+        let before = std::fs::read(&path).unwrap();
+        let status = book.snapshot(DAY_MS * 3).unwrap();
+        assert_eq!(
+            (status.pending_micro_usdc, status.remaining_micro_usdc),
+            (60, 40)
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(book.snapshot(99).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+    #[test]
+    fn discovery_snapshot_rejects_corruption_namespace_and_limit_drift_without_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let identity = LocalIdentity::generate("snapshot@local");
+        let buyer = identity.agent_id().pubkey_base58();
+        let book = DurableBudget::open(dir.path(), &buyer, "https://compute.example", 100).unwrap();
+        book.reserve(&envelope(&identity, 60), 100).unwrap();
+        let path = book.directory.join("budget.json");
+        let original: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        for (field, value) in [
+            ("version", serde_json::json!(2)),
+            ("buyer", serde_json::json!("another")),
+            ("endpoint", serde_json::json!("https://other.example")),
+            ("limit_micro_usdc", serde_json::json!(200)),
+        ] {
+            let mut changed = original.clone();
+            changed[field] = value;
+            let bytes = serde_json::to_vec(&changed).unwrap();
+            std::fs::write(&path, &bytes).unwrap();
+            assert!(book.snapshot(101).is_err(), "{field}");
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        }
+        std::fs::write(&path, b"{torn").unwrap();
+        assert!(book.snapshot(101).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"{torn");
     }
     #[test]
     fn restart_retains_uncertain_reservations_beyond_24h() {

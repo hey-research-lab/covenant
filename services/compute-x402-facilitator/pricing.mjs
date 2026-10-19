@@ -48,7 +48,7 @@ function hasPrice(tariff, amount) {
 export function createPricingPolicy({ priceAtomic, tariffRows, tariffConfigError = false }) {
   try {
     require(!tariffConfigError && validPaymentAmount(priceAtomic) && BigInt(priceAtomic) <= MAX_SAFE);
-    const legacy = BigInt(priceAtomic), retail = [], models = new Set();
+    const legacy = BigInt(priceAtomic), retail = [], definitions = [], models = new Set();
     if (tariffRows !== undefined) {
       require(Array.isArray(tariffRows) && tariffRows.length > 0 && tariffRows.length <= 32);
       for (const row of tariffRows) {
@@ -57,11 +57,13 @@ export function createPricingPolicy({ priceAtomic, tariffRows, tariffConfigError
         require(native.model === sale.model && native.cap === sale.cap && native.from === sale.from && native.until === sale.until && !models.has(sale.model));
         // Match the gateway's coverage check, including asymmetric rounding.
         for (let cap = 1n; cap <= sale.cap; cap++) require(price(sale, cap) >= price(native, cap));
-        models.add(sale.model); retail.push(sale);
+        models.add(sale.model); retail.push(sale); definitions.push(structuredClone(row.retail));
       }
     }
     return {
       valid: true,
+      // Return a copy of the policy actually loaded, never caller-owned config.
+      snapshot: () => ({ legacyPriceAtomic: priceAtomic, retailTariffs: structuredClone(definitions) }),
       allows(amount, now) {
         if (!validPaymentAmount(amount) || !Number.isSafeInteger(now) || now < 0) return false;
         const value = BigInt(amount);

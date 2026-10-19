@@ -4,6 +4,7 @@
 
 import { useId } from "react";
 import { workspaceRelease } from "./compute-workspaces/_release";
+import { rentalChecksRelease } from "./compute-rental-checks/_release";
 
 // The mark: a C built from the 210-unit module (a top bar, a stem and a bottom
 // bar meeting at filleted corners) around a detached core. 840 × 1050, 4:5.
@@ -149,6 +150,7 @@ export const FOOTER_COLUMNS: { title: string; links: FooterColumnLink[] }[] = [
       { label: "API Reference", href: "/docs/http-api" },
       { label: "Compute status", href: "/compute-status" },
       ...(workspaceRelease.accepted ? [{ label: "Compute workspaces", href: "/compute-workspaces" }] : []),
+      ...(rentalChecksRelease.accepted ? [{ label: "GPU rental checks", href: "/compute-rental-checks" }] : []),
       { label: "SDK", href: "/sdk" },
       { label: "GitHub", href: GITHUB_URL, external: true },
     ],

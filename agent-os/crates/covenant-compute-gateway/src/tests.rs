@@ -6,6 +6,12 @@ use covenant_identity::LocalIdentity;
 use covenant_mcp::Content;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
+
+// Quote preparation includes real signing and disk time. Sequential fixture
+// calls must start after the persisted clock, even on a slow CI worker.
+async fn fixture_now(gateway: &Gateway, minimum: u64) -> u64 {
+    minimum.max(gateway.disk.lock().await.journal.watermark_ms + 1)
+}
 struct Rail {
     settles: AtomicUsize,
     finalized: std::sync::atomic::AtomicBool,
@@ -105,7 +111,12 @@ async fn restart_reuses_result_reconciles_and_expires_without_repurchase() {
     .unwrap();
     let request = json!({"prompt":"hi"});
     let GatewayReply::PaymentRequired(terms) = gateway
-        .handle(request.clone(), None, None, 1000)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap()
     else {
@@ -113,7 +124,12 @@ async fn restart_reuses_result_reconciles_and_expires_without_repurchase() {
     };
     assert!(matches!(
         gateway
-            .handle(request.clone(), Some(terms.quote_id), Some("tx1"), 1001)
+            .handle(
+                request.clone(),
+                Some(terms.quote_id),
+                Some("tx1"),
+                fixture_now(&gateway, 1001).await
+            )
             .await
             .unwrap(),
         GatewayReply::Pending { .. }
@@ -124,25 +140,45 @@ async fn restart_reuses_result_reconciles_and_expires_without_repurchase() {
             json!({"prompt":"different"}),
             Some(terms.quote_id),
             Some("tx1"),
-            1002
+            fixture_now(&gateway, 1002).await
         )
         .await
         .is_err());
     assert!(gateway
-        .handle(request.clone(), Some(terms.quote_id), None, 1003)
+        .handle(
+            request.clone(),
+            Some(terms.quote_id),
+            None,
+            fixture_now(&gateway, 1003).await
+        )
         .await
         .is_err());
     assert!(gateway
-        .handle(request.clone(), Some(terms.quote_id), Some("tx2"), 1004)
+        .handle(
+            request.clone(),
+            Some(terms.quote_id),
+            Some("tx2"),
+            fixture_now(&gateway, 1004).await
+        )
         .await
         .is_err());
     // Exhausted reserve now refuses even a new unpaid quote.
     assert!(gateway
-        .handle(request.clone(), None, None, 1005)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1005).await
+        )
         .await
         .is_err());
     assert!(gateway
-        .handle(request.clone(), None, Some("tx3"), 1006)
+        .handle(
+            request.clone(),
+            None,
+            Some("tx3"),
+            fixture_now(&gateway, 1006).await
+        )
         .await
         .is_err());
     assert!(Gateway::open(
@@ -167,7 +203,12 @@ async fn restart_reuses_result_reconciles_and_expires_without_repurchase() {
     .unwrap();
     assert!(matches!(
         gateway
-            .handle(request.clone(), Some(terms.quote_id), Some("tx1"), 1007)
+            .handle(
+                request.clone(),
+                Some(terms.quote_id),
+                Some("tx1"),
+                fixture_now(&gateway, 1007).await
+            )
             .await
             .unwrap(),
         GatewayReply::Complete { .. }
@@ -175,7 +216,12 @@ async fn restart_reuses_result_reconciles_and_expires_without_repurchase() {
     assert_eq!(executor.calls.load(Ordering::SeqCst), 1);
     assert!(matches!(
         gateway
-            .handle(request.clone(), Some(terms.quote_id), Some("tx1"), 301008)
+            .handle(
+                request.clone(),
+                Some(terms.quote_id),
+                Some("tx1"),
+                fixture_now(&gateway, 0).await + 300_000
+            )
             .await
             .unwrap(),
         GatewayReply::Gone
@@ -232,7 +278,12 @@ async fn unapproved_operator_result_is_a_terminal_seller_loss_without_customer_s
     .unwrap();
     let request = json!({"prompt":"same"});
     let GatewayReply::PaymentRequired(quote) = gateway
-        .handle(request.clone(), None, None, 100)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 100).await,
+        )
         .await
         .unwrap()
     else {
@@ -244,7 +295,7 @@ async fn unapproved_operator_result_is_a_terminal_seller_loss_without_customer_s
                 request.clone(),
                 Some(quote.quote_id),
                 Some("authorization"),
-                101
+                fixture_now(&gateway, 101).await
             )
             .await
             .unwrap(),
@@ -261,25 +312,38 @@ async fn unapproved_operator_result_is_a_terminal_seller_loss_without_customer_s
         executor.clone(),
     )
     .unwrap();
-    gateway.recover_pending(102).await.unwrap();
+    gateway
+        .recover_pending(fixture_now(&gateway, 102).await)
+        .await
+        .unwrap();
     assert!(matches!(
         gateway
             .handle(
                 request.clone(),
                 Some(quote.quote_id),
                 Some("authorization"),
-                103
+                fixture_now(&gateway, 103).await
             )
             .await
             .unwrap(),
         GatewayReply::Failed(_)
     ));
     assert!(gateway
-        .handle(request.clone(), None, None, 104)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 104).await
+        )
         .await
         .is_err());
     assert!(gateway
-        .handle(request, None, Some("another-authorization"), 105)
+        .handle(
+            request,
+            None,
+            Some("another-authorization"),
+            fixture_now(&gateway, 105).await
+        )
         .await
         .is_err());
     assert_eq!(
@@ -342,7 +406,12 @@ async fn uncertain_execution_retries_the_exact_saved_job_after_restart() {
     .unwrap();
     let request = json!({"prompt":"hi"});
     let GatewayReply::PaymentRequired(terms) = gateway
-        .handle(request.clone(), None, None, 100)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 100).await,
+        )
         .await
         .unwrap()
     else {
@@ -350,7 +419,12 @@ async fn uncertain_execution_retries_the_exact_saved_job_after_restart() {
     };
     assert!(matches!(
         gateway
-            .handle(request.clone(), Some(terms.quote_id), Some("tx1"), 101)
+            .handle(
+                request.clone(),
+                Some(terms.quote_id),
+                Some("tx1"),
+                fixture_now(&gateway, 101).await
+            )
             .await
             .unwrap(),
         GatewayReply::Pending { .. }
@@ -368,7 +442,12 @@ async fn uncertain_execution_retries_the_exact_saved_job_after_restart() {
     .unwrap();
     assert!(matches!(
         gateway
-            .handle(request.clone(), Some(terms.quote_id), Some("tx1"), 102)
+            .handle(
+                request.clone(),
+                Some(terms.quote_id),
+                Some("tx1"),
+                fixture_now(&gateway, 102).await
+            )
             .await
             .unwrap(),
         GatewayReply::Complete { .. }
@@ -380,11 +459,16 @@ async fn uncertain_execution_retries_the_exact_saved_job_after_restart() {
     }
     // Payment revenue never manufactures additional prefunded compute reserve.
     assert!(gateway
-        .handle(request.clone(), None, None, 103)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 103).await
+        )
         .await
         .is_err());
     assert!(gateway
-        .handle(request, None, Some("tx2"), 104)
+        .handle(request, None, Some("tx2"), fixture_now(&gateway, 104).await)
         .await
         .is_err());
 }
@@ -520,7 +604,12 @@ async fn pending_work_recovers_original_jobs_and_payments_when_discovery_is_unav
         .unwrap();
         let request = json!({"prompt":"original"});
         let GatewayReply::PaymentRequired(terms) = gateway
-            .handle(request.clone(), None, None, 1000)
+            .handle(
+                request.clone(),
+                None,
+                None,
+                fixture_now(&gateway, 1000).await,
+            )
             .await
             .unwrap()
         else {
@@ -707,7 +796,12 @@ async fn waiting_fresh_availability_does_not_block_original_settlement_recovery(
     .unwrap();
     let request = json!({"prompt":"original"});
     let GatewayReply::PaymentRequired(original) = gateway
-        .handle(request.clone(), None, None, 1000)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap()
     else {
@@ -781,8 +875,14 @@ async fn concurrent_fresh_same_id_quotes_preserve_first_terms_and_signed_job() {
     .unwrap();
     let request = json!({"prompt":"same", "pause":true});
     let id = Uuid::new_v4();
-    let mut first = Box::pin(gateway.handle(request.clone(), Some(id), None, 1000));
-    let mut second = Box::pin(gateway.handle(request, Some(id), None, 1000));
+    let mut first = Box::pin(gateway.handle(
+        request.clone(),
+        Some(id),
+        None,
+        fixture_now(&gateway, 1000).await,
+    ));
+    let mut second =
+        Box::pin(gateway.handle(request, Some(id), None, fixture_now(&gateway, 1000).await));
     assert!(std::future::poll_fn(|cx| Poll::Ready(first.as_mut().poll(cx).is_pending())).await);
     assert!(std::future::poll_fn(|cx| Poll::Ready(second.as_mut().poll(cx).is_pending())).await);
     assert_eq!(
@@ -847,7 +947,12 @@ async fn fresh_quote_rechecks_reserve_consumed_while_availability_waits() {
     .unwrap();
     let request = json!({"prompt":"original"});
     let GatewayReply::PaymentRequired(original) = gateway
-        .handle(request.clone(), None, None, 1000)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap()
     else {
@@ -917,7 +1022,12 @@ async fn verified_unpaid_failure_never_settles_and_journal_write_failure_stops_s
     .unwrap();
     let request = json!({"prompt":"hi"});
     let GatewayReply::PaymentRequired(terms) = gateway
-        .handle(request.clone(), None, None, 100)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 100).await,
+        )
         .await
         .unwrap()
     else {
@@ -925,7 +1035,12 @@ async fn verified_unpaid_failure_never_settles_and_journal_write_failure_stops_s
     };
     assert!(matches!(
         gateway
-            .handle(request.clone(), Some(terms.quote_id), Some("tx1"), 101)
+            .handle(
+                request.clone(),
+                Some(terms.quote_id),
+                Some("tx1"),
+                fixture_now(&gateway, 101).await
+            )
             .await
             .unwrap(),
         GatewayReply::Failed(_)
@@ -935,12 +1050,20 @@ async fn verified_unpaid_failure_never_settles_and_journal_write_failure_stops_s
     std::fs::rename(&path, directory.path().join("saved.json")).unwrap();
     std::fs::create_dir(&path).unwrap();
     assert!(gateway
-        .handle(request.clone(), None, None, 102)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 102).await
+        )
         .await
         .is_err());
     std::fs::remove_dir(&path).unwrap();
     std::fs::rename(directory.path().join("saved.json"), &path).unwrap();
-    assert!(gateway.handle(request, None, None, 103).await.is_err());
+    assert!(gateway
+        .handle(request, None, None, fixture_now(&gateway, 103).await)
+        .await
+        .is_err());
     assert_eq!(executor.seen.lock().unwrap().len(), 1);
 }
 
@@ -970,7 +1093,12 @@ async fn idempotency_concurrency_and_background_recovery_preserve_one_purchase()
     let request = json!({"prompt":"same"});
     for _ in 0..2 {
         let GatewayReply::PaymentRequired(terms) = gateway
-            .handle(request.clone(), Some(id), None, 1000)
+            .handle(
+                request.clone(),
+                Some(id),
+                None,
+                fixture_now(&gateway, 1000).await,
+            )
             .await
             .unwrap()
         else {
@@ -980,12 +1108,27 @@ async fn idempotency_concurrency_and_background_recovery_preserve_one_purchase()
     }
     assert_eq!(gateway.disk.lock().await.journal.entries.len(), 1);
     assert!(gateway
-        .handle(json!({"prompt":"changed"}), Some(id), None, 1000)
+        .handle(
+            json!({"prompt":"changed"}),
+            Some(id),
+            None,
+            fixture_now(&gateway, 1000).await
+        )
         .await
         .is_err());
     let (a, b) = tokio::join!(
-        gateway.handle(request.clone(), Some(id), Some("tx"), 1001),
-        gateway.handle(request.clone(), Some(id), Some("tx"), 1001)
+        gateway.handle(
+            request.clone(),
+            Some(id),
+            Some("tx"),
+            fixture_now(&gateway, 1001).await
+        ),
+        gateway.handle(
+            request.clone(),
+            Some(id),
+            Some("tx"),
+            fixture_now(&gateway, 1001).await
+        )
     );
     assert!(matches!(a.unwrap(), GatewayReply::Pending { .. }));
     assert!(matches!(b.unwrap(), GatewayReply::Pending { .. }));
@@ -1001,10 +1144,18 @@ async fn idempotency_concurrency_and_background_recovery_preserve_one_purchase()
         executor.clone(),
     )
     .unwrap();
-    gateway.recover_pending(1002).await.unwrap();
+    gateway
+        .recover_pending(fixture_now(&gateway, 1002).await)
+        .await
+        .unwrap();
     assert!(matches!(
         gateway
-            .handle(request, Some(id), Some("tx"), 1003)
+            .handle(
+                request,
+                Some(id),
+                Some("tx"),
+                fixture_now(&gateway, 1003).await
+            )
             .await
             .unwrap(),
         GatewayReply::Complete { .. }
@@ -1044,11 +1195,21 @@ async fn funded_ceiling_increase_preserves_replay_and_exclusive_lock() {
     let id = Uuid::new_v4();
     let request = json!({"prompt":"same"});
     gateway
-        .handle(request.clone(), Some(id), None, 1000)
+        .handle(
+            request.clone(),
+            Some(id),
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap();
     gateway
-        .handle(request.clone(), Some(id), Some("tx"), 1001)
+        .handle(
+            request.clone(),
+            Some(id),
+            Some("tx"),
+            fixture_now(&gateway, 1001).await,
+        )
         .await
         .unwrap();
     drop(gateway);
@@ -1084,7 +1245,12 @@ async fn funded_ceiling_increase_preserves_replay_and_exclusive_lock() {
     assert_eq!(gateway.disk.lock().await.used_reserve(), 10);
     assert!(matches!(
         gateway
-            .handle(request, Some(id), Some("tx"), 1002)
+            .handle(
+                request,
+                Some(id),
+                Some("tx"),
+                fixture_now(&gateway, 1002).await
+            )
             .await
             .unwrap(),
         GatewayReply::Complete { .. }
@@ -1349,11 +1515,21 @@ async fn rollback_disables_new_spending_but_settlement_recovery_continues() {
     let id = Uuid::new_v4();
     let request = json!({"prompt":"same"});
     gateway
-        .handle(request.clone(), Some(id), None, 1000)
+        .handle(
+            request.clone(),
+            Some(id),
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap();
     gateway
-        .handle(request.clone(), Some(id), Some("tx"), 1001)
+        .handle(
+            request.clone(),
+            Some(id),
+            Some("tx"),
+            fixture_now(&gateway, 1001).await,
+        )
         .await
         .unwrap();
     drop(gateway);
@@ -1369,13 +1545,26 @@ async fn rollback_disables_new_spending_but_settlement_recovery_continues() {
     .unwrap()
     .with_admissions_enabled(false);
     assert!(gateway
-        .handle(request.clone(), None, None, 1002)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1002).await
+        )
         .await
         .is_err());
-    gateway.recover_pending(1003).await.unwrap();
+    gateway
+        .recover_pending(fixture_now(&gateway, 1003).await)
+        .await
+        .unwrap();
     assert!(matches!(
         gateway
-            .handle(request, Some(id), Some("tx"), 1004)
+            .handle(
+                request,
+                Some(id),
+                Some("tx"),
+                fixture_now(&gateway, 1004).await
+            )
             .await
             .unwrap(),
         GatewayReply::Complete { .. }
@@ -1411,12 +1600,22 @@ async fn durable_latch_blocks_new_quotes_and_payments_across_restart_but_recover
     let unpaid = Uuid::new_v4();
     for id in [paid, unpaid] {
         gateway
-            .handle(request.clone(), Some(id), None, 1000)
+            .handle(
+                request.clone(),
+                Some(id),
+                None,
+                fixture_now(&gateway, 1000).await,
+            )
             .await
             .unwrap();
     }
     gateway
-        .handle(request.clone(), Some(paid), Some("paid"), 1001)
+        .handle(
+            request.clone(),
+            Some(paid),
+            Some("paid"),
+            fixture_now(&gateway, 1001).await,
+        )
         .await
         .unwrap();
     std::fs::write(
@@ -1426,11 +1625,21 @@ async fn durable_latch_blocks_new_quotes_and_payments_across_restart_but_recover
     .unwrap();
     assert!(!gateway.admissions_open());
     assert!(gateway
-        .handle(request.clone(), None, None, 1002)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1002).await
+        )
         .await
         .is_err());
     assert!(gateway
-        .handle(request.clone(), Some(unpaid), Some("unpaid"), 1003)
+        .handle(
+            request.clone(),
+            Some(unpaid),
+            Some("unpaid"),
+            fixture_now(&gateway, 1003).await
+        )
         .await
         .is_err());
     assert_eq!(executor.calls.load(Ordering::SeqCst), 1);
@@ -1438,10 +1647,18 @@ async fn durable_latch_blocks_new_quotes_and_payments_across_restart_but_recover
     let gateway = open();
     assert!(!gateway.admissions_open());
     rail.finalized.store(true, Ordering::SeqCst);
-    gateway.recover_pending(1004).await.unwrap();
+    gateway
+        .recover_pending(fixture_now(&gateway, 1004).await)
+        .await
+        .unwrap();
     assert!(matches!(
         gateway
-            .handle(request.clone(), Some(paid), Some("paid"), 1005)
+            .handle(
+                request.clone(),
+                Some(paid),
+                Some("paid"),
+                fixture_now(&gateway, 1005).await
+            )
             .await
             .unwrap(),
         GatewayReply::Complete { .. }
@@ -1452,7 +1669,12 @@ async fn durable_latch_blocks_new_quotes_and_payments_across_restart_but_recover
     std::fs::create_dir(directory.path().join("admissions.starting")).unwrap();
     assert!(!gateway.admissions_open());
     assert!(gateway
-        .handle(request.clone(), None, None, 1006)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1006).await
+        )
         .await
         .is_err());
     std::fs::remove_dir(directory.path().join("admissions.starting")).unwrap();
@@ -1511,11 +1733,21 @@ async fn latch_raised_during_payment_verification_prevents_paid_dispatch() {
     let request = json!({"prompt":"same"});
     let id = Uuid::new_v4();
     gateway
-        .handle(request.clone(), Some(id), None, 1000)
+        .handle(
+            request.clone(),
+            Some(id),
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap();
     assert!(gateway
-        .handle(request, Some(id), Some("tx"), 1001)
+        .handle(
+            request,
+            Some(id),
+            Some("tx"),
+            fixture_now(&gateway, 1001).await
+        )
         .await
         .is_err());
     assert_eq!(executor.calls.load(Ordering::SeqCst), 0);
@@ -1574,7 +1806,12 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
     .unwrap();
     let request = json!({"prompt":"frozen"});
     let GatewayReply::PaymentRequired(first) = gateway
-        .handle(request.clone(), None, None, 1000)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap()
     else {
@@ -1601,7 +1838,12 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
     )
     .unwrap();
     let GatewayReply::PaymentRequired(replayed) = gateway
-        .handle(request.clone(), Some(first.quote_id), None, 1001)
+        .handle(
+            request.clone(),
+            Some(first.quote_id),
+            None,
+            fixture_now(&gateway, 1001).await,
+        )
         .await
         .unwrap()
     else {
@@ -1613,7 +1855,7 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
             request.clone(),
             Some(first.quote_id),
             Some("auth-one"),
-            1002,
+            fixture_now(&gateway, 1002).await,
         )
         .await
         .unwrap()
@@ -1623,7 +1865,12 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
     assert_eq!(output["job"], job.to_string());
     assert_eq!(executor.prepares.load(Ordering::SeqCst), 1);
     let GatewayReply::PaymentRequired(second) = gateway
-        .handle(request.clone(), None, None, 1003)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1003).await,
+        )
         .await
         .unwrap()
     else {
@@ -1632,7 +1879,12 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
     assert_eq!(second.amount_atomic, 25);
     assert!(matches!(
         gateway
-            .handle(request, Some(first.quote_id), Some("auth-one"), 1004)
+            .handle(
+                request,
+                Some(first.quote_id),
+                Some("auth-one"),
+                fixture_now(&gateway, 1004).await
+            )
             .await
             .unwrap(),
         GatewayReply::Complete { .. }
@@ -1666,7 +1918,12 @@ async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
     .unwrap();
     let request = json!({"prompt":"legacy"});
     let GatewayReply::PaymentRequired(first) = gateway
-        .handle(request.clone(), None, None, 1000)
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
         .await
         .unwrap()
     else {
@@ -1689,7 +1946,7 @@ async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
                 request,
                 Some(first.quote_id),
                 Some("old-authorization"),
-                1001
+                fixture_now(&gateway, 1001).await
             )
             .await
             .unwrap(),
@@ -1718,7 +1975,12 @@ async fn refusing_retail_below_native_precedes_payment_offer() {
     });
     let gateway = Gateway::open(dir.path(), "cost", 1000, 9, rail, executor.clone()).unwrap();
     assert!(gateway
-        .handle(json!({"prompt":"hi"}), None, None, 1000)
+        .handle(
+            json!({"prompt":"hi"}),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await
+        )
         .await
         .is_err());
     assert_eq!(gateway.disk.lock().await.journal.entries.len(), 0);

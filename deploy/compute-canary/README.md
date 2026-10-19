@@ -114,6 +114,39 @@ Both `ssh user@host -p N` and the provider's `ssh -pN user@host` forms are parse
 extra arguments are rejected. GPU model and usable-memory threshold are
 explicit. Marketed VRAM size is not treated as usable `nvidia-smi` memory.
 
+Vast log copies are asynchronous. After a successful authenticated log request,
+the adapter polls only its validated S3 URL for up to nine seconds on HTTP 403
+or 404. An absent marker requests another read-only access check; a malformed,
+mismatched, or conflicting marker fails immediately. API authorization errors,
+unknown download errors, redirects, and identity changes never authorize a
+retry. All access retries and their subprocesses share the original readiness
+deadline, measured before lease dispatch. They cannot extend it or open another
+lease. A fresh signed lease view must retain the same access endpoint.
+
+Adapter failures use bounded stderr JSON with exactly `version:1`,
+`verified:false`, and a closed-enum `error_code`. Only `provider_log_not_ready`
+and `provider_marker_not_ready` permit another access read. Other accepted
+codes are `provider_evidence_invalid`, `provider_http_error`,
+`provider_unavailable`, `provider_marker_mismatch`, and
+`provider_marker_conflict`. Unknown, oversized, duplicate-field, or malformed
+diagnostics become a generic subprocess failure. Raw stderr is never retained.
+Private records preserve `failure_stage` and the last safe evidence error code;
+cleanup continues independently. Failed public rows show the original failure
+stage, while private `stage` retains the final cleanup progress.
+Internal lock-contention and empty recovery exits remain in private records;
+they do not replace a rental verdict in public history or monitor results.
+
+An explicitly reviewed release acceptance can use
+`--once --acceptance-retry-of <prior-job-uuid>` once in the same UTC window.
+The referenced rental must be the latest paid journal entry, fully resolved,
+with a persisted failed verdict, verified on-chain settlement, reconciled
+balance, and verified provider deletion. Unknown outcomes, missing proof,
+successful rentals, prior retries, and reused references are refused. The
+original entry and all its costs remain counted. The new job UUID, full
+reservation, and predecessor reference are committed together before dispatch;
+a crash consumes that reference and recovery cannot resubmit the purchase.
+Daily and pilot ceilings still apply. The scheduler never supplies this flag.
+
 Cleanup response:
 
 ```json

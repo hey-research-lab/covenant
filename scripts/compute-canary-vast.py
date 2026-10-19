@@ -22,6 +22,7 @@ import stat
 import struct
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,16 +33,31 @@ LOG_ORIGIN = "https://s3.amazonaws.com"
 MAX_BYTES = 1024 * 1024
 PAGE_LIMIT = 1000
 MARKER = "COVENANT_SSH_HOST_KEY_V1"
+LOG_COPY_WAIT_SECONDS = 9
+LOG_COPY_POLL_SECONDS = .3
+ERROR_CODES = {"provider_evidence_invalid", "provider_http_error", "provider_unavailable",
+               "provider_log_not_ready", "provider_marker_not_ready",
+               "provider_marker_mismatch", "provider_marker_conflict"}
 
 
 
 class Refusal(Exception):
     """All messages are fixed strings; never contain URLs, secrets or raw logs."""
 
+    def __init__(self, message, code="provider_evidence_invalid"):
+        super().__init__(message)
+        self.code = code if code in ERROR_CODES else "provider_evidence_invalid"
 
-def require(condition, message):
+
+class HttpRefusal(Refusal):
+    def __init__(self, status):
+        super().__init__("provider request returned HTTP " + str(status), "provider_http_error")
+        self.status = status
+
+
+def require(condition, message, code="provider_evidence_invalid"):
     if not condition:
-        raise Refusal(message)
+        raise Refusal(message, code)
 
 
 def unique_object(pairs):
@@ -109,10 +125,10 @@ class Transport:
             urllib.request.ProxyHandler({}), NoRedirect(),
             urllib.request.HTTPSHandler(context=ssl.create_default_context()))
 
-    def request(self, method, url, headers, data=None):
+    def request(self, method, url, headers, data=None, timeout=20):
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with self.opener.open(request, timeout=20) as response:
+            with self.opener.open(request, timeout=timeout) as response:
                 require(response.status == 200, "unexpected HTTP status")
                 require(response.geturl() == url, "response URL changed")
                 require(response.headers.get("Content-Encoding", "identity") == "identity",
@@ -126,9 +142,9 @@ class Transport:
         except urllib.error.HTTPError as error:
             if 300 <= error.code < 400:
                 raise Refusal("HTTP redirects are refused") from None
-            raise Refusal("provider request returned HTTP " + str(error.code)) from None
+            raise HttpRefusal(error.code) from None
         except (urllib.error.URLError, TimeoutError, OSError):
-            raise Refusal("provider request failed; no pin created") from None
+            raise Refusal("provider request failed; no pin created", "provider_unavailable") from None
 
 
 class Provider:
@@ -189,9 +205,25 @@ class Provider:
         require(isinstance(result, dict) and result.get("success") is True, "log request failed")
         url = validate_log_url(result.get("result_url"))
         # A new header set prevents the Vast bearer credential reaching S3.
-        blob = self.transport.request("GET", url, {"Accept-Encoding": "identity"})
-        require(len(blob) <= MAX_BYTES, "log response exceeds byte limit")
-        return blob
+        # request_logs starts an asynchronous copy. Only 403/404 from this
+        # validated download URL are pending; API errors never enter this loop.
+        # The runner additionally bounds the whole subprocess by its original
+        # readiness deadline, including slow response bodies and API reads.
+        end = time.monotonic() + LOG_COPY_WAIT_SECONDS
+        while True:
+            remaining = end - time.monotonic()
+            if remaining <= 0:
+                raise Refusal("provider log copy is not ready", "provider_log_not_ready")
+            try:
+                blob = self.transport.request("GET", url, {"Accept-Encoding": "identity"},
+                                              timeout=min(5, remaining))
+            except HttpRefusal as error:
+                if error.status not in {403, 404}:
+                    raise
+                time.sleep(min(LOG_COPY_POLL_SECONDS, max(0, end - time.monotonic())))
+                continue
+            require(len(blob) <= MAX_BYTES, "log response exceeds byte limit")
+            return blob
 
 
 def price_micros(value):
@@ -246,12 +278,13 @@ def parse_marker(blob, job, challenge):
             continue
         parts = line.split(" ")
         require(len(parts) == 5 and parts[0] == MARKER, "malformed host-key marker")
-        require(parts[1] == job, "host-key marker job mismatch")
-        require(parts[2] == challenge, "host-key marker challenge mismatch")
+        require(parts[1] == job, "host-key marker job mismatch", "provider_marker_mismatch")
+        require(parts[2] == challenge, "host-key marker challenge mismatch", "provider_marker_mismatch")
         require(parts[3] == "ssh-ed25519", "host-key algorithm mismatch")
         validate_key(parts[4])
         keys.add(parts[4])
-    require(len(keys) == 1, "missing or conflicting host-key markers")
+    require(bool(keys), "host-key marker is not ready", "provider_marker_not_ready")
+    require(len(keys) == 1, "conflicting host-key markers", "provider_marker_conflict")
     encoded = next(iter(keys))
     return encoded, validate_key(encoded)
 
@@ -488,7 +521,6 @@ def adapter(request, provider, config, now):
 
 
 def main():
-    import time
     os.umask(0o077)
     try:
         raw = sys.stdin.buffer.read(16_385)
@@ -499,10 +531,10 @@ def main():
         print(json.dumps(result, sort_keys=True))
         return 0
     except Refusal as error:
-        print(json.dumps({"verified": False, "reason": str(error)}), file=sys.stderr)
+        print(json.dumps({"version": 1, "verified": False, "error_code": error.code}), file=sys.stderr)
         return 1
     except Exception:
-        print('{"verified":false,"reason":"provider evidence unavailable"}', file=sys.stderr)
+        print('{"version":1,"verified":false,"error_code":"provider_unavailable"}', file=sys.stderr)
         return 1
 
 

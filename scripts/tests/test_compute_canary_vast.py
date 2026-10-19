@@ -50,7 +50,7 @@ class FakeTransport:
         self.log_bytes = b"ordinary startup log\n" + marker()
         self.detail_reads = 0
 
-    def request(self, method, url, headers, data=None):
+    def request(self, method, url, headers, data=None, timeout=20):
         self.calls.append((method,url,headers,data))
         if url.startswith(h.API_ORIGIN + "/api/v1/instances/?"):
             return json.dumps(self.lookup).encode()
@@ -260,6 +260,90 @@ class AcceptanceTests(unittest.TestCase):
 
 
 class HttpTransportTests(unittest.TestCase):
+    def test_api_403_and_404_are_terminal_without_log_download(self):
+        for status in (403, 404):
+            transport = FakeTransport()
+            with patch.object(transport, "request", side_effect=h.HttpRefusal(status)) as request:
+                with self.assertRaises(h.HttpRefusal) as error:
+                    h.Provider("offline", transport).logs(123)
+                self.assertEqual(error.exception.code, "provider_http_error")
+                self.assertEqual(request.call_count, 1)
+                self.assertEqual(request.call_args.args[0], "PUT")
+
+    def test_only_validated_log_403_404_retry_same_url_without_credentials(self):
+        transport = FakeTransport()
+        calls = []
+        replies = iter([h.HttpRefusal(403), h.HttpRefusal(404), marker()])
+        def request(method, url, headers, data=None, timeout=20):
+            calls.append((method, url, headers, timeout))
+            if method == "PUT":
+                return json.dumps(transport.log_response).encode()
+            value = next(replies)
+            if isinstance(value, Exception):
+                raise value
+            return value
+        with patch.object(transport, "request", side_effect=request), patch.object(h.time, "sleep"):
+            self.assertEqual(h.Provider("offline-secret", transport).logs(123), marker())
+        self.assertEqual(len(calls), 4)
+        self.assertEqual([c[1] for c in calls[1:]], [LOG_URL] * 3)
+        self.assertTrue(all(c[2] == {"Accept-Encoding": "identity"} for c in calls[1:]))
+        self.assertTrue(all(0 < c[3] <= 5 for c in calls[1:]))
+
+    def test_log_copy_retry_deadline_is_not_reset(self):
+        transport = FakeTransport()
+        clock = [0.0]
+        downloads = []
+        def request(method, url, headers, data=None, timeout=20):
+            if method == "PUT":
+                return json.dumps(transport.log_response).encode()
+            downloads.append((clock[0], timeout))
+            raise h.HttpRefusal(404)
+        def sleep(seconds):
+            clock[0] += seconds
+        with patch.object(transport, "request", side_effect=request), \
+             patch.object(h.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(h.time, "sleep", side_effect=sleep):
+            with self.assertRaises(h.Refusal) as error:
+                h.Provider("offline", transport).logs(123)
+        self.assertEqual(error.exception.code, "provider_log_not_ready")
+        self.assertEqual(clock[0], h.LOG_COPY_WAIT_SECONDS)
+        self.assertLessEqual(len(downloads), 31)
+        self.assertTrue(all(start < h.LOG_COPY_WAIT_SECONDS and timeout <= h.LOG_COPY_WAIT_SECONDS - start
+                            for start, timeout in downloads))
+
+    def test_other_download_errors_fail_immediately(self):
+        for failure in (h.HttpRefusal(401), h.HttpRefusal(429), h.HttpRefusal(500),
+                        h.Refusal("HTTP redirects are refused"), h.Refusal("invalid log encoding")):
+            transport = FakeTransport()
+            with patch.object(transport, "request", side_effect=[json.dumps(transport.log_response).encode(), failure]) as request, \
+                 patch.object(h.time, "sleep") as sleep:
+                with self.assertRaises(h.Refusal):
+                    h.Provider("offline", transport).logs(123)
+            self.assertEqual(request.call_count, 2)
+            sleep.assert_not_called()
+
+    def test_missing_marker_is_distinct_from_conflict_and_mismatch(self):
+        for blob, code in ((b"booting\n", "provider_marker_not_ready"),
+                           (marker() + marker(key=OTHER_KEY), "provider_marker_conflict"),
+                           (marker(job=OTHER_JOB), "provider_marker_mismatch"),
+                           (marker(challenge="cd" * 32), "provider_marker_mismatch"),
+                           (b"prefix " + marker(), "provider_evidence_invalid"),
+                           (b"\xff", "provider_evidence_invalid")):
+            with self.subTest(code=code), self.assertRaises(h.Refusal) as error:
+                h.parse_marker(blob, JOB, CHALLENGE)
+            self.assertEqual(error.exception.code, code)
+
+    def test_error_contract_contains_only_safe_allowlisted_code(self):
+        for error, code in ((h.Refusal("secret https://private.example/token", "provider_marker_conflict"), "provider_marker_conflict"),
+                            (RuntimeError("provider secret"), "provider_unavailable")):
+            stderr = io.StringIO()
+            stdin = type("Input", (), {"buffer": io.BytesIO(b"{}")})()
+            with patch.object(h.sys, "stdin", stdin), patch.object(h.sys, "stderr", stderr), \
+                 patch.object(h, "config_from_env", side_effect=error):
+                self.assertEqual(h.main(), 1)
+            self.assertEqual(json.loads(stderr.getvalue()), {"version": 1, "verified": False, "error_code": code})
+            self.assertNotIn("secret", stderr.getvalue())
+
     def test_redirect_handler_always_refuses(self):
         for status in [301,302,303,307,308]:
             with self.assertRaises(h.Refusal):
@@ -312,7 +396,7 @@ class CanaryTransport(FakeTransport):
         self.inventory_error = None
         self.log_bytes = marker(challenge=h.canary_challenge(BUYER, JOB))
 
-    def request(self, method, url, headers, data=None):
+    def request(self, method, url, headers, data=None, timeout=20):
         if url == h.API_ORIGIN + "/api/v0/users/current/":
             self.calls.append((method, url, headers, data))
             return json.dumps(self.account).encode()
@@ -322,7 +406,7 @@ class CanaryTransport(FakeTransport):
         if url.startswith(h.API_ORIGIN + "/api/v1/instances/?") and self.inventory_error:
             self.calls.append((method, url, headers, data))
             raise self.inventory_error
-        return super().request(method, url, headers, data)
+        return super().request(method, url, headers, data, timeout=timeout)
 
 
 class CanaryAdapterTests(unittest.TestCase):

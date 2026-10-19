@@ -1,0 +1,6 @@
+{
+  "max_tokens": 256,
+  "messages": [{"content": "Reply with a short greeting.", "role": "user"}],
+  "model": "example",
+  "pricing": "model_tariff_v1"
+}

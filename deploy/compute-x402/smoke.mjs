@@ -60,11 +60,15 @@ export async function closedDiscovery(http){
   const started=Date.now();
   const manifest=await http('http://127.0.0.1:10000/.well-known/x402.json');
   const catalog=await http('http://127.0.0.1:10000/v1/models');
-  for(const response of [manifest,catalog]){
+  const openapi=await http('http://127.0.0.1:10000/openapi.json');
+  for(const response of [manifest,catalog,openapi]){
     assert.equal(response.status,200);assert.equal(response.paymentRequired,false);
     assert.equal(response.cacheControl,'no-store');
   }
   verifyClosedDiscovery(manifest.body,catalog.body,started,Date.now());
+  assert.equal(openapi.body.openapi,'3.1.0');
+  assert.equal(openapi.body.info.title,'Covenant Compute');
+  assert.deepEqual(openapi.body.paths,{});
 }
 async function docker(args,label){
   try{return (await exec('docker',args,{timeout:180_000,maxBuffer:2*1024*1024})).stdout.trim();}

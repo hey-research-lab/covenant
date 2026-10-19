@@ -11,6 +11,14 @@ acceptance.
 as `POST /v1/chat/completions`. They require no wallet or credentials. Both
 successful responses and discovery errors use `Cache-Control: no-store`.
 
+`GET /openapi.json` exposes the same live offers as OpenAPI 3.1 for indexers such
+as x402scan. It includes the POST request schema, sample inputs, response schemas
+and exact fixed/dynamic USD price bounds. It applies the same admission,
+capacity, payment-readiness and budget checks as the manifest; unavailable offers
+produce no paid paths. The configured resource origin supplies the server URL.
+See [x402scan registration](compute-x402scan.md) for the integration contract and
+acceptance steps. Publishing OpenAPI does not itself establish a listing.
+
 The manifest has `schemaVersion: 1`, `x402Version: 2`, `observedAtMs`, `available`,
 `models`, and `endpoints`. Its paid entries use the configured HTTPS resource URL,
 never an incoming Host header. Each entry includes the exact Solana network,

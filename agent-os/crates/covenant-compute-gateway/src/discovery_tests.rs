@@ -239,6 +239,18 @@ async fn real_http_discovery_is_read_only_and_matches_both_quote_modes() {
         .await
         .unwrap();
     assert_eq!(models["data"], manifest["models"]);
+    let response = client
+        .get(format!("{base}/openapi.json"))
+        .header("host", "attacker.invalid")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert!(!response.headers().contains_key("payment-required"));
+    let openapi: Value = response.json().await.unwrap();
+    assert_eq!(openapi["servers"][0]["url"], "https://example.test");
+    assert!(openapi["paths"]["/v1/chat/completions"]["post"].is_object());
     for endpoint in manifest["endpoints"]
         .as_array()
         .unwrap()
@@ -253,7 +265,7 @@ async fn real_http_discovery_is_read_only_and_matches_both_quote_modes() {
         );
         assert_eq!(endpoint["inputSchema"]["additionalProperties"], false);
     }
-    for path in ["/.well-known/x402.json", "/v1/models"] {
+    for path in ["/.well-known/x402.json", "/v1/models", "/openapi.json"] {
         let response = client.head(format!("{base}{path}")).send().await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["cache-control"], "no-store");
@@ -294,6 +306,10 @@ async fn real_http_discovery_is_read_only_and_matches_both_quote_modes() {
     }
     executor.available.store(false, Ordering::SeqCst);
     assert_eq!(gateway.discovery().await.unwrap()["available"], false);
+    assert_eq!(
+        gateway.discovery_openapi().await.unwrap()["paths"],
+        json!({})
+    );
     let prepares = executor.prepares.load(Ordering::SeqCst);
     assert!(gateway
         .handle(
@@ -308,6 +324,17 @@ async fn real_http_discovery_is_read_only_and_matches_both_quote_modes() {
     executor.available.store(true, Ordering::SeqCst);
     rail.ready.store(false, Ordering::SeqCst);
     let response = client
+        .get(format!("{base}/openapi.json"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"error":"live discovery unavailable"})
+    );
+    let response = client
         .get(format!("{base}/.well-known/x402.json"))
         .send()
         .await
@@ -320,6 +347,10 @@ async fn real_http_discovery_is_read_only_and_matches_both_quote_modes() {
     );
     std::fs::write(dir.path().join("admissions.disabled"), b"closed").unwrap();
     let calls = executor.calls.load(Ordering::SeqCst);
+    assert_eq!(
+        gateway.discovery_openapi().await.unwrap()["paths"],
+        json!({})
+    );
     assert_eq!(
         gateway.discovery().await.unwrap()["endpoints"]
             .as_array()
@@ -380,4 +411,33 @@ fn mixed_price_modes_keep_their_own_affordable_caps() {
     assert_eq!(models[0]["pricing"]["max_output_tokens"], 256);
     assert_eq!(models[0]["pricing"]["tariff"]["max_output_tokens"], 2048);
     assert_eq!(models[0]["legacy_pricing"]["max_output_tokens"], 2048);
+}
+
+#[test]
+fn x402scan_contract_fixture_uses_the_real_quote_serializer() {
+    let document = super::openapi::document(
+        "https://example.test/v1/chat/completions",
+        123,
+        &offers(123),
+    )
+    .unwrap();
+    let request = &document["paths"]["/v1/chat/completions"]["post"]["requestBody"]["content"]
+        ["application/json"]["example"];
+    assert!(offers(123)[1].matches_request(request));
+    let terms = PaymentTerms {
+        quote_id: uuid::Uuid::nil(),
+        request_sha256: crate::request_digest(request).unwrap(),
+        network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp".into(),
+        asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".into(),
+        pay_to: "11111111111111111111111111111111".into(),
+        fee_payer: "11111111111111111111111111111111".into(),
+        amount_atomic: 14_304,
+        asset_decimals: 6,
+        expires_at_ms: 75_123,
+        resource_url: "https://example.test/v1/chat/completions".into(),
+    };
+    // Public, unpayable fixtures can be extracted with --nocapture for an
+    // isolated run of the pinned indexer's parser. No wallet or network is used.
+    println!("OPENAPI_FIXTURE_JSON={document}");
+    println!("PAYMENT_FIXTURE_JSON={}", terms.requirements());
 }

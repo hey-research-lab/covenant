@@ -38,19 +38,25 @@ test('disabled discovery exposes only free empty catalog, without pricing or pri
  }
  assert.throws(()=>verifyClosedDiscovery(manifest,{object:'list',data:[{id:'unavailable-model'}]},now,now));
 });
-test('closed discovery smoke performs only two public GETs and requires no-store',async()=>{
+test('closed discovery smoke performs only three public GETs and requires no-store',async()=>{
  const calls=[];
  const http=async url=>{
   calls.push(url);
-  const body=url.endsWith('/v1/models')?{object:'list',data:[]}:{schemaVersion:1,x402Version:2,name:'Covenant Compute',
+  const body=url.endsWith('/openapi.json')?{openapi:'3.1.0',info:{title:'Covenant Compute'},paths:{}}
+   :url.endsWith('/v1/models')?{object:'list',data:[]}:{schemaVersion:1,x402Version:2,name:'Covenant Compute',
    description:'Available text inference and its current exact Solana USDC payment terms.',observedAtMs:Date.now(),
    available:false,models:[],endpoints:[{path:'/v1/models',method:'GET',price:'free'}]};
   return {status:200,body,paymentRequired:false,cacheControl:'no-store'};
  };
  await closedDiscovery(http);
- assert.deepEqual(calls,['http://127.0.0.1:10000/.well-known/x402.json','http://127.0.0.1:10000/v1/models']);
+ assert.deepEqual(calls,['http://127.0.0.1:10000/.well-known/x402.json','http://127.0.0.1:10000/v1/models','http://127.0.0.1:10000/openapi.json']);
  await assert.rejects(closedDiscovery(async url=>({...await http(url),cacheControl:null})));
  await assert.rejects(closedDiscovery(async url=>({...await http(url),paymentRequired:true})));
+ await assert.rejects(closedDiscovery(async url=>{
+  const response=await http(url);
+  if(url.endsWith('/openapi.json'))response.body.paths={'/v1/chat/completions':{post:{}}};
+  return response;
+ }));
 });
 test('isolated RPC permits only genesis and counts forbidden dispatch attempts',async t=>{
  assert.throws(()=>createSmokeRpc('devnet'));

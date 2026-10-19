@@ -14,6 +14,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod openapi;
+pub use openapi::openapi_http;
+
 #[derive(Clone, Debug)]
 pub enum DiscoveryPricing {
     Legacy {

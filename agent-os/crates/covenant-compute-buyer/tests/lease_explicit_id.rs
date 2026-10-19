@@ -124,17 +124,50 @@ async fn explicit_id_is_signed_once_and_concurrent_processes_cannot_dispatch_twi
     assert_ne!(
         a.status.success(),
         b.status.success(),
-        "exactly one process may authorize"
+        "exactly one process may authorize; first={a:?}; second={b:?}"
     );
     let (ok, refused) = if a.status.success() { (a, b) } else { (b, a) };
     let view: serde_json::Value = serde_json::from_slice(&ok.stdout).unwrap();
     assert_eq!(view["job_id"], ID);
-    assert!(String::from_utf8_lossy(&refused.stderr).contains("already reserved"));
+    let refusal = String::from_utf8_lossy(&refused.stderr);
+    // Both processes sample the clock before taking the journal lock. The
+    // older sample can acquire it second, so the clock guard may safely refuse
+    // the loser before the duplicate-ID check. Either way only one may post.
+    assert!(
+        refusal.contains("job id was already reserved")
+            || refusal.contains("clock moved backwards; retain reservations and correct the clock"),
+        "unexpected refusal: {refused:?}"
+    );
     assert_eq!(f.posts.load(Ordering::SeqCst), 1);
     assert!(f.reserved_before_post.load(Ordering::SeqCst));
+    let budget = book(&f, &buyer);
+    assert_eq!(budget.status(now()).unwrap().pending_micro_usdc, 12_000);
+    let original = budget.pending(now()).unwrap();
+    assert_eq!(original.len(), 1);
+    assert_eq!(original[0].job_id.to_string(), ID);
+    assert_eq!(original[0].ceiling_micro_usdc, 12_000);
+
+    // A later process must specifically hit duplicate-ID protection and leave
+    // the originally signed authorization intact, without another dispatch.
+    let retry = command(&f.url, home.path(), root.path(), ID, true)
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        !retry.status.success(),
+        "unexpected retry success: {retry:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&retry.stderr).contains("job id was already reserved"),
+        "unexpected sequential refusal: {retry:?}"
+    );
+    assert_eq!(f.posts.load(Ordering::SeqCst), 1);
+    assert_eq!(budget.status(now()).unwrap().pending_micro_usdc, 12_000);
+    let after_retry = budget.pending(now()).unwrap();
     assert_eq!(
-        book(&f, &buyer).status(now()).unwrap().pending_micro_usdc,
-        12_000
+        serde_json::to_value(&after_retry).unwrap(),
+        serde_json::to_value(&original).unwrap(),
+        "a refused retry must retain the original signed envelope and amount"
     );
 }
 

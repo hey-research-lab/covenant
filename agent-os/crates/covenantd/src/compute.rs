@@ -353,6 +353,16 @@ async fn record_compute_job(
     Ok(receipt_id)
 }
 
+fn infer_preparation_error(args: &InferArgs, error: BuyerError) -> ComputeError {
+    // Tariff preparation consumes tariff_id before validating the input. Keep
+    // malformed caller input in the daemon's InvalidArgs category; discovery
+    // and other buyer failures must retain their original error classification.
+    match args.input() {
+        Err(message) => ComputeError::InvalidArgs(message),
+        Ok(_) => ComputeError::Buyer(error),
+    }
+}
+
 /// The `compute.infer` call bound to one payer: parse, then the shared
 /// paid-dispatch path below.
 pub async fn run_infer_call(
@@ -376,7 +386,8 @@ pub async fn run_infer_call(
         state.config.max_price_micro_usdc,
         existing.as_ref().map(|entry| &entry.envelope),
     )
-    .await?;
+    .await
+    .map_err(|error| infer_preparation_error(&args, error))?;
     dispatch_paid_job(
         state,
         ctx,
@@ -642,7 +653,8 @@ pub async fn run_stream_start_call(
         &mut args,
         state.config.max_price_micro_usdc,
     )
-    .await?;
+    .await
+    .map_err(|error| infer_preparation_error(&args, error))?;
 
     let cap = state.config.max_price_micro_usdc;
     let price = resolve_offer(
@@ -2446,16 +2458,18 @@ mod tests {
             budget: budget.as_ref(),
             issuer: &issuer,
         };
-        let err = run_infer_call(
-            &state(100_000),
-            &ctx,
-            &identity,
-            &payer,
+        for arguments in [
             serde_json::json!({"model": "llama-3-8b"}),
-        )
-        .await
-        .expect_err("missing prompt");
-        assert!(matches!(err, ComputeError::InvalidArgs(_)), "got: {err}");
+            serde_json::json!({"model": "llama-3-8b", "tariff_id": "test", "max_tokens": 64}),
+        ] {
+            let err = run_infer_call(&state(100_000), &ctx, &identity, &payer, arguments)
+                .await
+                .expect_err("missing prompt or messages");
+            assert!(
+                matches!(&err, ComputeError::InvalidArgs(message) if message == "one of prompt or messages is required"),
+                "got: {err}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -2468,8 +2482,13 @@ mod tests {
 
         for (arguments, wants) in [
             (serde_json::json!({}), "InvalidArgs"),
+            (serde_json::json!({"tariff_id": "test"}), "InvalidArgs"),
             (
                 serde_json::json!({"prompt": "hi", "messages": []}),
+                "InvalidArgs",
+            ),
+            (
+                serde_json::json!({"prompt": "hi", "messages": [], "tariff_id": "test"}),
                 "InvalidArgs",
             ),
             (

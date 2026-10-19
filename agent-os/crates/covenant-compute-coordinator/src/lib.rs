@@ -37,6 +37,8 @@ pub mod attempts;
 pub mod bond;
 pub mod bundles;
 pub mod canary;
+pub mod community_work;
+pub mod pool_operator;
 pub mod deposit;
 pub mod escrow;
 pub mod http;

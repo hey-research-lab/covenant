@@ -8,6 +8,19 @@ home=${COVENANT_COMPUTE_COORDINATOR_HOME:-/data}
 mkdir -p "$home"
 chown covenant:covenant "$home"
 
+# The public pilot store is opt-in and separate from private coordinator state.
+# Fixed paths keep an environment typo from changing ownership elsewhere.
+if [ -n "${COVENANT_POOL_OPERATOR_DIR:-}" ]; then
+    if [ "$COVENANT_POOL_OPERATOR_DIR" != /data/pool-operator ] \
+        || [ -L /data ] || [ -L /data/pool-operator ]; then
+        echo 'invalid public pool-operator directory' >&2
+        exit 1
+    fi
+    mkdir -p /data/pool-operator
+    chown covenant:covenant /data/pool-operator
+    chmod 700 /data/pool-operator
+fi
+
 # write_key PATH_VAR JSON_VAR: writes $JSON_VAR to the file $PATH_VAR names,
 # readable by the service user only, and keeps the key out of the
 # coordinator's own environment.

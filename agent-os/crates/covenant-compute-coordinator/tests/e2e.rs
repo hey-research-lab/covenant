@@ -11227,7 +11227,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/http.rs")).unwrap();
     assert_eq!(
         router_source.matches(".route(").count(),
-        48,
+        49,
         "the route table changed — teach the hostile-wire barrage the new route first"
     );
 
@@ -11319,6 +11319,8 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
     for path in [
         "/health",
         "/status",
+        // The rental observer feed is input-less even when disabled.
+        "/rental-checks",
         "/metrics",
         "/federation/deposit-info",
         "/federation/bond-info",
@@ -11348,6 +11350,19 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         )
         .await;
     }
+
+    // Ignorable query text does not exempt the rental feed from refusing
+    // malformed protocol headers before its read-only handler runs.
+    assert_wire_answer(
+        http.get(format!("{base_url}/rental-checks")).header(
+            covenant_compute_protocol::PROTOCOL_VERSION_HEADER,
+            "garbage",
+        ),
+        false,
+        "GET /rental-checks (malformed protocol header)".to_string(),
+        &mut violations,
+    )
+    .await;
 
     for query in [
         "since_ms=garbage",
@@ -11404,6 +11419,9 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
     // well-formed unknown id and a hostile segment.
     let unknown_job = Uuid::new_v4();
     let post_paths = [
+        // The public rental-check feed never accepts writes, regardless
+        // of body shape; each garbage class must receive a clean 4xx.
+        "/rental-checks".to_string(),
         "/federation/operators/register".to_string(),
         "/federation/operators/heartbeat".to_string(),
         "/federation/jobs".to_string(),

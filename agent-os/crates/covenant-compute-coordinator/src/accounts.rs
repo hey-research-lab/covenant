@@ -97,6 +97,11 @@ impl BuyerAccounts {
         })
     }
 
+    /// Whether a rail-verified deposit id has already been credited. No buyer or balance is exposed.
+    pub fn has_deposit(&self, deposit_id: &str) -> bool {
+        self.ledger.lock().seen.contains(deposit_id)
+    }
+
     /// Everything this buyer has ever deposited. Monotonic — spend
     /// never subtracts from it, so a concurrent reader can only see a
     /// value at most briefly *lower* than true, never higher, which

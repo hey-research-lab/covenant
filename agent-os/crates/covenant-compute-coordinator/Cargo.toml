@@ -26,6 +26,7 @@ covenant-types = { path = "../covenant-types" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
+libc = { workspace = true }
 bs58 = { workspace = true }
 parking_lot = { workspace = true }
 reqwest = { workspace = true }

@@ -1318,6 +1318,7 @@ dependencies = [
  "covenant-types",
  "hmac 0.12.1",
  "http-body 1.0.1",
+ "libc",
  "parking_lot",
  "reqwest 0.12.28",
  "serde",

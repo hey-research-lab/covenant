@@ -7,6 +7,9 @@ import {pathToFileURL} from 'node:url';
 export const NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 export const ASSET = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const MAX_BYTES = 262144;
+const CLOCK_SKEW_MS = 5000;
+// Native freshness (120s) less the 45s delivery margin caps a new quote at 75s.
+const QUOTE_LIFETIME_MS = 75000;
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 const fail = message => { throw new Error(message); };
 const requireThat = (condition, message) => { if (!condition) fail(message); };
@@ -150,8 +153,8 @@ export function validateSnapshot({health, manifest, catalog}, {expected, origin,
   equal(health, {status: 'ok', service: 'covenant-compute-x402', protocol: 'x402-v2',
     admissions_enabled: true, revision}, 'health');
   keys(manifest, ['schemaVersion', 'x402Version', 'name', 'description', 'observedAtMs', 'available', 'models', 'endpoints'], 'manifest');
-  requireThat(integer(manifest.observedAtMs) && manifest.observedAtMs >= started - 5000
-    && manifest.observedAtMs <= ended + 5000, 'manifest observation is not fresh');
+  requireThat(integer(manifest.observedAtMs) && manifest.observedAtMs >= started - CLOCK_SKEW_MS
+    && manifest.observedAtMs <= ended + CLOCK_SKEW_MS, 'manifest observation is not fresh');
   const records = expectedRecords(expected, origin);
   equal(manifest, {schemaVersion: 1, x402Version: 2, name: 'Covenant Compute',
     description: 'Available text inference and its current exact Solana USDC payment terms.',
@@ -185,7 +188,10 @@ export function validateQuote(body, header, {request, id, expected, origin, ende
   const amount = request.pricing === 'model_tariff_v1' ? tariffPrice(expected.tariff, request.max_tokens) : expected.legacyAmount;
   const hash = sha256(request);
   const expires = body?.accepts?.[0]?.extra?.expiresAtMs;
-  requireThat(integer(expires, 1) && expires > ended && expires <= ended + 75000, 'quote expiry');
+  // Server-issued expiry uses the same bounded clock tolerance as the manifest.
+  // This does not extend the quote itself or its absolute tariff delivery margin.
+  requireThat(integer(expires, 1) && expires > ended
+    && expires <= ended + QUOTE_LIFETIME_MS + CLOCK_SKEW_MS, 'quote expiry');
   if (request.pricing) requireThat(expires <= expected.tariff.valid_until_ms - 45000, 'quote tariff delivery margin');
   equal(body, {x402Version: 2, resource: {url: `${origin}/v1/chat/completions`,
     description: 'Covenant inference with a verified operator receipt', mimeType: 'application/json'},

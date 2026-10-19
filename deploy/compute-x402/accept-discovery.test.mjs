@@ -14,15 +14,15 @@ function policy() {
       base_micro_usdc: 12000, output_cap_micro_usdc_per_million: 9000000,
       max_output_tokens: 2048, valid_from_ms: now - 1000, valid_until_ms: now + 86400000}};
 }
-function snapshot(url = origin) {
+function snapshot(url = origin, serverNow = now) {
   const expected = policy();
   return {health: {status: 'ok', service: 'covenant-compute-x402', protocol: 'x402-v2', admissions_enabled: true, revision},
     manifest: {schemaVersion: 1, x402Version: 2, name: 'Covenant Compute',
       description: 'Available text inference and its current exact Solana USDC payment terms.',
-      observedAtMs: now, available: true, ...expectedRecords(expected, url)},
+      observedAtMs: serverNow, available: true, ...expectedRecords(expected, url)},
     catalog: {object: 'list', data: expectedRecords(expected, url).models}};
 }
-function quote(request, id, url = origin) {
+function quote(request, id, url = origin, serverNow = now) {
   const expected = policy();
   const hash = sha256(request);
   const amount = request.pricing ? tariffPrice(expected.tariff, request.max_tokens) : 50000;
@@ -30,7 +30,7 @@ function quote(request, id, url = origin) {
     description: 'Covenant inference with a verified operator receipt', mimeType: 'application/json'},
   accepts: [{scheme: 'exact', network: NETWORK, asset: ASSET, amount: String(amount), payTo: expected.payTo,
     maxTimeoutSeconds: 90, extra: {feePayer: expected.feePayer, memo: `covenant.x402.v2:${id}:${hash}`,
-      quoteId: id, requestSha256: hash, expiresAtMs: now + 75000}}]};
+      quoteId: id, requestSha256: hash, expiresAtMs: serverNow + 75000}}]};
 }
 const encoded = body => Buffer.from(JSON.stringify(body)).toString('base64');
 const context = {expected: policy(), origin, revision, started: now, ended: now};
@@ -101,11 +101,34 @@ test('402 binds exact request, ID, rail and fixed cap amount; does not invent na
   const changes = [b => b.accepts[0].amount = '50000', b => b.accepts[0].amount = 14304,
     b => b.accepts[0].extra.quoteId = 'other', b => b.accepts[0].extra.requestSha256 = 'b'.repeat(64),
     b => b.accepts[0].extra.memo += 'wrong', b => b.accepts[0].extra.expiresAtMs = now,
-    b => b.accepts[0].extra.expiresAtMs = now + 75001, b => b.accepts[0].native_tariff = {},
+    b => b.accepts[0].extra.expiresAtMs = now + 80001, b => b.accepts[0].native_tariff = {},
     b => b.resource.url = 'https://other.example/v1/chat/completions', b => b.accepts.push(b.accepts[0])];
   for (const change of changes) { const b = structuredClone(body); change(b); assert.throws(() => validateQuote(b, encoded(b), ctx)); }
   assert.throws(() => validateQuote(body, encoded({...body, x402Version: 1}), ctx));
   assert.throws(() => validateQuote(body, encoded(body) + '\n', ctx));
+});
+test('quote clock tolerance preserves expiry and absolute tariff delivery limits', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  for (const priced of [false, true]) {
+    const request = {model: policy().model, messages: [{role: 'user', content: 'fixture'}], max_tokens: 256,
+      ...(priced ? {pricing: 'model_tariff_v1'} : {})};
+    const ctx = {request, id, expected: policy(), origin, ended: now};
+    for (const offset of [75054, 80000]) {
+      const body = quote(request, id); body.accepts[0].extra.expiresAtMs = now + offset;
+      assert.equal(validateQuote(body, encoded(body), ctx).expires_at_ms, now + offset);
+    }
+    for (const offset of [-1, 0, 80001]) {
+      const body = quote(request, id); body.accepts[0].extra.expiresAtMs = now + offset;
+      assert.throws(() => validateQuote(body, encoded(body), ctx), /quote expiry/);
+    }
+    if (priced) {
+      const body = quote(request, id, origin, now + 5000);
+      const expected = policy(); expected.tariff.valid_until_ms = now + 125000;
+      assert.equal(validateQuote(body, encoded(body), {...ctx, expected}).expires_at_ms, now + 80000);
+      expected.tariff.valid_until_ms--;
+      assert.throws(() => validateQuote(body, encoded(body), {...ctx, expected}), /quote tariff delivery margin/);
+    }
+  }
 });
 test('CLI and URL surface cannot inject authorization, config, alternate paths or paid requests', () => {
   assert.deepEqual(parseArgs(['--base-url', origin, '--revision', revision, '--expected', 'public.json']),
@@ -116,7 +139,7 @@ test('CLI and URL surface cannot inject authorization, config, alternate paths o
   assert.equal(baseUrl('http://127.0.0.1:8888/'), 'http://127.0.0.1:8888');
 });
 
-async function fixture(t, mutate) {
+async function fixture(t, mutate, serverClockOffset = 0) {
   const requests = [];
   let url;
   const server = createServer(async (req, res) => {
@@ -124,11 +147,11 @@ async function fixture(t, mutate) {
     const entry = {method: req.method, path: req.url, headers: req.headers, body: raw ? strictJson(raw) : undefined};
     requests.push(entry);
     if (mutate?.(entry, res)) return;
-    const s = snapshot(url);
+    const s = snapshot(url, now + serverClockOffset);
     let body = {'/health': s.health, '/.well-known/x402.json': s.manifest, '/v1/models': s.catalog}[req.url];
     res.setHeader('content-type', 'application/json'); res.setHeader('cache-control', 'no-store');
     if (req.method === 'POST') {
-      body = quote(entry.body, req.headers['idempotency-key'], url);
+      body = quote(entry.body, req.headers['idempotency-key'], url, now + serverClockOffset);
       res.statusCode = 402; res.setHeader('payment-required', encoded(body));
     }
     res.end(JSON.stringify(body));
@@ -158,6 +181,18 @@ test('explicit quote mode makes four fresh unpaid requests and validates post-ob
   for (const r of f.requests) for (const header of ['authorization', 'cookie', 'payment-signature', 'x-payment']) assert.equal(r.headers[header], undefined);
   assert.equal(report.payment_authorizations_sent, 0); assert.equal(report.signatures_created, 0);
   assert.match(report.limitations.join(' '), /do not establish unchanged private journals/);
+});
+test('real HTTP acceptance tolerates a server clock five seconds ahead for both quote modes', async t => {
+  const f = await fixture(t, undefined, 5000);
+  const report = await acceptDiscovery({base: f.url, revision, expected: policy(), now: () => now, quotes: true});
+  assert.equal(report.accepted, true);
+  assert.equal(report.before.observed_at_ms, now + 5000);
+  assert.equal(report.after.observed_at_ms, now + 5000);
+  assert.deepEqual(report.calls, {get: 6, unsigned_quote_post: 4});
+  assert.deepEqual(report.quotes.map(q => q.amount_micro_usdc), [50000, 12009, 14304, 30432]);
+  assert.deepEqual(report.quotes.map(q => q.expires_at_ms), Array(4).fill(now + 80000));
+  assert.equal(report.payment_authorizations_sent, 0);
+  for (const r of f.requests) assert.equal(r.headers['payment-signature'], undefined);
 });
 test('redirects are not followed and do not lead to quote creation', async t => {
   const f = await fixture(t, (req, res) => { if (req.path === '/health') { res.writeHead(302, {location: '/target'}); res.end(); return true; } });

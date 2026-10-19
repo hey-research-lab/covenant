@@ -149,7 +149,7 @@ export const FOOTER_COLUMNS: { title: string; links: FooterColumnLink[] }[] = [
       { label: "Docs", href: "https://docs.opencovenant.org", external: true },
       { label: "API Reference", href: "/docs/http-api" },
       { label: "Compute status", href: "/compute-status" },
-      { label: "Public work", href: "/compute-work" },
+      { label: "Compute pool pilot", href: "/compute-work" },
       ...(workspaceRelease.accepted ? [{ label: "Compute workspaces", href: "/compute-workspaces" }] : []),
       ...(rentalChecksRelease.accepted ? [{ label: "GPU rental checks", href: "/compute-rental-checks" }] : []),
       { label: "SDK", href: "/sdk" },

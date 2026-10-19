@@ -111,12 +111,16 @@ starting another; an unknown quote response is not a reason to reuse its ID.
 
 1. Qualify an immutable full `compute-x402-image` build at the reviewed source.
    Run payment/readiness, gateway, public acceptance and runtime tests. Set
-   `SMOKE_DISCOVERY=true` for image smoke: it checks empty manifest/models before
-   and after a persistent-volume restart, with admissions, operator and provider
-   disabled. Its private state checker verifies unchanged identities, seal and
+   `SMOKE_DISCOVERY=true` and `SMOKE_BRANDING=true` for a full new-image smoke.
+   Discovery checks empty manifest/models/OpenAPI paths before and after a
+   persistent-volume restart. Branding checks bounded GET/HEAD responses for
+   the merchant root, official icon/banner/favicon and CSS, with exact binary
+   hashes and canonical metadata despite an untrusted Host header. Both run
+   with admissions, operator and provider disabled. The private state checker
+   verifies unchanged identities, seal and
    journal entries, an empty buyer budget directory and no provider/operator
    state. The recovery clock may advance. This smoke makes no paid dispatch.
-   The optional flag preserves qualification of older observer overlay images;
+   The optional flags default to false to preserve qualification of older observer overlay images;
    those images do not establish discovery support.
 2. Refresh the current deployment, topology and environment fingerprint, plus
    authenticated gateway/provider and relevant native payment state. Resolve

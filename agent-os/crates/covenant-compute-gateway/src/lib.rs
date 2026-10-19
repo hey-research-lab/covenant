@@ -2,6 +2,7 @@
 //! bounded reserve. Only a verified successful result can trigger settlement;
 //! only finalized, read-back settlement releases that result to the customer.
 #![deny(unsafe_code)]
+mod branding;
 pub mod bridge;
 pub mod buyer;
 pub mod discovery;
@@ -852,6 +853,7 @@ pub fn spawn_retention(gateway: Arc<Gateway>) -> tokio::task::JoinHandle<()> {
 }
 pub fn router(gateway: Arc<Gateway>) -> Router {
     Router::new()
+        .merge(branding::router())
         .route("/v1/chat/completions", post(handle_http))
         .route("/.well-known/x402.json", get(discovery::manifest_http))
         .route("/openapi.json", get(discovery::openapi_http))

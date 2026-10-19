@@ -441,3 +441,98 @@ fn x402scan_contract_fixture_uses_the_real_quote_serializer() {
     println!("OPENAPI_FIXTURE_JSON={document}");
     println!("PAYMENT_FIXTURE_JSON={}", terms.requirements());
 }
+
+#[tokio::test]
+async fn merchant_branding_is_bounded_and_read_only_with_admissions_closed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (gateway, executor, rail) = fixture(dir.path(), 100_000);
+    let before = std::fs::read(dir.path().join("gateway.json")).unwrap();
+    std::fs::write(dir.path().join("admissions.disabled"), b"closed").unwrap();
+    rail.ready.store(false, Ordering::SeqCst);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let task = tokio::spawn(axum::serve(listener, crate::router(gateway)).into_future());
+    let client = reqwest::Client::new();
+    let base = format!("http://{address}");
+    for (path, content_type, max_bytes, immutable) in [
+        ("/", "text/html; charset=utf-8", 8192, false),
+        ("/favicon.ico", "image/x-icon", 3000, false),
+        (
+            "/brand/covenant-icon-02026997.png",
+            "image/png",
+            56_000,
+            true,
+        ),
+        (
+            "/brand/covenant-banner-4b58cf6c.png",
+            "image/png",
+            162_000,
+            true,
+        ),
+        ("/brand/style.css", "text/css; charset=utf-8", 4096, false),
+    ] {
+        let response = client
+            .get(format!("{base}{path}"))
+            .header("host", "attacker.invalid")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["content-type"], content_type);
+        assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+        assert_eq!(response.headers()["referrer-policy"], "no-referrer");
+        assert_eq!(response.headers()["content-security-policy"], "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+        assert_eq!(
+            response.headers()["cache-control"],
+            if immutable {
+                "public, max-age=31536000, immutable"
+            } else {
+                "public, max-age=300"
+            }
+        );
+        assert!(!response.headers().contains_key("payment-required"));
+        let body = response.bytes().await.unwrap();
+        assert!(!body.is_empty() && body.len() <= max_bytes);
+        if path == "/" {
+            let html = std::str::from_utf8(&body).unwrap();
+            assert!(html.contains("<title>Covenant Compute</title>"));
+            assert!(html
+                .contains("content=\"https://example.test/brand/covenant-banner-4b58cf6c.png\""));
+            assert!(html.contains("href=\"/brand/covenant-icon-02026997.png\""));
+            assert!(!html.contains("attacker.invalid"));
+            assert!(!html.contains("private bridge secret"));
+        } else if content_type == "image/png" {
+            assert!(body.starts_with(b"\x89PNG\r\n\x1a\n"));
+        }
+        let response = client.head(format!("{base}{path}")).send().await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["content-type"], content_type);
+        assert!(!response.headers().contains_key("payment-required"));
+        assert!(response.bytes().await.unwrap().is_empty());
+        assert_eq!(
+            client
+                .post(format!("{base}{path}"))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::METHOD_NOT_ALLOWED
+        );
+    }
+    assert_eq!(
+        client
+            .get(format!("{base}/brand/not-published.png"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(executor.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(executor.prepares.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        before,
+        std::fs::read(dir.path().join("gateway.json")).unwrap()
+    );
+    task.abort();
+}

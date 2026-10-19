@@ -262,6 +262,7 @@ naming the variable rather than starting on the wrong setting.
 | `COVENANT_COMPUTE_VAULT` | `0` | Serve the client-sealed secret store at `/vault`. On, the coordinator keeps per-owner ciphertext it cannot read, durable under the state directory beside the journal. |
 | `COVENANT_COMPUTE_VAULT_MAX_OWNERS` | unset | Ceiling on distinct vault owners; a volumetric backstop for an open deployment. Unset admits any number; a known owner is never turned away by it. |
 | `COVENANT_COMPUTE_PUBLIC_PROOF_FEED` | `0` | Serve the public settlement proof feed at `/proof`. On, and settling on a chain, each settled job's signed receipt and its on-chain payout are published for anyone to verify. |
+| `COVENANT_COMPUTE_WORK_DIR` | unset | Directory of explicitly reviewed public exports for `/community-work`; checked on each read. Unset or invalid data returns unavailable. It does not discover or publish private buyer evidence. |
 
 **Money, fees and funding source**
 

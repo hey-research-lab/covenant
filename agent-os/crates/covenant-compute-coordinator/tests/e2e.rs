@@ -11227,7 +11227,7 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/http.rs")).unwrap();
     assert_eq!(
         router_source.matches(".route(").count(),
-        49,
+        58,
         "the route table changed — teach the hostile-wire barrage the new route first"
     );
 
@@ -11376,6 +11376,55 @@ async fn hostile_wire_garbage_gets_4xx_moves_no_money_and_the_service_keeps_serv
             &mut violations,
         )
         .await;
+    }
+
+    // Optional public evidence is unavailable without a configured export.
+    // Malformed protocol headers must still be refused before those readers,
+    // and none of these read-only routes may accept a garbage POST.
+    for path in [
+        "/pool-operator",
+        "/pool-operator/observations/invalid.json",
+        "/community-work",
+        "/community-work/deposits/invalid",
+        "/community-work/artifacts/invalid.json",
+        "/community-work/invalid/manifest",
+        "/community-work/invalid",
+    ] {
+        assert_wire_answer(
+            http.get(format!("{base_url}{path}")).header(
+                covenant_compute_protocol::PROTOCOL_VERSION_HEADER,
+                "garbage",
+            ),
+            false,
+            format!("GET {path} (malformed protocol header)"),
+            &mut violations,
+        )
+        .await;
+        assert_wire_answer(
+            http.post(format!("{base_url}{path}"))
+                .body(b"\xff not json".to_vec()),
+            false,
+            format!("POST {path} (read-only publication)"),
+            &mut violations,
+        )
+        .await;
+    }
+    for path in [
+        "/admin/pool-operator",
+        "/admin/pool-operator/observations/invalid.json",
+    ] {
+        for (class, body, content_type) in garbage_bodies {
+            assert_wire_answer(
+                http.put(format!("{base_url}{path}"))
+                    .header("content-type", content_type)
+                    .header("authorization", "Bearer forged-publication-token")
+                    .body(body.to_vec()),
+                false,
+                format!("PUT {path} ({class}, forged authorization)"),
+                &mut violations,
+            )
+            .await;
+        }
     }
 
     // Param routes: a garbage segment makes the question itself

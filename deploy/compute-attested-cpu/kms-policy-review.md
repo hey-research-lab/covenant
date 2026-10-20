@@ -146,3 +146,57 @@ The KMS choice remains pending and new creation remains disabled. Any later
 managed-policy acceptance must stay a finite synthetic pilot at `Open`, with
 independent Covenant evidence checks. It is insufficient for stronger
 production trust or provider-independent persistent-secret exclusivity.
+
+## Prism comparison at a pinned revision
+
+Prism `main` was checked at `4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec`.
+Its inference verifier explicitly skips `key-custody`: no implemented verifier
+appraises the dstack KMS custody chain. That documented skip is allowed in an
+overall `verified` verdict; the label therefore does not establish exclusive
+private-key custody. See the [skip and verdict rule](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/sdk/attest.mjs#L578-L601).
+
+Prism's [confidential inference path](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/inference/README.md#L205-L212)
+relays to Phala-hosted inference; this is distinct from provisioning and
+closing a renter's attested node lease. Its [node lease code](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/node/prismd/src/attestation.rs#L184-L245)
+binds a quote to a challenge, lease, node and guest SSH key. Code presence alone
+does not demonstrate an accepted deployed lifecycle. The actual
+[verification ceiling is `Confidential`](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/crates/protocol/src/lib.rs#L145-L167);
+older prose describing a lower ceiling is not an activation record. An empty
+public rental-offer list likewise says nothing about the separate inference
+service's availability.
+
+A repository-wide source search at that revision found no guest KMS contract
+or server-policy implementation under `DstackApp`, `KmsAuth`, `kms_contract`,
+`os_image_verification` or `image.verify`. This scoped finding does not identify
+the upstream service's actual KMS policy. Prism's [AWS KMS signer](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/crates/chain/src/lib.rs#L731-L773)
+signs chain transactions; it does not establish dstack guest key-release policy.
+
+Keep Covenant's KMS qualification separate from launch, channel and receipt
+verification. End-to-end encryption reduces relay plaintext exposure but does
+not prove exclusive private-key custody. Prism supplies no evidence that
+resolves the observed prod5 OS-verification gap or justifies raising `Open`.
+
+Prism's [SNP guest bootstrap](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/node/prismd/assets/workspace-bootstrap.sh#L45-L121)
+generates the SSH host key in guest runtime storage and binds its public key
+to the lease challenge. Its [workspace client](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/sdk/workspace.mjs#L1-L40)
+keeps snapshot encryption keys with the buyer. These are useful limits on
+provider-held persistent secrets, not independent proof of guest key custody.
+Its SNP [runtime configuration](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/node/prismd/src/runtime.rs#L464-L489)
+also puts `/workspace` in tmpfs, reducing restored plaintext written to disk.
+
+Covenant likewise generates the SSH private key in `/run` tmpfs and keeps
+workspace encryption keys local to the buyer. Its current Compose still uses
+disk-backed named volumes for restored workspace plaintext, the public host-key
+sidecar and collector state. KMS compromise combined with disk access could
+therefore affect their confidentiality or integrity. The collector's read-only
+mount does not establish integrity against an actor controlling the underlying
+storage. A valid fresh quote does not independently authenticate every mutable
+file it reads.
+
+Tmpfs alone also does not establish that key pages never reach persistent
+storage: the reviewed dstack source supports encrypted-disk swap, while this
+Compose does not establish a no-swap policy. Actual VM configuration and runtime
+swap behavior require qualification before claiming memory-only custody.
+These are residual trust boundaries, not evidence of an observed compromise.
+See dstack's [persistent container storage](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/os/common/rootfs/dstack-prepare.sh#L286-L303)
+and [swap setup](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/dstack-util/src/system_setup.rs#L2499-L2573).

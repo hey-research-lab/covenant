@@ -42,6 +42,7 @@ pub mod gpu;
 pub mod http_client;
 pub mod imd;
 pub mod kani;
+pub mod knowledge;
 pub mod lease;
 pub mod node;
 pub mod ollama;
@@ -71,6 +72,7 @@ pub use executor::{
 pub use gpu::{detect_gpu, detect_nvidia_gpu, parse_hardware, DetectedGpu};
 pub use http_client::{HttpCoordinatorClient, OperatorJobRow, PayoutConfirmation};
 pub use imd::{ImdConfig, ImdExecutor, ImdOrder, OrderBook, OrderState};
+pub use knowledge::{KnowledgeConfig, KnowledgeExecutor};
 pub use lease::{LeaseControl, LeaseExecutor, SessionBackend, StubSessionBackend};
 pub use node::{JobOutcome, Node, NodeConfig, NodeError};
 pub use ollama::{OllamaExecutor, DEFAULT_OLLAMA_URL};

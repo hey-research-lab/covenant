@@ -859,6 +859,8 @@ and pending ciphertext survive process restart. See the [CLI workflow, backup
 and release gates](../../../docs/compute-workspaces.md) before enabling storage.
 A workspace save does not rent a machine or spend the buyer's Compute balance.
 
+See the [Phala lease lifecycle](../../../docs/compute-phala-lease-lifecycle.md)
+for offline preparation, one-time submission and provider qualification gates.
 For a ready Phala lease whose original signed purchase pins the workload:
 
 ```sh

@@ -38,10 +38,10 @@ use covenant_compute_node::{
     AgentCredential, AgentExecutor, BenchmarkSpec, BrokerConfig, BrokerSessionBackend, ChunkSink,
     ContainerConfig, ContainerJobExecutor, Coordinator, EarningsLedger, EarningsStatus,
     EchoExecutor, ExecutionOutcome, ExecutorError, HttpCoordinatorClient, ImdConfig, ImdExecutor,
-    JobExecutor, JsonlEarningsLedger, LeaseControl, LeaseExecutor, Node, NodeConfig, NodeError,
-    OfferNotes, OllamaExecutor, OpenAiCompatExecutor, SayExecutor, StubSessionBackend,
-    SubprocessJobExecutor, WhisperExecutor, DEFAULT_SAY_BIN, DEFAULT_WHISPER_BIN,
-    READY_POLL_INTERVAL, READY_TIMEOUT, SERVICE_USAGE, SETUP_USAGE,
+    JobExecutor, JsonlEarningsLedger, KnowledgeConfig, KnowledgeExecutor, LeaseControl,
+    LeaseExecutor, Node, NodeConfig, NodeError, OfferNotes, OllamaExecutor, OpenAiCompatExecutor,
+    SayExecutor, StubSessionBackend, SubprocessJobExecutor, WhisperExecutor, DEFAULT_SAY_BIN,
+    DEFAULT_WHISPER_BIN, READY_POLL_INTERVAL, READY_TIMEOUT, SERVICE_USAGE, SETUP_USAGE,
 };
 use covenant_compute_protocol::{
     canonical_model, coordinator_reason, payout_transaction_rpc_request, speech_input,
@@ -470,7 +470,7 @@ fn kind_label(kind: JobKind) -> &'static str {
 fn servable_kinds(executor_kind: &str) -> Option<&'static [JobKind]> {
     match executor_kind {
         "ollama" | "openai-compat" => Some(&[JobKind::InferenceCall, JobKind::Embedding]),
-        "subprocess" | "container" | "imd" => Some(&[JobKind::BatchJob]),
+        "subprocess" | "container" | "imd" | "knowledge" => Some(&[JobKind::BatchJob]),
         "whisper" => Some(&[JobKind::Transcription]),
         "say" => Some(&[JobKind::SpeechSynthesis]),
         "broker" | "lease-stub" | "phala-cpu" => Some(&[JobKind::LeaseSession]),
@@ -487,7 +487,7 @@ fn servable_kinds(executor_kind: &str) -> Option<&'static [JobKind]> {
 /// openai-compat) route each job to any of their advertised models, and
 /// the generic backends serve `any`, so several names is honest there.
 fn serves_single_model(executor_kind: &str) -> bool {
-    matches!(executor_kind, "whisper" | "say" | "phala-cpu")
+    matches!(executor_kind, "whisper" | "say" | "phala-cpu" | "knowledge")
 }
 
 /// The job kinds advertised when `COVENANT_COMPUTE_NODE_JOB_KINDS` is
@@ -697,6 +697,9 @@ async fn resolve_models_served(executor_kind: &str) -> anyhow::Result<Vec<String
         // A swarm node serves one thing, the IMD swarm, under the label a
         // buyer's swarm order requires; `any` would pull shell commands
         // onto a node that pays IMD for every job it accepts.
+        Err(_) if executor_kind == "knowledge" => {
+            Ok(vec![KnowledgeConfig::from_environment()?.model()])
+        }
         Err(_) if executor_kind == "imd" => {
             Ok(vec![covenant_compute_protocol::SWARM_MODEL.to_string()])
         }
@@ -732,6 +735,7 @@ enum NodeExecutor {
     Phala(PhalaExecutor),
     Agent(Box<AgentExecutor>),
     Imd(Box<ImdExecutor>),
+    Knowledge(KnowledgeExecutor),
 }
 
 #[async_trait]
@@ -753,6 +757,7 @@ impl JobExecutor for NodeExecutor {
             NodeExecutor::Phala(e) => e.execute(job, deadline).await,
             NodeExecutor::Agent(e) => e.execute(job, deadline).await,
             NodeExecutor::Imd(e) => e.execute(job, deadline).await,
+            NodeExecutor::Knowledge(e) => e.execute(job, deadline).await,
         }
     }
 
@@ -778,6 +783,7 @@ impl JobExecutor for NodeExecutor {
             NodeExecutor::Phala(e) => e.execute_streaming(job, deadline, sink).await,
             NodeExecutor::Agent(e) => e.execute_streaming(job, deadline, sink).await,
             NodeExecutor::Imd(e) => e.execute_streaming(job, deadline, sink).await,
+            NodeExecutor::Knowledge(e) => e.execute_streaming(job, deadline, sink).await,
         }
     }
 
@@ -797,6 +803,7 @@ impl JobExecutor for NodeExecutor {
             NodeExecutor::Phala(e) => e.admit(job, remaining),
             NodeExecutor::Agent(e) => e.admit(job, remaining),
             NodeExecutor::Imd(e) => e.admit(job, remaining),
+            NodeExecutor::Knowledge(e) => e.admit(job, remaining),
         }
     }
 
@@ -815,6 +822,7 @@ impl JobExecutor for NodeExecutor {
             NodeExecutor::Phala(e) => e.health().await,
             NodeExecutor::Agent(e) => e.health().await,
             NodeExecutor::Imd(e) => e.health().await,
+            NodeExecutor::Knowledge(e) => e.health().await,
         }
     }
 }
@@ -1242,6 +1250,13 @@ async fn probe_backend(identity: &LocalIdentity) -> Option<(String, Result<(), E
                 .health()
                 .await;
             Some((format!("openai-compat at {url}"), result))
+        }
+        "knowledge" => {
+            let result = match KnowledgeConfig::from_environment() {
+                Ok(config) => KnowledgeExecutor::new(config).health().await,
+                Err(error) => Err(ExecutorError::Failed(error.to_string())),
+            };
+            Some(("pinned knowledge compiler image".into(), result))
         }
         "container" => {
             let env_opt = |key: &str| {
@@ -3173,6 +3188,23 @@ async fn main() -> anyhow::Result<()> {
             executor.ensure_images_present().await;
             NodeExecutor::Agent(Box::new(executor))
         }
+        "knowledge" => {
+            let config = KnowledgeConfig::from_environment()?;
+            anyhow::ensure!(
+                profile.models_served == vec![config.model()]
+                    && profile.models_for(JobKind::BatchJob) == vec![config.model()],
+                "knowledge operator must advertise only its exact pinned compiler model"
+            );
+            let executor = KnowledgeExecutor::new(config).with_operator(&identity.agent_id());
+            let reaped = executor
+                .reap_orphans()
+                .await
+                .context("remove interrupted knowledge compiler containers")?;
+            if reaped > 0 {
+                tracing::warn!(reaped, "removed orphaned knowledge compiler containers");
+            }
+            NodeExecutor::Knowledge(executor)
+        }
         "imd" => {
             // The swarm node runs nothing: it pays IMD for each job and
             // relays the result. Its wallet, chain and price guards are
@@ -3202,7 +3234,7 @@ async fn main() -> anyhow::Result<()> {
         other => anyhow::bail!(
             "COVENANT_COMPUTE_NODE_EXECUTOR must be one of \
              echo|subprocess|container|ollama|openai-compat|whisper|say|broker|phala-cpu|lease-stub|agent|\
-             imd, got {other:?}"
+             imd|knowledge, got {other:?}"
         ),
     };
 
@@ -3223,6 +3255,12 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!(
             "capability benchmark SKIPPED — this node registers claims it has not demonstrated"
         );
+    } else if executor_kind == "knowledge" {
+        executor
+            .health()
+            .await
+            .context("verify pinned knowledge compiler image")?;
+        tracing::info!("knowledge compiler image present; compilation is deterministic and receipt-bound per job");
     } else if executor_kind == "broker" || executor_kind == "phala-cpu" {
         // A lease has no known-answer self-test, and the only way to
         // demonstrate one at boot would be to rent a real machine —
@@ -4080,9 +4118,12 @@ mod tests {
     /// multi-model `COVENANT_COMPUTE_NODE_MODELS` for; the routing and
     /// generic backends carry several names honestly.
     #[test]
-    fn only_whisper_and_say_are_single_fixed_model_backends() {
+    fn fixed_model_backends_require_exactly_one_advertised_model() {
         assert!(serves_single_model("whisper"));
         assert!(serves_single_model("say"));
+        assert!(serves_single_model("knowledge"));
+        assert_eq!(servable_kinds("knowledge"), Some(&[JobKind::BatchJob][..]));
+        assert_eq!(default_kinds("knowledge"), "batch_job");
         for routing in [
             "ollama",
             "openai-compat",

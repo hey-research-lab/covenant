@@ -118,6 +118,13 @@ OpenAI-compatible backend as `image_url` content parts.
   requires one in-flight slot and retains unresolved cleanup obligations.
   Creation is disabled by default, and served trust remains `Open`; see the
   [Phala lifecycle and acceptance gates](../../../docs/compute-phala-lease-lifecycle.md).
+- **`knowledge`** — deterministic knowledge compilation for non-streaming
+  `batch_job` requests. The compiler image must be installed and digest-pinned
+  through `COVENANT_COMPUTE_KNOWLEDGE_IMAGE`; the node advertises only
+  `knowledge-compile-v1:<image-sha256>`. It compiles the bounded inline source
+  in a restricted container, with no network, automatic image pull or
+  buyer-supplied shell command. Startup checks the installed image and removes
+  only this operator's interrupted compiler containers.
 - **`agent`**: builds and checks paid coding tasks. A build runs Claude
   Code under covguard, which holds the model key, meters the spend and
   stops the run at its cap (`COVENANT_COMPUTE_AGENT_BUDGET_USD`, lowered
@@ -488,6 +495,17 @@ The advertised model name is `say-1` unless `COVENANT_COMPUTE_NODE_MODELS` sets 
 | `COVENANT_COMPUTE_BROKER_READY_TIMEOUT_SECS` | `240` | How long a rented machine may take to answer before the broker gives up and the buyer is refunded. Raise it for a large image that pulls slowly. |
 | `COVENANT_COMPUTE_BROKER_READY_POLL_SECS` | `5` | How often the broker asks whether a launching machine is up. |
 | `COVENANT_COMPUTE_LEASE_STUB_ENDPOINT` | `stub://no-machine` | The placeholder address the `lease-stub` executor returns. No machine is behind it; the access grant says so. |
+
+**Knowledge compiler executor**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `COVENANT_COMPUTE_KNOWLEDGE_IMAGE` | (required) | Installed compiler image as `name@sha256:<64-lowercase-hex>`; its digest determines the exact model advertised and accepted. No automatic pull. |
+
+Uses `COVENANT_COMPUTE_NODE_CONTAINER_RUNTIME` (`docker` by default). Omit
+`COVENANT_COMPUTE_NODE_MODELS` for the digest-derived model, or supply exactly
+that one model. The executor accepts only `batch_job`; general container or
+wildcard capacity cannot satisfy its compiler contract.
 
 **Phala CPU executor** (creation disabled pending policy and paid acceptance)
 

@@ -31,12 +31,12 @@ COPY agent-os/ ./agent-os/
 WORKDIR /src/agent-os
 ARG COVENANT_BUILD_REVISION=development
 ENV COVENANT_BUILD_REVISION=${COVENANT_BUILD_REVISION}
-RUN cargo build --release --bin covenant-compute-coordinator
+RUN cargo build --locked --release --bin covenant-compute-coordinator
 # The payout signer is its own workspace on purpose (it carries the
 # heavyweight Solana dependency tree the coordinator stays free of).
-RUN cargo build --release \
+RUN cargo build --locked --release \
       --manifest-path crates/covenant-x402-signer/Cargo.toml
-RUN cargo build --release \
+RUN cargo build --locked --release \
       --manifest-path crates/covenant-compute-lease-signer/Cargo.toml
 
 FROM debian:bookworm-slim AS runtime

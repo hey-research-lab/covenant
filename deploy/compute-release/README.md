@@ -17,12 +17,10 @@ Both `covenant-compute` and `covenant-compute-mcp` refuse any single lease, task
 
 If you downloaded the archive in a browser on macOS, clear the quarantine flag
 on the unpacked commands so that macOS will open them. To check the archive
-first, follow "Verify a download" in the release notes. Installing with
-Homebrew (`brew install open-covenant/tap/covenant-compute`) or the install
-script (`curl -fsSL https://opencovenant.org/install/compute.sh | sh`) avoids
-this step. Those installers use separately pinned releases; check that
-`covenant-compute --version` reports `0.5.0` before using this release's Knowledge
-commands.
+first, follow "Verify a download" in the release notes. This archive contains
+version `0.5.1`. The website installer is pinned separately, so check
+`covenant-compute --version` after using it; an installer may still select an
+older release until its published archive has been verified.
 
 From the unpacked folder:
 
@@ -51,13 +49,12 @@ Add the `export` line to your shell profile to keep it. Your buyer key controls
 your balance, and `covenant-compute` and `covenant-compute-mcp` both use it, so
 back up `~/.covenant-compute-mcp/identity.json`.
 
-## Knowledge implementation preview
+## Knowledge
 
-Builds from the knowledge implementation source include offline repository
-snapshots, source citations, six read-only MCP tools and a loopback viewer. This
-section does not announce a published knowledge release or network deployment;
-check that `covenant-compute knowledge --help` is present in the actual binary.
-No wallet, daemon or model key is needed for the local commands.
+Compile supported source into saved snapshots, inspect exact source citations,
+trace static dependencies, compare snapshots, and connect an agent through six
+read-only MCP tools. The local viewer uses Covenant's typography and black,
+violet, blue and mint palette. Local commands need no wallet, daemon or model key.
 
 From this unpacked folder:
 
@@ -68,9 +65,19 @@ From this unpacked folder:
 ./covenant-compute knowledge serve --project PROJECT_ID
 ```
 
-The index defaults to `~/.covenant/knowledge`, outside the example source.
-The full guide is [docs/compute-knowledge.md](docs/compute-knowledge.md).
-The original examples, parser and font licenses, and recorded local evidence are
+After installing, the same bundled example is available at
+`~/.local/share/covenant-compute/0.5.1/examples/knowledge` unless you override
+`COVENANT_COMPUTE_DATA_DIR`. The index defaults to `~/.covenant/knowledge`, outside
+the example source. `serve` prints a private loopback URL for the selected project;
+do not publish that URL or its session token.
+
+The full guide is [docs/compute-knowledge.md](docs/compute-knowledge.md). Optional
+remote compilation is restricted to verified public GitHub source at a pinned
+commit. The [remote guide](docs/compute-knowledge-remote.md) covers the exact
+compiler model, current-capacity checks, quote-only previews, and durable paid
+execution. Installing this client does not purchase work or reserve capacity.
+
+The original examples, parser and font licenses, and recorded evidence are
 included in the archive. To repeat its isolated offline acceptance check:
 
 ```sh
@@ -104,7 +111,7 @@ agent coordinates the audit, independent reviews, filesystem access, and require
 sandbox. These tools do not execute the workflow or add a remote audit job kind.
 The bundle includes Cloudflare's unchanged upstream documents and license at
 commit `c1c8a8c1471069fb0e188eeaff69b8e8db6564a8` with a hash manifest. The full guide is:
-https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/compute-security-audit.md
+https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-security-audit.md
 
 ## Upfront model prices
 
@@ -125,7 +132,7 @@ reduce the agreed charge. `covenant-compute-mcp` exposes the same choice through
 Tariffs require a compatible coordinator and an operator advertising the exact
 offer. Installing the client does not activate a tariff on the network. Requests
 without a tariff ID retain their existing pricing behavior. The tariff guide is:
-https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/compute-inference-tariffs.md
+https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-inference-tariffs.md
 
 ## Encrypted checkpoints
 
@@ -156,13 +163,13 @@ attestation. `workspace delete <workspace-uuid>` schedules stored ciphertext for
 cleanup after outstanding grants expire.
 
 The complete workspace workflow and storage limits are documented at:
-https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/compute-workspaces.md
+https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-workspaces.md
 
 The guide at https://docs.opencovenant.org/compute covers funding your balance,
 renting a GPU, hiring a coding agent and running a node. Every command and flag
 of `covenant-compute` and `covenant-compute-mcp` is described in the command
 reference:
-https://github.com/open-covenant/covenant/tree/compute-v0.5.0/agent-os/crates/covenant-compute-buyer#readme
+https://github.com/open-covenant/covenant/tree/compute-v0.5.1/agent-os/crates/covenant-compute-buyer#readme
 
 The source is at https://github.com/open-covenant/covenant, licensed under
 Apache 2.0 (see `LICENSE` and `NOTICE.md`).

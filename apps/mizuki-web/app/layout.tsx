@@ -1,20 +1,22 @@
 import type { Metadata, Viewport } from 'next';
-import { Archivo, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { SiteFrame } from '@/components/site-frame';
 import { getAdmission } from '@/lib/api';
 import './globals.css';
 
-const archivo = Archivo({
-  subsets: ['latin'],
-  axes: ['wdth'],
-  weight: 'variable',
+const archivo = localFont({
+  src: './fonts/Archivo-Variable.ttf',
+  weight: '100 900',
+  style: 'normal',
   display: 'swap',
   variable: '--font-archivo',
+  declarations: [{ prop: 'font-stretch', value: '62% 125%' }],
 });
 
-const jetbrains = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
+const jetbrains = localFont({
+  src: './fonts/JetBrainsMono-Variable.ttf',
+  weight: '300 600',
+  style: 'normal',
   display: 'swap',
   variable: '--font-jetbrains',
 });

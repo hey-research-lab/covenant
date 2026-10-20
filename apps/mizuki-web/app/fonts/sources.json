@@ -1,0 +1,56 @@
+{
+  "source_repository": "https://github.com/google/fonts",
+  "source_commit": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+  "license": "SIL Open Font License 1.1",
+  "modifications": "None. Font and license files are the unmodified upstream bytes.",
+  "purpose": "Preserve the existing Archivo and JetBrains Mono typography without a build-time Google Fonts request.",
+  "upstream_build_issue": "https://github.com/vercel/next.js/issues/99114",
+  "files": [
+    {
+      "file": "Archivo-Variable.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/archivo/Archivo%5Bwdth%2Cwght%5D.ttf",
+      "bytes": 658596,
+      "sha256": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053",
+      "axes": [
+        {
+          "tag": "wght",
+          "minimum": 100.0,
+          "default": 600.0,
+          "maximum": 900.0
+        },
+        {
+          "tag": "wdth",
+          "minimum": 62.0,
+          "default": 100.0,
+          "maximum": 125.0
+        }
+      ]
+    },
+    {
+      "file": "JetBrainsMono-Variable.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf",
+      "bytes": 187208,
+      "sha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+      "axes": [
+        {
+          "tag": "wght",
+          "minimum": 100.0,
+          "default": 400.0,
+          "maximum": 800.0
+        }
+      ]
+    },
+    {
+      "file": "OFL-Archivo.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/archivo/OFL.txt",
+      "bytes": 4388,
+      "sha256": "108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b"
+    },
+    {
+      "file": "OFL-JetBrainsMono.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/jetbrainsmono/OFL.txt",
+      "bytes": 4399,
+      "sha256": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d"
+    }
+  ]
+}

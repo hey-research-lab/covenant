@@ -42,6 +42,17 @@ exact = {
     "package.json", "pnpm-lock.yaml",
     "landing/public/install/compute.sh",
 }
+# Exact variable-font repair for the upstream next/font/google URL parser bug.
+# Do not admit other Mizuki source, typography, build, or configuration changes.
+reviewed_font_repair = {
+    "apps/mizuki-web/app/layout.tsx": "426ef8391cfa2827bae3fd9b9747f11304c20a3b6edc7b91a9a5a1ec4e08c880",
+    "apps/mizuki-web/app/fonts/Archivo-Variable.ttf": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053",
+    "apps/mizuki-web/app/fonts/JetBrainsMono-Variable.ttf": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+    "apps/mizuki-web/app/fonts/OFL-Archivo.txt": "108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b",
+    "apps/mizuki-web/app/fonts/OFL-JetBrainsMono.txt": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d",
+    "apps/mizuki-web/app/fonts/sources.json": "a5c89842d580a8e5680cc0c4fd524f4a94e5967eff9bc4e0de41e59080251fd3",
+}
+exact.update(reviewed_font_repair)
 errors, paths = [], []
 for line in changes:
     status, path = line.split("\t", 1)
@@ -50,6 +61,11 @@ for line in changes:
         errors.append("Deletion/rename/unexpected status: " + line)
     if path not in exact and not path.startswith(prefixes):
         errors.append("Outside Knowledge page scope: " + path)
+
+if any(path in reviewed_font_repair for path in paths):
+    for path, expected_hash in reviewed_font_repair.items():
+        if hashlib.sha256(read(path)).hexdigest() != expected_hash:
+            errors.append("Unreviewed local-font repair: " + path)
 
 shared = {
     "landing/app/_brand.tsx": (

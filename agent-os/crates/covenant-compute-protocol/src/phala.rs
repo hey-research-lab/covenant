@@ -365,6 +365,33 @@ pub struct PhalaEphemeralLeaseSpec {
     pub relay: PhalaRelayConfig,
 }
 
+/// Provider deletion confirmation is separate from guest access and billing.
+pub const PHALA_EPHEMERAL_CLEANUP_GRACE_MS: u64 = 300_000;
+/// New orders reserve cleanup time and the ordinary result-delivery margin.
+pub const PHALA_EPHEMERAL_RESULT_SLACK_MS: u64 =
+    PHALA_EPHEMERAL_CLEANUP_GRACE_MS + crate::LEASE_DEADLINE_SLACK_MS;
+
+/// Admission policy for new orders, not historical signature/workload validation.
+/// Old signed envelopes and journals remain readable without gaining a new grace.
+pub fn validate_phala_ephemeral_admission(job: &JobEnvelopePayload) -> Result<(), ProtocolError> {
+    let Some(spec) = parse_phala_ephemeral_lease_spec(&job.input)? else {
+        return Ok(());
+    };
+    spec.validate_for_job(job)?;
+    let required = spec
+        .lease_expires_at_ms
+        .checked_add(PHALA_EPHEMERAL_RESULT_SLACK_MS)
+        .ok_or_else(|| invalid("ephemeral Phala result deadline overflow"))?;
+    let deadline = job
+        .issued_at_ms
+        .checked_add(job.deadline_ms)
+        .ok_or_else(|| invalid("ephemeral Phala result deadline overflow"))?;
+    if deadline < required {
+        return Err(invalid("new ephemeral Phala lease requires 300s cleanup and 60s result-delivery slack beyond its unchanged guest expiry"));
+    }
+    Ok(())
+}
+
 impl PhalaEphemeralLeaseSpec {
     pub fn validate(&self) -> Result<(), ProtocolError> {
         self.relay.validate()?;
@@ -644,6 +671,52 @@ mod tests {
             url: "https://relay.example.com".into(),
             session_id: job.job_id.to_string(),
         }
+    }
+
+    #[test]
+    fn cleanup_slack_is_new_admission_policy_without_rewriting_guest_or_history() {
+        let mut job = ephemeral_job();
+        let (manifest, spec) = phala_ephemeral_workload(
+            &job,
+            &operator(),
+            &reviewed_phala_ephemeral_wrapper(),
+            &image(),
+            &relay(&job),
+        )
+        .unwrap();
+        job.input
+            .push(phala_ephemeral_lease_input(spec.clone()).unwrap());
+        // The old envelope still authenticates its original workload and expiry.
+        job.deadline_ms = 600_000 + crate::LEASE_DEADLINE_SLACK_MS;
+        job.validate_input().unwrap();
+        spec.validate_for_job(&job).unwrap();
+        assert!(validate_phala_ephemeral_admission(&job).is_err());
+        for slack in [
+            PHALA_EPHEMERAL_RESULT_SLACK_MS - 1,
+            PHALA_EPHEMERAL_RESULT_SLACK_MS,
+        ] {
+            job.deadline_ms = 600_000 + slack;
+            assert_eq!(
+                validate_phala_ephemeral_admission(&job).is_ok(),
+                slack == PHALA_EPHEMERAL_RESULT_SLACK_MS
+            );
+        }
+        assert_eq!(
+            render_phala_ephemeral_manifest(
+                &job,
+                &operator(),
+                &spec,
+                &reviewed_phala_ephemeral_wrapper(),
+                &image(),
+            )
+            .unwrap(),
+            manifest
+        );
+        assert_eq!(spec.lease_expires_at_ms, job.issued_at_ms + 600_000);
+        assert_eq!(job.price_micro_usdc, 600);
+        job.deadline_ms = u64::MAX;
+        assert!(validate_phala_ephemeral_admission(&job).is_err());
+        assert!(validate_phala_ephemeral_admission(&self::job()).is_ok());
     }
 
     #[test]

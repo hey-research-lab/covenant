@@ -8,8 +8,9 @@ use covenant_compute_protocol::{
     phala::{
         parse_phala_ephemeral_lease_spec, parse_phala_lease_spec, phala_ephemeral_lease_input,
         phala_ephemeral_workload, phala_lease_input, phala_workload,
-        reviewed_phala_ephemeral_wrapper, reviewed_phala_wrapper, PhalaRelayConfig,
-        PHALA_CPU_MODEL, PHALA_EPHEMERAL_CPU_MODEL,
+        reviewed_phala_ephemeral_wrapper, reviewed_phala_wrapper,
+        validate_phala_ephemeral_admission, PhalaRelayConfig, PHALA_CPU_MODEL,
+        PHALA_EPHEMERAL_CPU_MODEL, PHALA_EPHEMERAL_RESULT_SLACK_MS,
     },
     CapabilityRequirement, JobEnvelopePayload, JobKind, LeaseTerms, SignedJobEnvelope,
     JOB_FRESHNESS_WINDOW_MS, LEASE_DEADLINE_SLACK_MS,
@@ -102,7 +103,12 @@ fn prepare_profile_at(
         },
         input: vec![lease_input(terms).map_err(invalid)?],
         price_micro_usdc: ceiling,
-        deadline_ms: args.duration_secs * 1000 + LEASE_DEADLINE_SLACK_MS,
+        deadline_ms: args.duration_secs * 1000
+            + if relay.is_some() {
+                PHALA_EPHEMERAL_RESULT_SLACK_MS
+            } else {
+                LEASE_DEADLINE_SLACK_MS
+            },
         idempotency: A2AIdempotency::new(A2ADuplicateSafety::Idempotent, args.job_id.to_string()),
         issued_at_ms: now,
         referral_code: None,
@@ -260,6 +266,7 @@ pub fn validate_prepared(
     envelope.verify().map_err(invalid)?;
     let job = &envelope.payload;
     job.validate_input().map_err(invalid)?;
+    validate_phala_ephemeral_admission(job).map_err(invalid)?;
     let expires = match (
         parse_phala_lease_spec(&job.input).map_err(invalid)?,
         parse_phala_ephemeral_lease_spec(&job.input).map_err(invalid)?,
@@ -454,6 +461,12 @@ mod tests {
         );
         assert_eq!(spec.relay, relay);
         assert_eq!(
+            prepared.envelope.payload.deadline_ms,
+            600_000 + PHALA_EPHEMERAL_RESULT_SLACK_MS
+        );
+        assert_eq!(spec.lease_expires_at_ms, 1_600_000);
+        assert_eq!(prepared.envelope.payload.price_micro_usdc, 1200);
+        assert_eq!(
             spec.workload_sha256,
             Sha256::digest(prepared.workload.as_bytes())
                 .iter()
@@ -470,6 +483,12 @@ mod tests {
         assert_eq!(workload["kms_enabled"], false);
         let owner = buyer.agent_id().pubkey_base58();
         validate_prepared(&prepared.envelope, &owner, 1200, 1_120_000).unwrap();
+        let mut legacy = prepared.envelope.payload.clone();
+        legacy.deadline_ms = 600_000 + LEASE_DEADLINE_SLACK_MS;
+        let legacy = SignedJobEnvelope::sign(legacy, &buyer).unwrap();
+        legacy.verify().unwrap();
+        legacy.payload.validate_input().unwrap();
+        assert!(validate_prepared(&legacy, &owner, 1200, 1_120_000).is_err());
         for now in [999_999, 1_120_001, 1_600_000] {
             assert!(validate_prepared(&prepared.envelope, &owner, 1200, now).is_err());
         }

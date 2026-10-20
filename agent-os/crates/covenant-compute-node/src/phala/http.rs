@@ -571,6 +571,7 @@ mod tests {
         LeasePlan {
             job_id: id,
             issued_at_ms: now_ms(),
+            result_deadline_at_ms: Some(now_ms() + 420_000),
             payload_sha256: "01".repeat(32),
             buyer_pubkey_b58: bs58::encode([2; 32]).into_string(),
             spec: Some(PhalaLeaseSpec {

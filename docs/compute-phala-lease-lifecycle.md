@@ -59,7 +59,13 @@ Buyer close and original signed expiry stop the meter. Close during VM startup
 or evidence collection cancels admission and queues deletion of the original
 resource. A successful ephemeral execution receipt requires durable confirmed
 deletion: HTTP 204 alone is insufficient, and GET must confirm absence.
-Confirmation may wait up to 60 seconds after session cleanup; an unresolved
+The follow-up source reserves up to 300 seconds for provider deletion and a
+separate 60 seconds for result delivery in each new signed ephemeral envelope.
+Guest expiry, access, allowance runtime and price ceiling remain unchanged.
+The first observed close fixes a durable cleanup cutoff, capped by the original
+result deadline minus its delivery reserve. Polling or restarting cannot renew
+that cutoff; old closing rows without the new metadata remain cleanup-only.
+Deletion must be observed and durably saved within that cutoff. An unresolved
 delete produces a failed execution and refund while durable cleanup continues.
 Cleanup latency cannot extend the paid meter. Receipt settlement, provider
 absence, and final provider USD billing are separately retained evidence.

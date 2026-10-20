@@ -349,7 +349,14 @@ impl JobExecutor for LeaseExecutor {
             .saturating_sub(started.elapsed())
             .min(phala_expiry.map(&signed_remaining).unwrap_or(Duration::MAX));
         let closed = self.control.closed_or_timeout(job.job_id, remaining).await;
+        // Ephemeral receipt runtime ends before asynchronous teardown. Other
+        // backends retain their existing receipt semantics.
+        let service_wall_ms =
+            covenant_compute_protocol::phala::parse_phala_ephemeral_lease_spec(&job.input)
+                .map_err(|error| ExecutorError::Failed(error.to_string()))?
+                .map(|_| started.elapsed().as_millis() as u64);
         self.backend.close(job.job_id).await;
+        let wall_ms = service_wall_ms.unwrap_or_else(|| started.elapsed().as_millis() as u64);
         self.control.forget(job.job_id);
 
         let ended = if closed {
@@ -360,12 +367,9 @@ impl JobExecutor for LeaseExecutor {
         Ok(ExecutionOutcome {
             output: vec![
                 grant,
-                Content::text(format!(
-                    "lease session {ended} after {}ms",
-                    started.elapsed().as_millis()
-                )),
+                Content::text(format!("lease session {ended} after {}ms", wall_ms)),
             ],
-            wall_ms: started.elapsed().as_millis() as u64,
+            wall_ms,
             tokens_in: None,
             tokens_out: None,
             // `FinishReason` describes how a generation stopped; a

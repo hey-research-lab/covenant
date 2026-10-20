@@ -20,7 +20,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use covenant_compute_protocol::phala::{
     parse_phala_ephemeral_lease_spec, parse_phala_lease_spec, render_phala_ephemeral_manifest,
-    render_phala_manifest, PhalaEphemeralLeaseSpec, PhalaLeaseSpec, PHALA_GATEWAY,
+    render_phala_manifest, validate_phala_ephemeral_admission, PhalaEphemeralLeaseSpec,
+    PhalaLeaseSpec, PHALA_EPHEMERAL_CLEANUP_GRACE_MS, PHALA_GATEWAY,
 };
 use covenant_compute_protocol::ssh::{SshAccess, SshTransport};
 use covenant_compute_protocol::{JobEnvelopePayload, LeaseAccess};
@@ -39,7 +40,6 @@ pub use http::PhalaCloud;
 pub const OS_IMAGE_SHA256: &str =
     "ec43cb8c5e04b6bb6c53b33b16076a01d83d01f7f4b703f2f78a0d947d6247e6";
 const RECOVERY_INTERVAL: Duration = Duration::from_secs(5);
-const FINAL_CLEANUP_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_JOURNAL_BYTES: u64 = 32 * 1024 * 1024;
 
 fn failed(message: impl Into<String>) -> ExecutorError {
@@ -160,6 +160,9 @@ impl CreationAllowance {
 pub struct LeasePlan {
     pub job_id: Uuid,
     pub issued_at_ms: u64,
+    /// Copied from the original signed envelope, never inferred during recovery.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_deadline_at_ms: Option<u64>,
     pub payload_sha256: String,
     pub buyer_pubkey_b58: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -302,12 +305,65 @@ struct Row {
     vm_uuid: Option<Uuid>,
     access: Option<SshAccess>,
     close_requested: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cleanup_deadline_at_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    deleted_confirmed_at_ms: Option<u64>,
     last_observed_ms: u64,
     delete_attempts: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     observed_instance_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     verified_ephemeral: Option<VerifiedPhalaAccess>,
+}
+
+impl Row {
+    fn request_close_at(&mut self, observed_at_ms: u64) {
+        if self.plan.is_ephemeral() && self.cleanup_deadline_at_ms.is_none() {
+            // Missing metadata on an already-closing legacy row cannot mint a
+            // new success window. Cleanup itself remains authorized indefinitely.
+            let cutoff = if self.close_requested || observed_at_ms < self.last_observed_ms {
+                0
+            } else {
+                self.plan
+                    .result_deadline_at_ms
+                    .and_then(|deadline| {
+                        deadline.checked_sub(covenant_compute_protocol::LEASE_DEADLINE_SLACK_MS)
+                    })
+                    .map(|deadline| {
+                        deadline
+                            .min(observed_at_ms.saturating_add(PHALA_EPHEMERAL_CLEANUP_GRACE_MS))
+                    })
+                    .unwrap_or(0)
+            };
+            self.cleanup_deadline_at_ms = Some(cutoff);
+        }
+        self.close_requested = true;
+        self.last_observed_ms = self.last_observed_ms.max(observed_at_ms);
+    }
+
+    fn cleanup_remaining(&self, now: u64) -> Result<Duration, ExecutorError> {
+        let cutoff = self
+            .cleanup_deadline_at_ms
+            .ok_or_else(|| failed("Phala cleanup cutoff missing"))?;
+        if now < self.last_observed_ms
+            || now >= cutoff
+            || cutoff.saturating_sub(self.last_observed_ms) > PHALA_EPHEMERAL_CLEANUP_GRACE_MS
+        {
+            return Err(failed(
+                "Phala cleanup confirmation deadline elapsed or clock moved backwards",
+            ));
+        }
+        Ok(Duration::from_millis(cutoff - now))
+    }
+
+    fn deletion_confirmed_in_time(&self, now: u64) -> bool {
+        self.phase == Phase::Deleted
+            && self.cleanup_remaining(now).is_ok()
+            && self.deleted_confirmed_at_ms.is_some_and(|confirmed| {
+                confirmed <= now && confirmed < self.cleanup_deadline_at_ms.unwrap_or(0)
+            })
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -408,6 +464,31 @@ impl Journal {
                 || row.plan.name != format!("covenant-{}", id.simple())
                 || !lower_hex(&row.plan.payload_sha256, 64)
                 || row.plan.issued_at_ms >= row.plan.expires_at_ms()
+                || row
+                    .plan
+                    .result_deadline_at_ms
+                    .is_some_and(|deadline| deadline < row.plan.expires_at_ms())
+                || row.cleanup_deadline_at_ms.is_some_and(|cutoff| {
+                    !row.close_requested
+                        || !row.plan.is_ephemeral()
+                        || cutoff.saturating_sub(row.last_observed_ms)
+                            > PHALA_EPHEMERAL_CLEANUP_GRACE_MS
+                        || cutoff
+                            > row
+                                .plan
+                                .result_deadline_at_ms
+                                .and_then(|deadline| {
+                                    deadline.checked_sub(
+                                        covenant_compute_protocol::LEASE_DEADLINE_SLACK_MS,
+                                    )
+                                })
+                                .unwrap_or(0)
+                })
+                || row.deleted_confirmed_at_ms.is_some_and(|confirmed| {
+                    row.phase != Phase::Deleted
+                        || !row.close_requested
+                        || confirmed > row.last_observed_ms
+                })
                 || row.plan.expires_at_ms() > row.plan.allowance.valid_until_ms
                 || row
                     .plan
@@ -466,7 +547,22 @@ impl Journal {
         }
         result
     }
-    fn save_inner(&mut self, row: Row) -> Result<(), ExecutorError> {
+    fn save_inner(&mut self, mut row: Row) -> Result<(), ExecutorError> {
+        // A provider await may have started before a synchronous close intent
+        // was journaled. Its stale row must never reopen or refresh that intent.
+        if let Some(previous) = self.snapshot.rows.get(&row.plan.job_id) {
+            if row.plan.result_deadline_at_ms != previous.plan.result_deadline_at_ms {
+                return Err(failed("Phala original result deadline cannot change"));
+            }
+            row.last_observed_ms = row.last_observed_ms.max(previous.last_observed_ms);
+            row.close_requested |= previous.close_requested;
+            if previous.cleanup_deadline_at_ms.is_some() {
+                row.cleanup_deadline_at_ms = previous.cleanup_deadline_at_ms;
+            }
+            if previous.deleted_confirmed_at_ms.is_some() {
+                row.deleted_confirmed_at_ms = previous.deleted_confirmed_at_ms;
+            }
+        }
         let mut next = self.snapshot.clone();
         next.rows.insert(row.plan.job_id, row);
         let data = serde_json::to_vec(&next).map_err(|_| failed("serialize Phala journal"))?;
@@ -610,6 +706,7 @@ pub struct PhalaSessionBackend {
     journal: Mutex<Journal>,
     operations: tokio::sync::Mutex<()>,
     close_requests: Mutex<Vec<Uuid>>,
+    cleanup_deadlines: Mutex<BTreeMap<Uuid, tokio::time::Instant>>,
     close_source: Arc<dyn LeaseCloseSource>,
     evidence: Arc<dyn PhalaEvidence>,
 }
@@ -671,6 +768,7 @@ impl PhalaSessionBackend {
             journal: Mutex::new(journal),
             operations: tokio::sync::Mutex::new(()),
             close_requests: Mutex::new(Vec::new()),
+            cleanup_deadlines: Mutex::new(BTreeMap::new()),
             close_source,
             evidence,
         }))
@@ -738,6 +836,11 @@ impl PhalaSessionBackend {
         Ok(LeasePlan {
             job_id: job.job_id,
             issued_at_ms: job.issued_at_ms,
+            result_deadline_at_ms: Some(
+                job.issued_at_ms
+                    .checked_add(job.deadline_ms)
+                    .ok_or_else(|| failed("Phala result deadline overflow"))?,
+            ),
             payload_sha256: hash(&payload),
             buyer_pubkey_b58: job.buyer.pubkey_base58(),
             name: format!("covenant-{}", job.job_id.simple()),
@@ -767,12 +870,49 @@ impl PhalaSessionBackend {
             .ok_or_else(|| failed("missing Phala lease"))
     }
     fn save(&self, row: Row) -> Result<(), ExecutorError> {
-        self.journal.lock().save(row)
+        let id = row.plan.job_id;
+        let mut journal = self.journal.lock();
+        journal.save(row)?;
+        if let Ok(remaining) = journal.snapshot.rows[&id].cleanup_remaining(now_ms()) {
+            self.cleanup_deadlines
+                .lock()
+                .entry(id)
+                .or_insert_with(|| tokio::time::Instant::now() + remaining);
+        }
+        Ok(())
     }
     fn request_close(&self, id: Uuid) {
         self.close_requests.lock().push(id);
+        let mut journal = self.journal.lock();
+        if let Some(mut row) = journal.snapshot.rows.get(&id).cloned() {
+            if !row.plan.is_ephemeral() {
+                return;
+            }
+            row.request_close_at(now_ms());
+            if let Ok(remaining) = row.cleanup_remaining(now_ms()) {
+                self.cleanup_deadlines
+                    .lock()
+                    .entry(id)
+                    .or_insert_with(|| tokio::time::Instant::now() + remaining);
+            }
+            if let Err(error) = journal.save(row) {
+                tracing::warn!(job_id=%id, %error, "Phala close intent needs durable reconciliation");
+            }
+        }
+    }
+    fn cleanup_remaining(&self, id: Uuid) -> Result<Duration, ExecutorError> {
+        let remaining = self.row(id)?.cleanup_remaining(now_ms())?;
+        let now = tokio::time::Instant::now();
+        let mut deadlines = self.cleanup_deadlines.lock();
+        let deadline = deadlines.entry(id).or_insert(now + remaining);
+        let remaining = remaining.min(deadline.saturating_duration_since(now));
+        if remaining.is_zero() {
+            return Err(failed("Phala cleanup confirmation deadline elapsed"));
+        }
+        Ok(remaining)
     }
     fn admit(&self, job: &JobEnvelopePayload) -> Result<(), ExecutorError> {
+        validate_phala_ephemeral_admission(job).map_err(|error| failed(error.to_string()))?;
         let plan = self.plan(job)?;
         if plan.is_ephemeral() && self.close_requests.lock().contains(&job.job_id) {
             return Err(failed(
@@ -839,7 +979,7 @@ impl PhalaSessionBackend {
         // Do not remove a cancellation request until its durable write succeeds.
         for id in requests {
             if let Ok(mut row) = self.row(id) {
-                row.close_requested = true;
+                row.request_close_at(now_ms());
                 self.save(row)?;
             }
             self.close_requests.lock().retain(|queued| *queued != id);
@@ -857,7 +997,7 @@ impl PhalaSessionBackend {
             }
             row.last_observed_ms = now;
             if now >= row.plan.expires_at_ms() || self.close_source.is_closed(id).await {
-                row.close_requested = true;
+                row.request_close_at(now_ms());
             }
             if row.plan.is_ephemeral()
                 && !row.close_requested
@@ -903,7 +1043,8 @@ impl PhalaSessionBackend {
     }
 
     async fn cleanup(&self, mut row: Row) -> Result<(), ExecutorError> {
-        row.close_requested = true;
+        row.request_close_at(now_ms());
+        self.save(row.clone())?;
         if matches!(row.phase, Phase::ProvisionIntent | Phase::Provisioned) {
             row.phase = Phase::ProvisionAbandoned;
             return self.save(row);
@@ -922,6 +1063,10 @@ impl PhalaSessionBackend {
         let Some(machine) = machine else {
             if row.vm_uuid.is_some() {
                 row.phase = Phase::Deleted;
+                row.deleted_confirmed_at_ms = Some(now_ms());
+                row.last_observed_ms = row
+                    .last_observed_ms
+                    .max(row.deleted_confirmed_at_ms.unwrap());
                 return self.save(row);
             }
             return Err(failed(
@@ -939,6 +1084,10 @@ impl PhalaSessionBackend {
         self.provider.delete(machine.vm_uuid).await?;
         if self.provider.get(machine.vm_uuid).await?.is_none() {
             row.phase = Phase::Deleted;
+            row.deleted_confirmed_at_ms = Some(now_ms());
+            row.last_observed_ms = row
+                .last_observed_ms
+                .max(row.deleted_confirmed_at_ms.unwrap());
             self.save(row)?;
             Ok(())
         } else {
@@ -968,6 +1117,8 @@ impl PhalaSessionBackend {
                     vm_uuid: None,
                     access: None,
                     close_requested: false,
+                    cleanup_deadline_at_ms: None,
+                    deleted_confirmed_at_ms: None,
                     last_observed_ms: now_ms(),
                     delete_attempts: 0,
                     observed_instance_id: None,
@@ -1275,7 +1426,17 @@ impl SessionBackend for PhalaSessionBackend {
     }
     async fn close(&self, id: Uuid) {
         self.request_close(id);
-        if let Err(error) = self.reconcile().await {
+        let result = if let Some(row) = self.row(id).ok().filter(|row| row.plan.is_ephemeral()) {
+            match self.cleanup_remaining(row.plan.job_id) {
+                Ok(remaining) => tokio::time::timeout(remaining, self.reconcile())
+                    .await
+                    .unwrap_or_else(|_| Err(failed("Phala cleanup confirmation deadline elapsed"))),
+                Err(error) => Err(error),
+            }
+        } else {
+            self.reconcile().await
+        };
+        if let Err(error) = result {
             tracing::warn!(job_id=%id, %error, "Phala close remains in durable reconciliation");
         }
     }
@@ -1326,7 +1487,6 @@ impl PhalaExecutor {
         &self,
         job: &JobEnvelopePayload,
         outcome: Result<ExecutionOutcome, ExecutorError>,
-        cleanup_timeout: Duration,
     ) -> Result<ExecutionOutcome, ExecutorError> {
         let outcome = outcome?;
         if parse_phala_ephemeral_lease_spec(&job.input)
@@ -1336,11 +1496,16 @@ impl PhalaExecutor {
             return Ok(outcome);
         }
         self.backend.request_close(job.job_id);
-        let confirmed = tokio::time::timeout(cleanup_timeout, async {
+        let remaining = self.backend.cleanup_remaining(job.job_id)?;
+        let confirmed = tokio::time::timeout(remaining, async {
             loop {
                 let row = self.backend.row(job.job_id)?;
-                if row.phase == Phase::Deleted {
+                self.backend.cleanup_remaining(job.job_id)?;
+                if row.deletion_confirmed_in_time(now_ms()) {
                     return Ok::<(), ExecutorError>(());
+                }
+                if row.phase == Phase::Deleted {
+                    return Err(failed("Phala deletion lacks timely confirmation"));
                 }
                 if self.backend.journal.lock().poisoned {
                     return Err(failed(
@@ -1350,7 +1515,9 @@ impl PhalaExecutor {
                 // Asynchronous provider deletion may briefly return the same
                 // VM. Retry only ownership-checked cleanup, never creation.
                 let _ = self.backend.reconcile().await;
-                if self.backend.row(job.job_id)?.phase == Phase::Deleted {
+                let row = self.backend.row(job.job_id)?;
+                self.backend.cleanup_remaining(job.job_id)?;
+                if row.deletion_confirmed_in_time(now_ms()) {
                     return Ok(());
                 }
                 tokio::time::sleep(self.backend.config.poll_interval.min(RECOVERY_INTERVAL)).await;
@@ -1358,7 +1525,8 @@ impl PhalaExecutor {
         })
         .await;
         match confirmed {
-            Ok(Ok(())) => Ok(outcome),
+            Ok(Ok(())) if self.backend.cleanup_remaining(job.job_id).is_ok()
+                && self.backend.row(job.job_id)?.deletion_confirmed_in_time(now_ms()) => Ok(outcome),
             _ => Err(failed("ephemeral Phala deletion is unconfirmed; original resource and cleanup intent remain durable; successful receipt refused")),
         }
     }
@@ -1405,8 +1573,7 @@ impl JobExecutor for PhalaExecutor {
     ) -> Result<ExecutionOutcome, ExecutorError> {
         let _cleanup = CloseOnDrop(self.backend.clone(), job.job_id);
         let outcome = self.lease.execute(job, deadline).await;
-        self.finish_ephemeral(job, outcome, FINAL_CLEANUP_TIMEOUT)
-            .await
+        self.finish_ephemeral(job, outcome).await
     }
     async fn execute_streaming(
         &self,
@@ -1416,8 +1583,7 @@ impl JobExecutor for PhalaExecutor {
     ) -> Result<ExecutionOutcome, ExecutorError> {
         let _cleanup = CloseOnDrop(self.backend.clone(), job.job_id);
         let outcome = self.lease.execute_streaming(job, deadline, sink).await;
-        self.finish_ephemeral(job, outcome, FINAL_CLEANUP_TIMEOUT)
-            .await
+        self.finish_ephemeral(job, outcome).await
     }
     async fn health(&self) -> Result<(), ExecutorError> {
         let ephemeral = self.backend.config.wrapper_template["key_provider"] == "none";

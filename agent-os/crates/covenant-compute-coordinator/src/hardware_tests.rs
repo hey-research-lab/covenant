@@ -806,6 +806,8 @@ fn ephemeral_fixture() -> (
     let mut payload = record.envelope.payload;
     payload.input.retain(|content| !matches!(content, covenant_mcp::Content::Json { value } if value.get("phala_lease").is_some()));
     payload.capability_requirement.model_id = Some(PHALA_EPHEMERAL_CPU_MODEL.into());
+    payload.deadline_ms = u64::from(payload.capability_requirement.max_duration_secs) * 1_000
+        + PHALA_EPHEMERAL_RESULT_SLACK_MS;
     let relay = PhalaRelayConfig {
         url: "https://relay.example.com".into(),
         session_id: id.to_string(),

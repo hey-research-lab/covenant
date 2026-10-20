@@ -1121,6 +1121,9 @@ async fn submit_job(
         ));
     }
 
+    covenant_compute_protocol::phala::validate_phala_ephemeral_admission(&envelope.payload)
+        .map_err(|error| ApiError::BadRequest(error.to_string()))?;
+
     // An envelope already past its own deadline is refused here for the
     // same reason malformed input is: matched, it charges the OPERATOR.
     // A job whose `issued_at_ms + deadline_ms` has passed is swept to a

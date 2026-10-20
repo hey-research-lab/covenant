@@ -121,12 +121,27 @@ transaction fees and the CVNT lock are separate from the zero Compute charge.
 
 ## Remaining qualification
 
-The repair must provide a bounded provider-deletion grace period and compatible
-signed result-delivery slack without extending guest access, signed lease
-expiry or metered runtime. Raising only the cleanup timeout is insufficient
-for a lease that runs to expiry, because the generic signed result slack is
-also 60 seconds. Successful receipts must still require confirmed deletion;
-unknown cleanup must remain a failure with durable recovery.
+The follow-up source provides 300 seconds for deletion and 60 seconds for result
+delivery in new signed ephemeral orders, without extending guest access, signed
+lease expiry or metered runtime. Raising only the cleanup timeout would be
+insufficient for a lease that runs to expiry, because the generic result slack
+is also 60 seconds. The fixed first-close cutoff is durable, capped by the
+original result deadline minus delivery reserve, and shared across initial
+close and final confirmation with an in-process monotonic timer. Deletion is
+timestamped after the absence GET completes. Late confirmation is refused;
+historical rows without the new metadata remain cleanup-only.
+
+Focused regressions exercise the observed 82-second deletion, a 301-second
+timeout, an absence GET returning after the cutoff, restart/legacy state and
+clock boundaries. Coordinator tests deliver success 270 seconds after early
+close and 100 seconds after guest expiry without increasing native or recorded
+on-chain gross; duplicate result pays once, and delivery past the original
+signed deadline refunds and voids instead. These are local regression tests,
+not a second paid acceptance. A separate HTTP regression rejects a new order
+with the old 60-second slack before any hold or debit, while the stored original
+failed envelope still returns its unchanged historical result. The live
+deployment recorded above remains
+`da00ccf7`; the correction has not been deployed by this acceptance record.
 
 The original failed envelope, resource, receipt and reservations remain in the
 record. A new paid acceptance requires fresh authorization and a distinct

@@ -280,6 +280,12 @@ struct Provider {
     wrong_key: AtomicBool,
     create_hangs: AtomicBool,
     creating: tokio::sync::Notify,
+    get_gate: Mutex<Option<Arc<GetGate>>>,
+}
+#[derive(Default)]
+struct GetGate {
+    entered: tokio::sync::Notify,
+    release: tokio::sync::Notify,
 }
 impl Provider {
     fn new(path: &Path) -> Arc<Self> {
@@ -296,6 +302,7 @@ impl Provider {
             wrong_key: AtomicBool::new(false),
             create_hangs: AtomicBool::new(false),
             creating: tokio::sync::Notify::new(),
+            get_gate: Mutex::new(None),
         })
     }
     fn durable(&self, id: Uuid) -> Row {
@@ -364,6 +371,11 @@ impl PhalaProvider for Provider {
         Ok(self.machine.lock().clone())
     }
     async fn get(&self, _: Uuid) -> Result<Option<Machine>, ExecutorError> {
+        let gate = self.get_gate.lock().take();
+        if let Some(gate) = gate {
+            gate.entered.notify_one();
+            gate.release.notified().await;
+        }
         if self.get_failure.load(Ordering::SeqCst) {
             return Err(failed("provider GET failed"));
         }
@@ -448,8 +460,15 @@ async fn ephemeral_success_waits_for_confirmed_delete_and_never_recreates() {
             lease: LeaseExecutor::new(backend.clone(), LeaseControl::new()),
             backend: backend.clone(),
         };
+        let mut row = backend.row(job.job_id).unwrap();
+        row.close_requested = true;
+        // Exhausted grace never disables owned cleanup. The dedicated virtual
+        // time test covers elapsed grace without racing filesystem latency.
+        row.cleanup_deadline_at_ms = Some(0);
+        backend.save(row).unwrap();
+        assert!(backend.reconcile().await.is_err());
         let result = executor
-            .finish_ephemeral(&job, Ok(successful_outcome()), Duration::from_millis(20))
+            .finish_ephemeral(&job, Ok(successful_outcome()))
             .await;
         assert!(
             result.is_err(),
@@ -477,13 +496,12 @@ async fn ephemeral_success_waits_for_confirmed_delete_and_never_recreates() {
             .store(false, Ordering::SeqCst);
         backend.reconcile().await.unwrap();
         assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
-        let confirmed = executor
-            .finish_ephemeral(&job, Ok(successful_outcome()), Duration::from_millis(20))
-            .await
-            .unwrap();
-        assert_eq!(
-            confirmed.wall_ms, 10,
-            "cleanup delay does not extend the metered outcome"
+        assert!(
+            executor
+                .finish_ephemeral(&job, Ok(successful_outcome()))
+                .await
+                .is_err(),
+            "late cleanup cannot create a new payable success window"
         );
         assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
     }
@@ -499,9 +517,207 @@ async fn managed_success_retains_its_existing_cleanup_contract() {
         backend,
     };
     assert!(executor
-        .finish_ephemeral(&job(), Ok(successful_outcome()), Duration::from_millis(1))
+        .finish_ephemeral(&job(), Ok(successful_outcome()))
         .await
         .is_ok());
+}
+
+#[tokio::test]
+async fn asynchronous_delete_uses_one_budget_across_initial_close_and_final_confirmation() {
+    for elapsed in [82, 301] {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = Provider::new(directory.path());
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        let job = ephemeral_job();
+        backend.open(&job).await.unwrap();
+        let gate = Arc::new(GetGate::default());
+        *provider.get_gate.lock() = Some(gate.clone());
+        let closing = {
+            let backend = backend.clone();
+            let id = job.job_id;
+            tokio::spawn(async move { backend.close(id).await })
+        };
+        gate.entered.notified().await;
+        let cutoff = provider.durable(job.job_id).cleanup_deadline_at_ms;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(elapsed)).await;
+        if elapsed == 82 {
+            assert!(!closing.is_finished(), "no success before provider absence");
+            gate.release.notify_one();
+        }
+        closing.await.unwrap();
+        let executor = PhalaExecutor {
+            lease: LeaseExecutor::new(backend.clone(), LeaseControl::new()),
+            backend: backend.clone(),
+        };
+        let result = executor
+            .finish_ephemeral(&job, Ok(successful_outcome()))
+            .await;
+        assert_eq!(result.is_ok(), elapsed == 82);
+        if let Ok(result) = result {
+            assert_eq!(
+                result.wall_ms, 10,
+                "teardown does not extend receipt runtime"
+            );
+        } else {
+            backend.reconcile().await.unwrap();
+            assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+            assert!(
+                executor
+                    .finish_ephemeral(&job, Ok(successful_outcome()))
+                    .await
+                    .is_err(),
+                "a second confirmation wait cannot refresh the first close budget"
+            );
+        }
+        assert_eq!(provider.durable(job.job_id).cleanup_deadline_at_ms, cutoff);
+        assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+        tokio::time::resume();
+    }
+}
+
+#[tokio::test]
+async fn deletion_observed_after_cutoff_is_cleanup_only_even_when_get_started_before_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+    let job = ephemeral_job();
+    backend.open(&job).await.unwrap();
+    let mut row = backend.row(job.job_id).unwrap();
+    let cutoff = now_ms() + 50;
+    row.close_requested = true;
+    row.cleanup_deadline_at_ms = Some(cutoff);
+    backend.save(row).unwrap();
+    let gate = Arc::new(GetGate::default());
+    *provider.get_gate.lock() = Some(gate.clone());
+    let recovery = {
+        let backend = backend.clone();
+        tokio::spawn(async move { backend.reconcile().await })
+    };
+    gate.entered.notified().await;
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    *provider.machine.lock() = None;
+    gate.release.notify_one();
+    recovery.await.unwrap().unwrap();
+    let row = provider.durable(job.job_id);
+    assert_eq!(row.phase, Phase::Deleted);
+    assert!(row.deleted_confirmed_at_ms.unwrap() >= cutoff);
+    assert!(!row.deletion_confirmed_in_time(now_ms()));
+    let executor = PhalaExecutor {
+        lease: LeaseExecutor::new(backend.clone(), LeaseControl::new()),
+        backend,
+    };
+    assert!(executor
+        .finish_ephemeral(&job, Ok(successful_outcome()))
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn first_close_cutoff_survives_stale_rows_reopen_and_legacy_cleanup() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let job = ephemeral_job();
+    let cutoff = {
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        backend.open(&job).await.unwrap();
+        let stale = backend.row(job.job_id).unwrap();
+        backend.request_close(job.job_id);
+        let closed = backend.row(job.job_id).unwrap();
+        assert_eq!(
+            closed.plan.result_deadline_at_ms,
+            Some(job.issued_at_ms + job.deadline_ms)
+        );
+        backend.save(stale).unwrap();
+        backend.request_close(job.job_id);
+        assert!(provider.durable(job.job_id).close_requested);
+        assert_eq!(
+            provider.durable(job.job_id).cleanup_deadline_at_ms,
+            closed.cleanup_deadline_at_ms
+        );
+        closed.cleanup_deadline_at_ms
+    };
+    {
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        backend.request_close(job.job_id);
+        assert_eq!(provider.durable(job.job_id).cleanup_deadline_at_ms, cutoff);
+    }
+    // Legacy closing rows remain readable for teardown, without inventing a
+    // result deadline or awarding a fresh grace after restart.
+    let path = directory.path().join("leases.json");
+    let mut value: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let row = value["rows"][job.job_id.to_string()]
+        .as_object_mut()
+        .unwrap();
+    row.remove("cleanup_deadline_at_ms");
+    row["plan"]
+        .as_object_mut()
+        .unwrap()
+        .remove("result_deadline_at_ms");
+    std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+    backend.reconcile().await.unwrap();
+    let row = provider.durable(job.job_id);
+    assert_eq!(row.phase, Phase::Deleted);
+    assert_eq!(row.cleanup_deadline_at_ms, Some(0));
+    let executor = PhalaExecutor {
+        lease: LeaseExecutor::new(backend.clone(), LeaseControl::new()),
+        backend,
+    };
+    assert!(executor
+        .finish_ephemeral(&job, Ok(successful_outcome()))
+        .await
+        .is_err());
+    assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn old_ephemeral_order_cannot_allocate_but_remains_historically_verifiable() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+    let mut job = ephemeral_job();
+    job.deadline_ms = 120_000;
+    job.validate_input().unwrap();
+    assert!(backend.open(&job).await.is_err());
+    assert_eq!(provider.provision_count.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.create_count.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn cleanup_cutoff_caps_at_signed_deadline_and_refuses_clock_rollback_or_missing_metadata() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let backend = verified_backend(provider, VerifiedEvidence::new(), directory.path());
+    let job = ephemeral_job();
+    let plan = backend.plan(&job).unwrap();
+    let mut row = Row {
+        plan,
+        phase: Phase::Provisioned,
+        provision: None,
+        vm_uuid: None,
+        access: None,
+        close_requested: false,
+        cleanup_deadline_at_ms: None,
+        deleted_confirmed_at_ms: None,
+        last_observed_ms: 1000,
+        delete_attempts: 0,
+        observed_instance_id: None,
+        verified_ephemeral: None,
+    };
+    row.plan.result_deadline_at_ms = Some(200_000);
+    row.request_close_at(50_000);
+    assert_eq!(row.cleanup_deadline_at_ms, Some(140_000));
+    assert_eq!(row.last_observed_ms, 50_000);
+    assert!(row.cleanup_remaining(49_999).is_err());
+    row.request_close_at(80_000);
+    assert_eq!(row.cleanup_deadline_at_ms, Some(140_000));
+    assert!(row.cleanup_remaining(140_000).is_err());
+    row.close_requested = false;
+    row.cleanup_deadline_at_ms = None;
+    row.plan.result_deadline_at_ms = Some(59_999);
+    row.request_close_at(90_000);
+    assert_eq!(row.cleanup_deadline_at_ms, Some(0));
 }
 
 fn operator() -> String {
@@ -585,6 +801,7 @@ fn ephemeral_config(enabled: bool) -> PhalaConfig {
 }
 fn ephemeral_job() -> JobEnvelopePayload {
     let mut job = job();
+    job.deadline_ms = 60_000 + covenant_compute_protocol::phala::PHALA_EPHEMERAL_RESULT_SLACK_MS;
     job.input.pop();
     job.capability_requirement.model_id = Some(PHALA_EPHEMERAL_CPU_MODEL.into());
     let config = ephemeral_config(true);
@@ -701,11 +918,10 @@ async fn ephemeral_lost_create_recovers_same_app_and_cleanup_without_second_crea
         assert_eq!(provider.durable(job.job_id).phase, Phase::CreateIntent);
     }
     let backend = ephemeral_backend(provider.clone(), directory.path(), false);
-    let resource = backend.allocate_ephemeral(&job).await.unwrap();
-    assert_eq!(
-        resource.vm_uuid,
-        provider.machine.lock().as_ref().unwrap().vm_uuid
-    );
+    // The failed attempt's cancellation is durable, so restart only reconciles
+    // its original resource; it cannot recover an allocation/access grant.
+    assert!(provider.durable(job.job_id).close_requested);
+    assert!(backend.allocate_ephemeral(&job).await.is_err());
     assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
     provider.preserve_after_delete.store(true, Ordering::SeqCst);
     backend.close(job.job_id).await;
@@ -1035,6 +1251,8 @@ fn io_failure_poison_prevents_later_mutations() {
         vm_uuid: None,
         access: None,
         close_requested: false,
+        cleanup_deadline_at_ms: None,
+        deleted_confirmed_at_ms: None,
         last_observed_ms: now_ms(),
         delete_attempts: 0,
         observed_instance_id: None,

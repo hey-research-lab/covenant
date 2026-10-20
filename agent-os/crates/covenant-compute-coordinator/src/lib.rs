@@ -55,6 +55,7 @@ pub mod provider_prices;
 pub mod recover;
 pub mod redundancy;
 pub mod registry;
+pub mod relay;
 pub mod rental_checks;
 pub mod reputation;
 pub mod rounds;

@@ -1603,6 +1603,10 @@ async fn submit_result(
         .verify()
         .map_err(|e| ApiError::BadRequest(format!("receipt does not verify: {e}")))?;
 
+    // Capture the metering endpoint before the record snapshot. A close
+    // accepted before this instant is then visible in the snapshot; a close
+    // racing after it cannot make this result bill beyond that close.
+    let now_ms = crate::epoch_ms();
     let record = state
         .jobs()
         .get(job_id)
@@ -1697,7 +1701,6 @@ async fn submit_result(
     // operator, so the outcome is deterministic; the late receipt is
     // kept as evidence that work was delivered, only too late to count.
     // `AlreadySettled` means the sweep already reached the same verdict.
-    let now_ms = crate::epoch_ms();
     if record
         .envelope
         .payload

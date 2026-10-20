@@ -208,18 +208,17 @@ pub async fn select_operator_for_job(
     bond: BondFloor,
     exclude_operator: Option<&str>,
 ) -> Option<String> {
-    let spec = covenant_compute_protocol::phala::parse_phala_lease_spec(&job.input).ok()?;
+    let window = covenant_compute_protocol::phala::phala_lease_window(job).ok()?;
     let mut exclusions = Exclusions {
         operators: exclude_operator.map(str::to_string).into_iter().collect(),
         stake_owners: Vec::new(),
         required_operator: None,
     };
-    if let Some(spec) = spec {
-        spec.validate_for_job(job).ok()?;
-        if now_ms < job.issued_at_ms || now_ms >= spec.lease_expires_at_ms {
+    if let Some((operator, expires_at_ms)) = window {
+        if now_ms < job.issued_at_ms || now_ms >= expires_at_ms {
             return None;
         }
-        exclusions.required_operator = Some(spec.operator_pubkey_b58);
+        exclusions.required_operator = Some(operator);
     }
     select_operator_excluding(
         registry,
@@ -1929,24 +1928,26 @@ mod tests {
         assert_eq!(winner, cheap, "the cheaper GPU-hour rate wins the lease");
     }
 
-    #[tokio::test]
-    async fn phala_signed_operator_never_falls_back_to_a_cheaper_compatible_node() {
+    async fn assert_phala_signed_operator(ephemeral: bool) {
         use base64::Engine as _;
         use covenant_a2a::{A2ADuplicateSafety, A2AIdempotency};
         use covenant_compute_protocol::{
-            lease_input,
-            phala::{phala_lease_input, phala_workload, reviewed_phala_wrapper, PHALA_CPU_MODEL},
-            HeartbeatRequest, JobEnvelopePayload, LeaseTerms, SignedJobEnvelope,
-            LEASE_DEADLINE_SLACK_MS,
+            lease_input, phala::*, HeartbeatRequest, JobEnvelopePayload, LeaseTerms,
+            SignedJobEnvelope, LEASE_DEADLINE_SLACK_MS,
         };
 
         let now = 1_000;
+        let model = if ephemeral {
+            PHALA_EPHEMERAL_CPU_MODEL
+        } else {
+            PHALA_CPU_MODEL
+        };
         let registry = OperatorRegistry::new();
         let add = |name: &str, hourly_price| {
             let identity = LocalIdentity::generate(name);
             let mut profile = priced_profile(PriceUnit::PerLeaseHour, hourly_price);
             profile.operator = identity.agent_id();
-            profile.models_served = vec![PHALA_CPU_MODEL.into()];
+            profile.models_served = vec![model.into()];
             registry
                 .register(
                     &RegisterRequest::sign(profile, payout_for(name), &identity).unwrap(),
@@ -1971,7 +1972,7 @@ mod tests {
             kind: JobKind::LeaseSession,
             capability_requirement: CapabilityRequirement {
                 gpu_class: Some("cpu".into()),
-                model_id: Some(PHALA_CPU_MODEL.into()),
+                model_id: Some(model.into()),
                 ..lease_requirement(10)
             },
             input: vec![lease_input(LeaseTerms {
@@ -1987,15 +1988,34 @@ mod tests {
             referral_code: None,
             stream: true,
         };
-        let (_, spec) = phala_workload(
-            &job,
-            &target_key,
-            &reviewed_phala_wrapper(),
-            &format!("sha256:{}", "ab".repeat(32)),
-        )
-        .unwrap();
-        let expiry = spec.lease_expires_at_ms;
-        job.input.push(phala_lease_input(spec).unwrap());
+        let expiry = if ephemeral {
+            let relay = PhalaRelayConfig {
+                url: "https://relay.example.com".into(),
+                session_id: job_id.to_string(),
+            };
+            let (_, spec) = phala_ephemeral_workload(
+                &job,
+                &target_key,
+                &reviewed_phala_ephemeral_wrapper(),
+                &format!("sha256:{}", "ab".repeat(32)),
+                &relay,
+            )
+            .unwrap();
+            let expiry = spec.lease_expires_at_ms;
+            job.input.push(phala_ephemeral_lease_input(spec).unwrap());
+            expiry
+        } else {
+            let (_, spec) = phala_workload(
+                &job,
+                &target_key,
+                &reviewed_phala_wrapper(),
+                &format!("sha256:{}", "ab".repeat(32)),
+            )
+            .unwrap();
+            let expiry = spec.lease_expires_at_ms;
+            job.input.push(phala_lease_input(spec).unwrap());
+            expiry
+        };
         job.validate_input().unwrap();
         let envelope = SignedJobEnvelope::sign(job, &buyer).unwrap();
         envelope.verify().unwrap();
@@ -2080,6 +2100,15 @@ mod tests {
             Some(cheap_key),
             "the refusal is the signed pin, not a lack of compatible supply"
         );
+    }
+
+    #[tokio::test]
+    async fn phala_signed_operator_never_falls_back_to_a_cheaper_compatible_node() {
+        assert_phala_signed_operator(false).await;
+    }
+    #[tokio::test]
+    async fn ephemeral_signed_operator_never_falls_back_to_a_cheaper_compatible_node() {
+        assert_phala_signed_operator(true).await;
     }
 
     #[tokio::test]

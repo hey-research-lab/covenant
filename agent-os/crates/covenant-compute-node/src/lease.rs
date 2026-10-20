@@ -172,6 +172,15 @@ pub struct LeaseExecutor {
     poll_interval: Duration,
 }
 
+struct CloseWatch(Option<tokio::task::JoinHandle<()>>);
+impl Drop for CloseWatch {
+    fn drop(&mut self) {
+        if let Some(watch) = self.0.take() {
+            watch.abort();
+        }
+    }
+}
+
 impl LeaseExecutor {
     pub fn new(backend: Arc<dyn SessionBackend>, control: Arc<LeaseControl>) -> Self {
         Self {
@@ -250,14 +259,9 @@ impl JobExecutor for LeaseExecutor {
         let terms = covenant_compute_protocol::parse_lease_terms(&job.input)
             .map_err(|e| ExecutorError::Failed(format!("lease terms unreadable: {e}")))?
             .ok_or_else(|| ExecutorError::Failed("lease carries no terms".into()))?;
-        let phala_expiry = covenant_compute_protocol::phala::parse_phala_lease_spec(&job.input)
+        let phala_expiry = covenant_compute_protocol::phala::phala_lease_window(job)
             .map_err(|e| ExecutorError::Failed(e.to_string()))?
-            .map(|spec| {
-                spec.validate_for_job(job)
-                    .map(|()| spec.lease_expires_at_ms)
-                    .map_err(|e| ExecutorError::Failed(e.to_string()))
-            })
-            .transpose()?;
+            .map(|(_, expiry)| expiry);
         let signed_remaining = |expiry: u64| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -273,7 +277,17 @@ impl JobExecutor for LeaseExecutor {
         }
 
         let started = std::time::Instant::now();
-        let access = match tokio::time::timeout(window, self.backend.open(job)).await {
+        let _watch = CloseWatch(self.spawn_close_watch(job.job_id));
+        let opening = tokio::select! {
+            biased;
+            _ = self.control.closed_or_timeout(job.job_id, window) => {
+                self.backend.close(job.job_id).await;
+                self.control.forget(job.job_id);
+                return Err(ExecutorError::Failed("lease closed or expired while opening".into()));
+            }
+            result = tokio::time::timeout(window, self.backend.open(job)) => result,
+        };
+        let access = match opening {
             Ok(Ok(access)) => access,
             Ok(Err(error)) => return Err(error),
             Err(_) => {
@@ -308,8 +322,15 @@ impl JobExecutor for LeaseExecutor {
         let evidence_window = window
             .saturating_sub(started.elapsed())
             .min(phala_expiry.map(&signed_remaining).unwrap_or(Duration::MAX));
-        let evidence =
-            tokio::time::timeout(evidence_window, self.backend.after_access(job, &access)).await;
+        let evidence = tokio::select! {
+            biased;
+            _ = self.control.closed_or_timeout(job.job_id, evidence_window) => {
+                self.backend.close(job.job_id).await;
+                self.control.forget(job.job_id);
+                return Err(ExecutorError::Failed("lease closed or expired collecting evidence".into()));
+            }
+            result = tokio::time::timeout(evidence_window, self.backend.after_access(job, &access)) => result,
+        };
         if !matches!(evidence, Ok(Ok(()))) {
             self.backend.close(job.job_id).await;
             self.control.forget(job.job_id);
@@ -324,14 +345,10 @@ impl JobExecutor for LeaseExecutor {
         // The session runs until the buyer closes it or the window
         // ends, whichever is first — and never past the job's own
         // deadline, which is the coordinator's refund trigger.
-        let watch = self.spawn_close_watch(job.job_id);
         let remaining = window
             .saturating_sub(started.elapsed())
             .min(phala_expiry.map(&signed_remaining).unwrap_or(Duration::MAX));
         let closed = self.control.closed_or_timeout(job.job_id, remaining).await;
-        if let Some(watch) = watch {
-            watch.abort();
-        }
         self.backend.close(job.job_id).await;
         self.control.forget(job.job_id);
 
@@ -750,5 +767,77 @@ mod tests {
             matches!(&err, ExecutorError::Failed(msg) if msg.contains("cannot serve")),
             "got: {err}"
         );
+    }
+    struct PendingAdmission {
+        stage_is_evidence: bool,
+        entered: Arc<Notify>,
+        closed: Arc<Mutex<Vec<Uuid>>>,
+    }
+    #[async_trait]
+    impl SessionBackend for PendingAdmission {
+        async fn open(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
+            if !self.stage_is_evidence {
+                self.entered.notify_one();
+                return std::future::pending().await;
+            }
+            Ok(LeaseAccess {
+                ssh: None,
+                source_price: None,
+                job_id: job.job_id,
+                endpoint: "ssh://covenant@example.com:22".into(),
+                ready_at_ms: 0,
+                note: None,
+            })
+        }
+        async fn after_access(
+            &self,
+            _: &JobEnvelopePayload,
+            _: &LeaseAccess,
+        ) -> Result<(), ExecutorError> {
+            self.entered.notify_one();
+            std::future::pending().await
+        }
+        async fn close(&self, job_id: Uuid) {
+            self.closed.lock().push(job_id);
+        }
+    }
+    async fn assert_close_cancels_admission(evidence: bool) {
+        let entered = Arc::new(Notify::new());
+        let closed = Arc::new(Mutex::new(Vec::new()));
+        let backend = Arc::new(PendingAdmission {
+            stage_is_evidence: evidence,
+            entered: entered.clone(),
+            closed: closed.clone(),
+        });
+        let control = LeaseControl::new();
+        let executor = LeaseExecutor::new(backend, control.clone());
+        let job = lease_job();
+        let job_id = job.job_id;
+        let (tx, _rx) = tokio::sync::mpsc::channel(8);
+        let running = tokio::spawn(async move {
+            executor
+                .execute_streaming(&job, Duration::from_secs(60), tx)
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(1), entered.notified())
+            .await
+            .unwrap();
+        control.close(job_id);
+        let error = tokio::time::timeout(Duration::from_secs(1), running)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert!(error.to_string().contains("closed or expired"));
+        assert_eq!(*closed.lock(), vec![job_id]);
+        assert!(!control.is_closed(job_id));
+    }
+    #[tokio::test]
+    async fn buyer_close_cancels_pending_open_and_releases_owned_resource() {
+        assert_close_cancels_admission(false).await;
+    }
+    #[tokio::test]
+    async fn buyer_close_cancels_pending_evidence_and_releases_owned_resource() {
+        assert_close_cancels_admission(true).await;
     }
 }

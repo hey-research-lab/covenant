@@ -39,6 +39,7 @@ pub mod price_history;
 mod proof;
 mod read_auth;
 mod receipt;
+pub mod relay;
 mod sign;
 mod speech;
 pub mod ssh;

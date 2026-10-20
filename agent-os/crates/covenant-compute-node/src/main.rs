@@ -473,7 +473,9 @@ fn servable_kinds(executor_kind: &str) -> Option<&'static [JobKind]> {
         "subprocess" | "container" | "imd" | "knowledge" => Some(&[JobKind::BatchJob]),
         "whisper" => Some(&[JobKind::Transcription]),
         "say" => Some(&[JobKind::SpeechSynthesis]),
-        "broker" | "lease-stub" | "phala-cpu" => Some(&[JobKind::LeaseSession]),
+        "broker" | "lease-stub" | "phala-cpu" | "phala-cpu-ephemeral" => {
+            Some(&[JobKind::LeaseSession])
+        }
         "agent" => Some(&[JobKind::AgentTask, JobKind::AgentCheck]),
         _ => None,
     }
@@ -487,7 +489,10 @@ fn servable_kinds(executor_kind: &str) -> Option<&'static [JobKind]> {
 /// openai-compat) route each job to any of their advertised models, and
 /// the generic backends serve `any`, so several names is honest there.
 fn serves_single_model(executor_kind: &str) -> bool {
-    matches!(executor_kind, "whisper" | "say" | "phala-cpu" | "knowledge")
+    matches!(
+        executor_kind,
+        "whisper" | "say" | "phala-cpu" | "phala-cpu-ephemeral" | "knowledge"
+    )
 }
 
 /// The job kinds advertised when `COVENANT_COMPUTE_NODE_JOB_KINDS` is
@@ -500,7 +505,7 @@ fn default_kinds(executor_kind: &str) -> &'static str {
         "ollama" | "openai-compat" => "inference_call",
         "whisper" => "transcription",
         "say" => "speech_synthesis",
-        "broker" | "lease-stub" | "phala-cpu" => "lease_session",
+        "broker" | "lease-stub" | "phala-cpu" | "phala-cpu-ephemeral" => "lease_session",
         "agent" => "agent_task,agent_check",
         _ => "batch_job",
     }
@@ -703,9 +708,14 @@ async fn resolve_models_served(executor_kind: &str) -> anyhow::Result<Vec<String
         Err(_) if executor_kind == "imd" => {
             Ok(vec![covenant_compute_protocol::SWARM_MODEL.to_string()])
         }
-        Err(_) if executor_kind == "phala-cpu" => Ok(vec![
-            covenant_compute_protocol::phala::PHALA_CPU_MODEL.into(),
-        ]),
+        Err(_) if matches!(executor_kind, "phala-cpu" | "phala-cpu-ephemeral") => {
+            Ok(vec![(if executor_kind == "phala-cpu-ephemeral" {
+                covenant_compute_protocol::phala::PHALA_EPHEMERAL_CPU_MODEL
+            } else {
+                covenant_compute_protocol::phala::PHALA_CPU_MODEL
+            })
+            .into()])
+        }
         Err(_) => Ok(vec!["any".into()]),
     }
 }
@@ -2593,7 +2603,9 @@ async fn main() -> anyhow::Result<()> {
     }
     let max_in_flight = env_or(
         "COVENANT_COMPUTE_NODE_MAX_IN_FLIGHT",
-        if kani_profiles.is_empty() && executor_kind != "phala-cpu" {
+        if kani_profiles.is_empty()
+            && !matches!(executor_kind.as_str(), "phala-cpu" | "phala-cpu-ephemeral")
+        {
             2usize
         } else {
             1usize
@@ -2604,7 +2616,7 @@ async fn main() -> anyhow::Result<()> {
         "Kani profiles require COVENANT_COMPUTE_NODE_MAX_IN_FLIGHT=1 to reserve proof resources"
     );
     anyhow::ensure!(
-        executor_kind != "phala-cpu" || max_in_flight == 1,
+        !matches!(executor_kind.as_str(), "phala-cpu" | "phala-cpu-ephemeral") || max_in_flight == 1,
         "phala-cpu requires COVENANT_COMPUTE_NODE_MAX_IN_FLIGHT=1; unresolved leases retain capacity"
     );
     let mut models_served = resolve_models_served(&executor_kind).await?;
@@ -2675,15 +2687,22 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_default(),
         );
     }
-    let (hardware, vram_gb) = if executor_kind == "phala-cpu" {
-        anyhow::ensure!(
-            models_served == vec![covenant_compute_protocol::phala::PHALA_CPU_MODEL.to_string()],
-            "phala-cpu serves only the pinned phala-cpu-dstack061 profile"
-        );
-        (HardwareClass::CpuOnly, 0)
-    } else {
-        resolve_hardware().await
-    };
+    let (hardware, vram_gb) =
+        if matches!(executor_kind.as_str(), "phala-cpu" | "phala-cpu-ephemeral") {
+            anyhow::ensure!(
+                models_served
+                    == vec![(if executor_kind == "phala-cpu-ephemeral" {
+                        covenant_compute_protocol::phala::PHALA_EPHEMERAL_CPU_MODEL
+                    } else {
+                        covenant_compute_protocol::phala::PHALA_CPU_MODEL
+                    })
+                    .to_string()],
+                "Phala executor serves only its explicitly selected pinned profile"
+            );
+            (HardwareClass::CpuOnly, 0)
+        } else {
+            resolve_hardware().await
+        };
     let kind_models = agent_kind_models(&executor_kind, &kani_profiles, kani_author, &job_kinds);
     let profile = CapabilityProfile {
         inference_tariffs: match std::env::var("COVENANT_COMPUTE_NODE_TARIFFS_FILE") {
@@ -3018,7 +3037,8 @@ async fn main() -> anyhow::Result<()> {
                 LeaseExecutor::new(backend, LeaseControl::new()).watching(client.clone()),
             )
         }
-        "phala-cpu" => {
+        "phala-cpu" | "phala-cpu-ephemeral" => {
+            let ephemeral = executor_kind == "phala-cpu-ephemeral";
             let key_path = PathBuf::from(required("COVENANT_PHALA_API_KEY_FILE")?);
             let metadata = std::fs::metadata(&key_path).context("inspect Phala API key file")?;
             anyhow::ensure!(metadata.is_file() && metadata.len() <= 4096, "invalid Phala API key file");
@@ -3032,23 +3052,25 @@ async fn main() -> anyhow::Result<()> {
             }
             let api_key = std::fs::read_to_string(&key_path)
                 .context("read Phala API key file")?.trim().to_string();
-            let cloud = Arc::new(PhalaCloud::new(
-                api_key,
-                required("COVENANT_PHALA_TEEPOD_ID")?.parse().context("Phala teepod ID must be a positive integer")?,
-                required("COVENANT_PHALA_OS_IMAGE")?,
-                required("COVENANT_PHALA_KMS_ID")?,
-            )?);
-            let creation = match std::env::var("COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION").as_deref() {
+            let teepod_id = required("COVENANT_PHALA_TEEPOD_ID")?.parse().context("Phala teepod ID must be a positive integer")?;
+            let os_image = required("COVENANT_PHALA_OS_IMAGE")?;
+            let cloud = Arc::new(if ephemeral {
+                PhalaCloud::new_ephemeral(api_key, teepod_id, os_image, required("COVENANT_PHALA_EXPECTED_DEVICE_ID")?)?
+            } else {
+                PhalaCloud::new(api_key, teepod_id, os_image, required("COVENANT_PHALA_KMS_ID")?)?
+            });
+            let creation_name = if ephemeral { "COVENANT_PHALA_ALLOW_EPHEMERAL_CREATION" } else { "COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION" };
+            let creation = match std::env::var(creation_name).as_deref() {
                 Ok("1") => true,
                 Ok("0") | Err(std::env::VarError::NotPresent) => false,
-                _ => anyhow::bail!("COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION must be 0 or 1"),
+                _ => anyhow::bail!("{creation_name} must be 0 or 1"),
             };
             let config = PhalaConfig {
                 operator_pubkey_b58: identity.agent_id().pubkey_base58(),
-                wrapper_template: covenant_compute_protocol::phala::reviewed_phala_wrapper(),
+                wrapper_template: if ephemeral { covenant_compute_protocol::phala::reviewed_phala_ephemeral_wrapper() } else { covenant_compute_protocol::phala::reviewed_phala_wrapper() },
                 image_digest: required("COVENANT_PHALA_GUEST_IMAGE_DIGEST")?,
-                allow_managed_kms_creation: creation,
-                allow_ephemeral_creation: false,
+                allow_managed_kms_creation: !ephemeral && creation,
+                allow_ephemeral_creation: ephemeral && creation,
                 creation_allowance: match std::env::var("COVENANT_PHALA_CREATION_ALLOWANCE_FILE") {
                     Ok(path) => {
                         let bytes = std::fs::read(path).context("read reviewed Phala creation allowance")?;
@@ -3069,16 +3091,19 @@ async fn main() -> anyhow::Result<()> {
                 evidence_identity.agent_id() == identity.agent_id(),
                 "Phala evidence identity changed while opening the existing key"
             );
-            let evidence = Arc::new(PhalaEvidenceClient::new(
+            let evidence = PhalaEvidenceClient::new(
                 &coordinator_url, evidence_identity, home.join("phala-evidence"),
-            )?);
+            )?;
+            let evidence = Arc::new(if ephemeral {
+                evidence.with_ephemeral_relay_origin(required("COVENANT_PHALA_RELAY_ORIGIN")?)?
+            } else { evidence });
             let backend = PhalaSessionBackend::open_journal(
                 cloud, config, &home.join("phala-leases"), client.clone(), evidence,
             )?;
             phala_shutdown_backend = Some(backend.clone());
             tracing::warn!(
-                new_leases_enabled = creation,
-                "phala-cpu: managed KMS is control-plane trust; served tier stays Open; durable recovery enabled"
+                new_leases_enabled = creation, ephemeral,
+                "Phala CPU: explicit profile, served tier Open, durable recovery enabled"
             );
             NodeExecutor::Phala(PhalaExecutor::new(backend, client.clone()))
         }
@@ -3234,7 +3259,7 @@ async fn main() -> anyhow::Result<()> {
         // isolation than the operator configured.
         other => anyhow::bail!(
             "COVENANT_COMPUTE_NODE_EXECUTOR must be one of \
-             echo|subprocess|container|ollama|openai-compat|whisper|say|broker|phala-cpu|lease-stub|agent|\
+             echo|subprocess|container|ollama|openai-compat|whisper|say|broker|phala-cpu|phala-cpu-ephemeral|lease-stub|agent|\
              imd|knowledge, got {other:?}"
         ),
     };
@@ -3262,7 +3287,9 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("verify pinned knowledge compiler image")?;
         tracing::info!("knowledge compiler image present; compilation is deterministic and receipt-bound per job");
-    } else if executor_kind == "broker" || executor_kind == "phala-cpu" {
+    } else if executor_kind == "broker"
+        || matches!(executor_kind.as_str(), "phala-cpu" | "phala-cpu-ephemeral")
+    {
         // A lease has no known-answer self-test, and the only way to
         // demonstrate one at boot would be to rent a real machine —
         // spending the operator's money before a single buyer has paid.
@@ -3587,7 +3614,8 @@ async fn main() -> anyhow::Result<()> {
     let backend_retry =
         Duration::from_secs(env_or("COVENANT_COMPUTE_NODE_BACKEND_RETRY_SECS", 5u64).max(1));
     let serve_node = node.clone();
-    let recover_phala_before_admission = executor_kind == "phala-cpu";
+    let recover_phala_before_admission =
+        matches!(executor_kind.as_str(), "phala-cpu" | "phala-cpu-ephemeral");
     let serve = async move {
         let mut boot_recovery_done = false;
         loop {

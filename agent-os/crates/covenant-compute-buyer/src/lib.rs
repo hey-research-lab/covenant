@@ -53,6 +53,7 @@ pub use check::{check_pinned_task, check_preview, CheckOutcome};
 pub mod durable_budget;
 pub mod hardware;
 pub mod phala;
+mod relay;
 pub mod ssh;
 pub mod workspace;
 pub use agent::{
@@ -264,6 +265,7 @@ fn http_client_builder(call_timeout: Duration) -> reqwest::ClientBuilder {
         reqwest::header::HeaderValue::from(covenant_compute_protocol::PROTOCOL_VERSION),
     );
     reqwest::Client::builder()
+        .user_agent(concat!("covenant-compute/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
         .timeout(call_timeout)
         .default_headers(headers)

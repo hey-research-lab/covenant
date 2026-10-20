@@ -454,6 +454,35 @@ pub fn parse_phala_ephemeral_lease_spec(
     Ok(result)
 }
 
+/// Shared lifecycle pin. Never infer a Phala profile from remote evidence.
+/// Both profiles keep their original wire encoding and validation rules.
+pub fn phala_lease_window(
+    job: &JobEnvelopePayload,
+) -> Result<Option<(String, u64)>, ProtocolError> {
+    let managed = parse_phala_lease_spec(&job.input)?;
+    let ephemeral = parse_phala_ephemeral_lease_spec(&job.input)?;
+    match (managed, ephemeral) {
+        (Some(_), Some(_)) => Err(invalid("mixed Phala lease profiles")),
+        (Some(spec), None) => {
+            spec.validate_for_job(job)?;
+            Ok(Some((spec.operator_pubkey_b58, spec.lease_expires_at_ms)))
+        }
+        (None, Some(spec)) => {
+            spec.validate_for_job(job)?;
+            Ok(Some((spec.operator_pubkey_b58, spec.lease_expires_at_ms)))
+        }
+        (None, None) => {
+            if matches!(
+                job.capability_requirement.model_id.as_deref(),
+                Some(PHALA_CPU_MODEL | PHALA_EPHEMERAL_CPU_MODEL)
+            ) {
+                return Err(invalid("Phala model requires its signed lease pin"));
+            }
+            Ok(None)
+        }
+    }
+}
+
 fn reviewed_ephemeral_wrapper(wrapper: &Value) -> Result<(), ProtocolError> {
     let mut candidate = wrapper.clone();
     let object = candidate

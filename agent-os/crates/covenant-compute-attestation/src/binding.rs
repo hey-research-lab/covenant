@@ -222,11 +222,50 @@ pub struct HardwareEvidence {
     pub gpu_cc: Option<GpuEvidence>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PhalaEphemeralIdentity {
+    pub app_id: String,
+    pub instance_id: String,
+}
+
+// Called only after vendor signature validation and complete RTMR replay.
+fn ephemeral_identity(events: &[TdxEventEntry]) -> Result<PhalaEphemeralIdentity> {
+    let identity = |name: &str| -> Result<String> {
+        let mut found = events.iter().filter(|event| {
+            event.imr == 3 && event.event_type == 0x0800_0001 && event.event == name
+        });
+        let event = found
+            .next()
+            .ok_or_else(|| BindingError::Invalid("missing verified boot identity".into()))?;
+        if found.next().is_some() {
+            return Err(BindingError::Invalid(
+                "duplicate verified boot identity".into(),
+            ));
+        }
+        let bytes = hex::decode(&event.event_payload)
+            .map_err(|_| BindingError::Invalid("invalid verified boot identity".into()))?;
+        if bytes.len() != 20 {
+            return Err(BindingError::Invalid(
+                "invalid verified boot identity length".into(),
+            ));
+        }
+        Ok(hex::encode(bytes))
+    };
+    Ok(PhalaEphemeralIdentity {
+        app_id: identity("app-id")?,
+        instance_id: identity("instance-id")?,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HardwareVerdict {
     pub challenge: HardwareChallenge,
     pub evidence_sha256: String,
     pub reference_sha256: String,
     pub guest_identity: String,
+    /// Derived from the cryptographically replayed boot log, never RPC Info.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phala_identity: Option<PhalaEphemeralIdentity>,
     pub gpu_identity: Option<String>,
     pub channel_key_fingerprint: String,
     pub evidence_class: TrustClass,
@@ -526,6 +565,12 @@ fn verify_with_policy_at(
         evidence_sha256: hex::encode(Sha256::digest(bytes)),
         reference_sha256: reference_digest_for_profile(expected_profile),
         guest_identity,
+        phala_identity: match (&evidence.guest, expected_profile) {
+            (GuestEvidence::Tdx { events, .. }, HardwareProfile::PhalaEphemeralDstack061) => {
+                Some(ephemeral_identity(events)?)
+            }
+            _ => None,
+        },
         gpu_identity,
         channel_key_fingerprint,
         evidence_class,

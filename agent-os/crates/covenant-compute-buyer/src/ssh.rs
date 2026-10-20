@@ -2,7 +2,7 @@
 //! channel. Provider metadata never becomes a command. OpenSSH verifies the
 //! exact hardware-bound host key even when dialing our single-use local relay.
 //! TLS authenticates a gateway; it does not promote the lease's hardware trust.
-use crate::{hardware::HardwareClient, BuyerError};
+use crate::{hardware::HardwareClient, relay::RelaySession, BuyerError};
 use covenant_compute_attestation::{
     binding::{HardwareScope, HardwareVerdict},
     vendor_types::TrustClass,
@@ -87,10 +87,13 @@ fn remaining(verdict: &HardwareVerdict, scope: &HardwareScope) -> Result<Duratio
     {
         return Err(invalid("hardware verification expired before channel use"));
     }
-    Ok(
-        Duration::from_millis(verdict.expires_at_ms.min(scope.lease_expires_at_ms) - now)
-            .min(OPERATION_TIMEOUT),
-    )
+    let expires = verdict.expires_at_ms.min(scope.lease_expires_at_ms);
+    if scope.profile
+        == covenant_compute_attestation::binding::HardwareProfile::PhalaEphemeralDstack061
+    {
+        crate::relay::require_opening_grant(verdict, now)?;
+    }
+    Ok(Duration::from_millis(expires - now).min(OPERATION_TIMEOUT))
 }
 
 impl SshClient {
@@ -106,12 +109,18 @@ impl SshClient {
     ) -> Result<SshOutput, BuyerError> {
         let access = scoped_access(scope)?;
         let verdict = hardware.verify_lease(scope, floor).await?;
-        self.run(
+        let relay = if access.transport == Some(SshTransport::OutboundRelay) {
+            Some(RelaySession::authorize(hardware, scope, &verdict).await?)
+        } else {
+            None
+        };
+        self.run_session(
             &access,
             private_key,
             "id -u; pwd",
             None,
             remaining(&verdict, scope)?,
+            relay.as_ref(),
         )
         .await
     }
@@ -135,19 +144,33 @@ impl SshClient {
         let verdict = hardware.verify_lease(scope, floor).await?;
         let file = open_source(source)?;
         let length = file.metadata().map_err(invalid)?.len();
+        if access.transport == Some(SshTransport::OutboundRelay)
+            && length > crate::relay::MAX_TRANSFER_BYTES
+        {
+            return Err(invalid(
+                "ephemeral relay workspace transfer exceeds the 8 MiB payload limit",
+            ));
+        }
         if length > MAX_TRANSFER_BYTES {
             return Err(invalid("workspace transfer exceeds the 64 MiB limit"));
         }
-        self.run(
+        let relay = if access.transport == Some(SshTransport::OutboundRelay) {
+            Some(RelaySession::authorize(hardware, scope, &verdict).await?)
+        } else {
+            None
+        };
+        self.run_session(
             &access,
             private_key,
             &upload_command(&format!("/workspace/{basename}")),
             Some((file, length)),
             remaining(&verdict, scope)?,
+            relay.as_ref(),
         )
         .await
     }
 
+    #[cfg(test)]
     async fn run(
         &self,
         access: &SshAccess,
@@ -155,6 +178,59 @@ impl SshClient {
         remote_command: &str,
         input: Option<(std::fs::File, u64)>,
         duration: Duration,
+    ) -> Result<SshOutput, BuyerError> {
+        self.run_session(access, private_key, remote_command, input, duration, None)
+            .await
+    }
+
+    async fn run_session(
+        &self,
+        access: &SshAccess,
+        private_key: &Path,
+        remote_command: &str,
+        input: Option<(std::fs::File, u64)>,
+        duration: Duration,
+        relay: Option<&RelaySession<'_, '_>>,
+    ) -> Result<SshOutput, BuyerError> {
+        if let Some(relay) = relay {
+            if access.transport != Some(SshTransport::OutboundRelay) {
+                return Err(invalid("verified relay supplied for a different transport"));
+            }
+            access.validate().map_err(invalid)?;
+            private_key_path(private_key)?;
+            let listener = TcpListener::bind(("127.0.0.1", 0)).await.map_err(invalid)?;
+            let port = listener.local_addr().map_err(invalid)?.port();
+            let result = tokio::time::timeout(duration, async {
+                tokio::try_join!(
+                    self.run_inner(access, private_key, remote_command, input, duration, Some(port)),
+                    relay.pump(listener),
+                ).map(|(output, ())| output)
+            }).await.map_err(|_| invalid("relay deadline expired; remote write may be partial, do not automatically retry"))
+                .and_then(|result| result);
+            // Closure is bounded and idempotent, including errors and deadlines.
+            // Cancellation drops both local futures/sockets, kills OpenSSH, and
+            // sends the last freshly signed, bounded close without copying keys.
+            let closed = relay.close().await;
+            return match result {
+                Ok(output) => {
+                    closed?;
+                    Ok(output)
+                }
+                Err(error) => Err(error),
+            };
+        }
+        self.run_inner(access, private_key, remote_command, input, duration, None)
+            .await
+    }
+
+    async fn run_inner(
+        &self,
+        access: &SshAccess,
+        private_key: &Path,
+        remote_command: &str,
+        input: Option<(std::fs::File, u64)>,
+        duration: Duration,
+        relay_port: Option<u16>,
     ) -> Result<SshOutput, BuyerError> {
         access.validate().map_err(invalid)?;
         if access.observed_host_keys.len() != 1 || duration.is_zero() {
@@ -171,7 +247,7 @@ impl SshClient {
         let result = tokio::time::timeout(duration, async {
             let (host, port, _relay) = match access.transport {
                 None => (access.host.clone(), access.port, None),
-                Some(SshTransport::OutboundRelay) => return Err(invalid("outbound relay requires the dedicated verified relay client")),
+                Some(SshTransport::OutboundRelay) => ("127.0.0.1".into(), relay_port.ok_or_else(|| invalid("outbound relay requires a verified native session"))?, None),
                 Some(SshTransport::Tls) => {
                     // The certificate is validated BEFORE OpenSSH is started.
                     let tls = connect_tls(access, self.tls.clone()).await?;
@@ -293,7 +369,7 @@ fn upload_command(destination: &str) -> String {
     // can still open non-regular files). An acknowledged upload is fsynced.
     let path = serde_json::to_string(destination).expect("path serializes");
     let script = format!(
-        "import os,shutil,sys; f=os.fdopen(os.open({path},os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'wb'); shutil.copyfileobj(sys.stdin.buffer,f); f.flush(); os.fsync(f.fileno()); f.close()"
+        "import hashlib,json,os,shutil,sys; f=os.fdopen(os.open({path},os.O_RDWR|os.O_CREAT|os.O_EXCL,0o600),'w+b'); shutil.copyfileobj(sys.stdin.buffer,f); f.flush(); os.fsync(f.fileno()); n=f.tell(); f.seek(0); h=hashlib.sha256(f.read()).hexdigest(); f.close(); print(json.dumps(dict(uid=os.getuid(),path={path},bytes=n,sha256=h)))"
     );
     format!("/usr/bin/python3 -I -c '{}'", script.replace('\'', "'\\''"))
 }

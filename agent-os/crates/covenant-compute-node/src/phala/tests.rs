@@ -30,6 +30,243 @@ impl PhalaEvidence for Evidence {
         Ok(())
     }
 }
+
+struct VerifiedEvidence {
+    prepared: AtomicUsize,
+    verified: AtomicUsize,
+    submitted: AtomicUsize,
+    fail_verification: AtomicBool,
+    fail_prepare: AtomicBool,
+    change_key: AtomicBool,
+    change_instance: AtomicBool,
+}
+impl VerifiedEvidence {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            prepared: AtomicUsize::new(0),
+            verified: AtomicUsize::new(0),
+            submitted: AtomicUsize::new(0),
+            fail_verification: AtomicBool::new(false),
+            fail_prepare: AtomicBool::new(false),
+            change_key: AtomicBool::new(false),
+            change_instance: AtomicBool::new(false),
+        })
+    }
+}
+#[async_trait]
+impl PhalaEvidence for VerifiedEvidence {
+    fn ephemeral_available(&self) -> bool {
+        true
+    }
+    fn ephemeral_configured(&self, job: &JobEnvelopePayload) -> Result<(), ExecutorError> {
+        if parse_phala_ephemeral_lease_spec(&job.input)
+            .map_err(|e| failed(e.to_string()))?
+            .is_some()
+        {
+            Ok(())
+        } else {
+            Err(failed("explicit ephemeral profile required"))
+        }
+    }
+    async fn prepare_ephemeral(
+        &self,
+        _: &JobEnvelopePayload,
+        app: &str,
+    ) -> Result<(), ExecutorError> {
+        assert_eq!(app, "ab".repeat(20));
+        self.prepared.fetch_add(1, Ordering::SeqCst);
+        if self.fail_prepare.load(Ordering::SeqCst) {
+            Err(failed("relay tombstoned"))
+        } else {
+            Ok(())
+        }
+    }
+    async fn ephemeral_ready(
+        &self,
+        job: &JobEnvelopePayload,
+        app: &str,
+        _: Option<&VerifiedPhalaAccess>,
+    ) -> Result<VerifiedPhalaAccess, ExecutorError> {
+        self.verified.fetch_add(1, Ordering::SeqCst);
+        if self.fail_verification.load(Ordering::SeqCst) {
+            return Err(failed("full quote rejected"));
+        }
+        let spec = parse_phala_ephemeral_lease_spec(&job.input)
+            .unwrap()
+            .unwrap();
+        let mut wire = b"\0\0\0\x0bssh-ed25519\0\0\0\x20".to_vec();
+        wire.extend_from_slice(
+            &[if self.change_key.load(Ordering::SeqCst) {
+                9
+            } else {
+                8
+            }; 32],
+        );
+        Ok(VerifiedPhalaAccess {
+            app_id: app.into(),
+            instance_id: if self.change_instance.load(Ordering::SeqCst) {
+                "ef".repeat(20)
+            } else {
+                "cd".repeat(20)
+            },
+            access: SshAccess {
+                host: spec.relay.host().unwrap().into(),
+                port: 443,
+                username: "covenant".into(),
+                lease_generation: spec.lease_generation,
+                observed_host_keys: vec![SshHostKey {
+                    algorithm: "ssh-ed25519".into(),
+                    key_base64: STANDARD.encode(wire),
+                }],
+                transport: Some(SshTransport::OutboundRelay),
+            },
+        })
+    }
+    async fn ephemeral_after_access(
+        &self,
+        _: &JobEnvelopePayload,
+        access: &LeaseAccess,
+        pin: &VerifiedPhalaAccess,
+    ) -> Result<(), ExecutorError> {
+        assert_eq!(access.ssh.as_ref(), Some(&pin.access));
+        self.submitted.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+    async fn after_access(
+        &self,
+        _: &JobEnvelopePayload,
+        _: &LeaseAccess,
+        _: &str,
+    ) -> Result<(), ExecutorError> {
+        panic!("ephemeral evidence cannot downgrade to managed")
+    }
+}
+
+fn verified_backend(
+    provider: Arc<Provider>,
+    evidence: Arc<VerifiedEvidence>,
+    directory: &Path,
+) -> Arc<PhalaSessionBackend> {
+    PhalaSessionBackend::open_journal(
+        provider,
+        ephemeral_config(true),
+        directory,
+        Arc::new(Closed(AtomicBool::new(false))),
+        evidence,
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn ephemeral_native_readiness_requires_verified_identity_and_durable_pin() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let evidence = VerifiedEvidence::new();
+    let backend = verified_backend(provider.clone(), evidence.clone(), directory.path());
+    let job = ephemeral_job();
+    let access = backend.open(&job).await.unwrap();
+    let row = provider.durable(job.job_id);
+    assert_eq!(row.phase, Phase::Ready);
+    assert_eq!(row.access, access.ssh);
+    assert_eq!(
+        row.verified_ephemeral.as_ref().unwrap().instance_id,
+        "cd".repeat(20)
+    );
+    assert!(
+        row.observed_instance_id.is_none(),
+        "null Cloud instance must not erase verified identity"
+    );
+    assert_eq!(evidence.prepared.load(Ordering::SeqCst), 1);
+    assert_eq!(evidence.verified.load(Ordering::SeqCst), 1);
+    backend.allocate_ephemeral(&job).await.unwrap();
+    assert_eq!(
+        provider.durable(job.job_id).phase,
+        Phase::Ready,
+        "an allocation receipt cannot downgrade already verified readiness"
+    );
+    backend.after_access(&job, &access).await.unwrap();
+    assert_eq!(evidence.submitted.load(Ordering::SeqCst), 1);
+    backend.close(job.job_id).await;
+    assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+}
+
+#[tokio::test]
+async fn ephemeral_quote_failure_grants_no_access_and_cleans_original_resource() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let evidence = VerifiedEvidence::new();
+    evidence.fail_verification.store(true, Ordering::SeqCst);
+    let backend = verified_backend(provider.clone(), evidence, directory.path());
+    let job = ephemeral_job();
+    assert!(backend.open(&job).await.is_err());
+    let row = provider.durable(job.job_id);
+    assert!(row.access.is_none());
+    assert!(row.verified_ephemeral.is_none());
+    backend.reconcile().await.unwrap();
+    assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+    assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+    assert!(backend.open(&job).await.is_err());
+}
+
+#[tokio::test]
+async fn ephemeral_relay_tombstone_prevents_guest_creation() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let evidence = VerifiedEvidence::new();
+    evidence.fail_prepare.store(true, Ordering::SeqCst);
+    let backend = verified_backend(provider.clone(), evidence, directory.path());
+    let job = ephemeral_job();
+    assert!(backend.open(&job).await.is_err());
+    assert_eq!(provider.create_count.load(Ordering::SeqCst), 0);
+    backend.reconcile().await.unwrap();
+    assert_eq!(
+        provider.durable(job.job_id).phase,
+        Phase::ProvisionAbandoned
+    );
+}
+
+#[tokio::test]
+async fn ephemeral_verified_key_or_instance_change_is_terminal() {
+    for change_key in [true, false] {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = Provider::new(directory.path());
+        let evidence = VerifiedEvidence::new();
+        let backend = verified_backend(provider.clone(), evidence.clone(), directory.path());
+        let job = ephemeral_job();
+        backend.open(&job).await.unwrap();
+        if change_key {
+            evidence.change_key.store(true, Ordering::SeqCst);
+        } else {
+            evidence.change_instance.store(true, Ordering::SeqCst);
+        }
+        assert!(backend.open(&job).await.is_err());
+        backend.reconcile().await.unwrap();
+        assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+        assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[tokio::test]
+async fn ephemeral_verified_pin_survives_restart_and_provider_change_closes_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let evidence = VerifiedEvidence::new();
+    let job = ephemeral_job();
+    let pin = {
+        let backend = verified_backend(provider.clone(), evidence.clone(), directory.path());
+        backend.open(&job).await.unwrap();
+        provider.durable(job.job_id).verified_ephemeral.unwrap()
+    };
+    let backend = verified_backend(provider.clone(), evidence, directory.path());
+    assert_eq!(
+        backend.row(job.job_id).unwrap().verified_ephemeral.unwrap(),
+        pin
+    );
+    provider.machine.lock().as_mut().unwrap().instance_id = Some("ef".repeat(20));
+    backend.reconcile().await.unwrap();
+    assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+    assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+}
 struct Provider {
     directory: PathBuf,
     provision_count: AtomicUsize,
@@ -38,6 +275,8 @@ struct Provider {
     create_response_lost: AtomicBool,
     machine: Mutex<Option<Machine>>,
     preserve_after_delete: AtomicBool,
+    delete_failure: AtomicBool,
+    get_failure: AtomicBool,
     wrong_key: AtomicBool,
     create_hangs: AtomicBool,
     creating: tokio::sync::Notify,
@@ -52,6 +291,8 @@ impl Provider {
             create_response_lost: AtomicBool::new(false),
             machine: Mutex::new(None),
             preserve_after_delete: AtomicBool::new(false),
+            delete_failure: AtomicBool::new(false),
+            get_failure: AtomicBool::new(false),
             wrong_key: AtomicBool::new(false),
             create_hangs: AtomicBool::new(false),
             creating: tokio::sync::Notify::new(),
@@ -123,6 +364,9 @@ impl PhalaProvider for Provider {
         Ok(self.machine.lock().clone())
     }
     async fn get(&self, _: Uuid) -> Result<Option<Machine>, ExecutorError> {
+        if self.get_failure.load(Ordering::SeqCst) {
+            return Err(failed("provider GET failed"));
+        }
         Ok(self.machine.lock().clone())
     }
     async fn identity(
@@ -165,11 +409,99 @@ impl PhalaProvider for Provider {
         assert_eq!(row.phase, Phase::DeletePending);
         assert!(row.close_requested);
         self.delete_count.fetch_add(1, Ordering::SeqCst);
+        if self.delete_failure.load(Ordering::SeqCst) {
+            return Err(failed("delete transport outcome unknown"));
+        }
         if !self.preserve_after_delete.load(Ordering::SeqCst) {
             *self.machine.lock() = None;
         }
         Ok(())
     }
+}
+
+fn successful_outcome() -> ExecutionOutcome {
+    ExecutionOutcome {
+        output: vec![],
+        wall_ms: 10,
+        tokens_in: None,
+        tokens_out: None,
+        finish_reason: None,
+    }
+}
+
+#[tokio::test]
+async fn ephemeral_success_waits_for_confirmed_delete_and_never_recreates() {
+    for failure_mode in 0..3 {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = Provider::new(directory.path());
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        let job = ephemeral_job();
+        backend.open(&job).await.unwrap();
+        provider.preserve_after_delete.store(true, Ordering::SeqCst);
+        provider
+            .delete_failure
+            .store(failure_mode == 1, Ordering::SeqCst);
+        provider
+            .get_failure
+            .store(failure_mode == 2, Ordering::SeqCst);
+        let executor = PhalaExecutor {
+            lease: LeaseExecutor::new(backend.clone(), LeaseControl::new()),
+            backend: backend.clone(),
+        };
+        let result = executor
+            .finish_ephemeral(&job, Ok(successful_outcome()), Duration::from_millis(20))
+            .await;
+        assert!(
+            result.is_err(),
+            "unconfirmed deletion must not become a payable successful receipt"
+        );
+        let pending = provider.durable(job.job_id);
+        assert_eq!(
+            pending.phase,
+            if failure_mode == 2 {
+                Phase::Ready
+            } else {
+                Phase::DeletePending
+            }
+        );
+        assert!(pending.close_requested);
+        assert!(pending.vm_uuid.is_some());
+        assert!(pending.verified_ephemeral.is_some());
+        assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+        // Later recovery resolves the original owned VM, without retroactively
+        // converting the previously failed execution into a success.
+        provider.delete_failure.store(false, Ordering::SeqCst);
+        provider.get_failure.store(false, Ordering::SeqCst);
+        provider
+            .preserve_after_delete
+            .store(false, Ordering::SeqCst);
+        backend.reconcile().await.unwrap();
+        assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+        let confirmed = executor
+            .finish_ephemeral(&job, Ok(successful_outcome()), Duration::from_millis(20))
+            .await
+            .unwrap();
+        assert_eq!(
+            confirmed.wall_ms, 10,
+            "cleanup delay does not extend the metered outcome"
+        );
+        assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[tokio::test]
+async fn managed_success_retains_its_existing_cleanup_contract() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let backend = backend(provider, directory.path(), true);
+    let executor = PhalaExecutor {
+        lease: LeaseExecutor::new(backend.clone(), LeaseControl::new()),
+        backend,
+    };
+    assert!(executor
+        .finish_ephemeral(&job(), Ok(successful_outcome()), Duration::from_millis(1))
+        .await
+        .is_ok());
 }
 
 fn operator() -> String {
@@ -192,6 +524,8 @@ fn config(enabled: bool) -> PhalaConfig {
             max_new_resources: 1,
             planning_reserve_micro_usd: 10000,
             valid_until_ms: now_ms() + 120_000,
+            job_id: None,
+            buyer_pubkey_b58: None,
         }),
         ready_timeout: Duration::from_millis(50),
         poll_interval: Duration::from_millis(1),
@@ -704,6 +1038,7 @@ fn io_failure_poison_prevents_later_mutations() {
         last_observed_ms: now_ms(),
         delete_attempts: 0,
         observed_instance_id: None,
+        verified_ephemeral: None,
     };
     assert!(backend.save(row.clone()).is_err());
     std::fs::remove_dir(directory.path().join("leases.json")).unwrap();
@@ -768,4 +1103,83 @@ fn allowance_requires_one_resource_and_covers_reviewed_runtime() {
     a.planning_reserve_micro_usd = 10000;
     a.max_runtime_secs = 3601;
     assert!(a.validate(&operator()).is_err());
+}
+
+#[test]
+fn allowance_optional_canary_pins_require_a_complete_valid_pair() {
+    let mut allowance = config(true).creation_allowance.unwrap();
+    let legacy = serde_json::to_value(&allowance).unwrap();
+    assert!(legacy.get("job_id").is_none());
+    assert!(legacy.get("buyer_pubkey_b58").is_none());
+    let restored: CreationAllowance = serde_json::from_value(legacy).unwrap();
+    assert_eq!(restored, allowance);
+    allowance.job_id = Some(Uuid::new_v4());
+    assert!(allowance.validate(&operator()).is_err());
+    allowance.buyer_pubkey_b58 = Some("malformed".into());
+    assert!(allowance.validate(&operator()).is_err());
+    allowance.buyer_pubkey_b58 = Some(bs58::encode([2; 32]).into_string());
+    assert!(allowance.validate(&operator()).is_ok());
+    allowance.job_id = Some(Uuid::nil());
+    assert!(allowance.validate(&operator()).is_err());
+    allowance.job_id = None;
+    assert!(allowance.validate(&operator()).is_err());
+}
+
+#[tokio::test]
+async fn pinned_canary_rejects_other_job_or_buyer_without_spending_allowance() {
+    for wrong_buyer in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = Provider::new(directory.path());
+        let allowed_job = ephemeral_job();
+        let mut config = ephemeral_config(true);
+        let allowance = config.creation_allowance.as_mut().unwrap();
+        allowance.job_id = Some(allowed_job.job_id);
+        allowance.buyer_pubkey_b58 = Some(allowed_job.buyer.pubkey_base58());
+        let mut rejected = if wrong_buyer {
+            allowed_job.clone()
+        } else {
+            ephemeral_job()
+        };
+        if wrong_buyer {
+            rejected.buyer = AgentId::new("other@local", [6; 32]);
+            rejected.input.pop();
+            let relay = PhalaRelayConfig {
+                url: "https://relay.example.com".into(),
+                session_id: rejected.job_id.to_string(),
+            };
+            let (_, spec) = phala_ephemeral_workload(
+                &rejected,
+                &operator(),
+                &config.wrapper_template,
+                &config.image_digest,
+                &relay,
+            )
+            .unwrap();
+            rejected
+                .input
+                .push(phala_ephemeral_lease_input(spec).unwrap());
+        }
+        let backend = PhalaSessionBackend::open_journal(
+            provider.clone(),
+            config,
+            directory.path(),
+            Arc::new(Closed(AtomicBool::new(false))),
+            Arc::new(Evidence),
+        )
+        .unwrap();
+        assert!(backend.allocate_ephemeral(&rejected).await.is_err());
+        assert_eq!(provider.provision_count.load(Ordering::SeqCst), 0);
+        assert_eq!(provider.create_count.load(Ordering::SeqCst), 0);
+        assert_eq!(provider.delete_count.load(Ordering::SeqCst), 0);
+        assert!(backend.journal.lock().snapshot.rows.is_empty());
+        backend.allocate_ephemeral(&allowed_job).await.unwrap();
+        let row = provider.durable(allowed_job.job_id);
+        assert_eq!(row.plan.allowance.job_id, Some(allowed_job.job_id));
+        assert_eq!(
+            row.plan.allowance.buyer_pubkey_b58.as_deref(),
+            Some(allowed_job.buyer.pubkey_base58().as_str())
+        );
+        assert_eq!(provider.provision_count.load(Ordering::SeqCst), 1);
+        assert_eq!(provider.create_count.load(Ordering::SeqCst), 1);
+    }
 }

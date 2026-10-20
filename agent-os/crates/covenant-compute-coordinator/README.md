@@ -385,3 +385,30 @@ acceptance or readiness. Served trust remains `Open`, including workspace
 grants. See the [verification contract](../../../docs/compute-hardware-attestation.md),
 [Phala lifecycle](../../../docs/compute-phala-lease-lifecycle.md) and
 [acceptance gates](../../../docs/compute-hardware-acceptance.md).
+
+
+## Ephemeral Phala relay
+
+`COVENANT_COMPUTE_EPHEMERAL_RELAY=1` enables the native outbound relay only
+with `COVENANT_COMPUTE_HARDWARE_LEASE_PINS=1` and
+`COVENANT_COMPUTE_EPHEMERAL_RELAY_ORIGIN` set to this coordinator's canonical
+public HTTPS origin. It adds `/v1/relay` and buyer/operator-authenticated
+`/federation/hardware/:job/relay` metadata. Operators and buyers sign exact
+requests with their existing identities; no shared buyer bearer token or
+credential enters the guest manifest.
+
+The assigned operator records its original provisioned app before creating
+the guest. The independent verifier derives app/instance identities from the
+replayed TDX boot log. Opening a stream requires the current buyer, accepted
+coordinator evidence, exact challenge and immutable app/instance pins. Every
+operation checks the original signed lease, buyer close, wall-clock rollback
+and absolute expiry. Phala metering stops at the earlier of buyer close and
+signed guest expiry; provider cleanup remains a separately durable obligation.
+
+The initial bounds are eight active sessions, sixteen control operations,
+eight quotes and one SSH stream per lease, with a 300-second and 16-MiB stream
+ceiling. Keep the persistent `journal.relay.json` journal: restart invalidates
+all in-memory sessions and preserves their tombstones, so the node must clean
+up the original VM instead of silently adopting or replacing it. 16,384
+historical session IDs are retained; exhaustion fails closed. This does not
+change the served `Open` trust ceiling or qualify persistent-secret custody.

@@ -3,15 +3,17 @@
 Package 11 now includes a Phala CPU lease lifecycle, signed per-lease workload
 pins, automatic challenge/evidence collection and a buyer path for independent
 verification, SSH probing and workspace restore. The served trust ceiling
-remains **`Open`**, and native managed-KMS and ephemeral creation remain disabled.
+remains **`Open`**. Managed-KMS creation remains disabled; ephemeral creation
+requires an explicit bounded allowance and remains disabled by default.
 This implementation has not completed a paid Covenant lease acceptance or a
 production attested-rental release.
 
 A separate [ephemeral Phala profile](compute-ephemeral-phala-acceptance.md)
 now allocates a fresh VM/disk per lease and connects outbound using an
 independently attested SSH key, without managed KMS. Its bounded live diagnostic
-is distinct from the native paid lease flow; the allocation API does not yet
-grant native relay readiness or buyer access.
+is distinct from the native paid lease flow. The native integration now verifies
+operator and buyer admission, relays attested SSH, and gates successful receipts
+on confirmed teardown. Local tests do not establish live paid acceptance.
 
 The [lease lifecycle guide](compute-phala-lease-lifecycle.md) records the exact
 configuration and buyer commands. The [hardware contract](compute-hardware-attestation.md)

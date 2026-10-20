@@ -1,4 +1,35 @@
 use super::*;
+
+#[test]
+fn ephemeral_identity_requires_unique_exact_boot_register_events() {
+    let event = |name: &str, byte: u8| TdxEventEntry {
+        imr: 3,
+        event_type: 0x0800_0001,
+        event: name.into(),
+        event_payload: hex::encode([byte; 20]),
+        digest: "00".repeat(48),
+        version: 1,
+        preimage: None,
+    };
+    let valid = vec![event("app-id", 10), event("instance-id", 11)];
+    let identity = ephemeral_identity(&valid).unwrap();
+    assert_eq!(identity.app_id, "0a".repeat(20));
+    assert_eq!(identity.instance_id, "0b".repeat(20));
+    assert!(ephemeral_identity(&valid[..1]).is_err());
+    let mut duplicate = valid.clone();
+    duplicate.push(valid[0].clone());
+    assert!(ephemeral_identity(&duplicate).is_err());
+    for variant in 0..4 {
+        let mut invalid = valid.clone();
+        match variant {
+            0 => invalid[0].imr = 2,
+            1 => invalid[0].event_type = 0x0800_0002,
+            2 => invalid[0].event_payload = "ab".repeat(19),
+            _ => invalid[0].event_payload = "zz".repeat(20),
+        }
+        assert!(ephemeral_identity(&invalid).is_err());
+    }
+}
 use p384::pkcs8::DecodePrivateKey;
 
 #[test]

@@ -11,12 +11,16 @@ use axum::{
 };
 use covenant_compute_attestation::{
     binding::{
-        self, HardwareChallenge, HardwareEvidence, HardwareScope, HardwareVerdict,
+        self, HardwareChallenge, HardwareEvidence, HardwareProfile, HardwareScope, HardwareVerdict,
         MAX_EVIDENCE_BYTES,
     },
     vendor_types::TrustClass,
 };
-use covenant_compute_protocol::{parse_lease_terms, phala::parse_phala_lease_spec, JobKind};
+use covenant_compute_protocol::{
+    parse_lease_terms,
+    phala::{parse_phala_ephemeral_lease_spec, parse_phala_lease_spec},
+    JobKind,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -235,7 +239,12 @@ impl HardwareService {
                     .saturating_add(job.envelope.payload.deadline_ms),
             );
         let phala = parse_phala_lease_spec(&job.envelope.payload.input).map_err(rejected)?;
-        if phala.is_none() && self.workload_sha256.is_empty() {
+        let ephemeral =
+            parse_phala_ephemeral_lease_spec(&job.envelope.payload.input).map_err(rejected)?;
+        if phala.is_some() && ephemeral.is_some() {
+            return Err(rejected("mixed Phala lease profiles"));
+        }
+        if phala.is_none() && ephemeral.is_none() && self.workload_sha256.is_empty() {
             return Err(rejected("buyer-signed workload pin required"));
         }
         if let Some(spec) = &phala {
@@ -244,6 +253,18 @@ impl HardwareService {
             if spec.operator_pubkey_b58 != job.operator_pubkey_b58 {
                 return Err(rejected(
                     "lease operator differs from buyer-signed workload",
+                ));
+            }
+            end = end.min(spec.lease_expires_at_ms);
+        }
+        if let Some(spec) = &ephemeral {
+            spec.validate_for_job(&job.envelope.payload)
+                .map_err(rejected)?;
+            if spec.operator_pubkey_b58 != job.operator_pubkey_b58
+                || !self.workload_sha256.is_empty()
+            {
+                return Err(rejected(
+                    "ephemeral leases require assigned operator and signed-lease mode",
                 ));
             }
             end = end.min(spec.lease_expires_at_ms);
@@ -285,13 +306,31 @@ impl HardwareService {
                 return Err(rejected("invalid Phala instance endpoint"));
             }
         }
+        if let Some(spec) = &ephemeral {
+            if ssh.lease_generation != spec.lease_generation
+                || ssh.transport
+                    != Some(covenant_compute_protocol::ssh::SshTransport::OutboundRelay)
+                || ssh.host != spec.relay.host().map_err(rejected)?
+                || ssh.port != 443
+                || ssh.username != "covenant"
+                || ssh.observed_host_keys.len() != 1
+            {
+                return Err(rejected(
+                    "ephemeral Phala channel differs from the signed lease profile",
+                ));
+            }
+        }
         let key = ssh
             .observed_host_keys
             .get(key_index)
             .cloned()
             .ok_or_else(|| rejected("host key missing"))?;
         Ok(HardwareScope {
-            profile: Default::default(),
+            profile: if ephemeral.is_some() {
+                HardwareProfile::PhalaEphemeralDstack061
+            } else {
+                HardwareProfile::Standard
+            },
             job_id,
             operator_pubkey_b58: job.operator_pubkey_b58,
             buyer_pubkey_b58: job.envelope.payload.buyer.pubkey_base58(),
@@ -303,6 +342,7 @@ impl HardwareService {
             guest_channel_key: key,
             workload_sha256: phala
                 .map(|spec| spec.workload_sha256)
+                .or_else(|| ephemeral.map(|spec| spec.workload_sha256))
                 .unwrap_or_else(|| self.workload_sha256.clone()),
             lease_expires_at_ms: end,
         })
@@ -461,7 +501,14 @@ impl HardwareService {
         // commit; all filesystem and vendor work stays in this bounded worker.
         let _permit = permit;
         let verify_at = self.worker_time(now)?;
-        let verdict = binding::verify_evidence(&evidence, verify_at).map_err(rejected)?;
+        // match_live_scope above derives the profile exclusively from the signed
+        // job. Remote evidence cannot opt itself into a different policy.
+        let verdict = binding::verify_evidence_for_profile(
+            &evidence,
+            verify_at,
+            evidence.challenge.scope.profile,
+        )
+        .map_err(rejected)?;
         let completed_at = (self.clock)();
         self.validate_completion(&verdict, completed_at)?;
         let mut book = self.book.lock();
@@ -522,6 +569,35 @@ impl HardwareService {
     pub fn evidence(&self, job: Uuid, actor: &str, now: u64) -> Result<EvidenceResponse> {
         let permit = self.read_permit(job, actor)?;
         self.evidence_admitted(job, actor, now, permit)
+    }
+    /// Relay access requires a fresh independently reverified coordinator
+    /// verdict and the original operator-provisioned application/instance pins.
+    /// Run on a bounded blocking worker, never under the relay-state lock.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn require_relay_stream(
+        &self,
+        job: Uuid,
+        buyer: &str,
+        challenge_id: Uuid,
+        expected_app_id: &str,
+        expected_instance_id: &str,
+        now: u64,
+    ) -> Result<()> {
+        let response = self.evidence(job, buyer, now)?;
+        let verdict = response.verdict;
+        let scope = &verdict.challenge.scope;
+        if scope.profile != HardwareProfile::PhalaEphemeralDstack061
+            || scope.buyer_pubkey_b58 != buyer
+            || verdict.challenge.challenge_id != challenge_id
+            || verdict.phala_identity.as_ref().is_none_or(|identity| {
+                identity.app_id != expected_app_id || identity.instance_id != expected_instance_id
+            })
+        {
+            return Err(rejected(
+                "relay stream differs from verified buyer, challenge or boot identity",
+            ));
+        }
+        Ok(())
     }
     fn read_permit(&self, job: Uuid, actor: &str) -> Result<tokio::sync::OwnedSemaphorePermit> {
         self.authorize(job, actor)?;
@@ -597,7 +673,8 @@ impl HardwareService {
         self.match_live_scope(&verdict.challenge.scope, now)?;
         if now < verdict.verified_at_ms
             || now >= verdict.expires_at_ms
-            || verdict.reference_sha256 != binding::reference_digest()
+            || verdict.reference_sha256
+                != binding::reference_digest_for_profile(verdict.challenge.scope.profile)
         {
             return Err(rejected(
                 "hardware verdict expired or reference set changed",
@@ -606,11 +683,12 @@ impl HardwareService {
         // Journal contention must not preserve the request's older vendor
         // validation time either; refresh immediately before crypto checks.
         let verify_at = self.worker_time(now)?;
-        binding::verify_saved_verdict(
+        binding::verify_saved_verdict_for_profile(
             &result.evidence,
             verdict,
             &verdict.challenge.scope,
             verify_at,
+            verdict.challenge.scope.profile,
         )
         .map_err(rejected)?;
         let completed_at = (self.clock)();

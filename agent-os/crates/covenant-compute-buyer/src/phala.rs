@@ -6,8 +6,10 @@ use covenant_a2a::{A2ADuplicateSafety, A2AIdempotency};
 use covenant_compute_protocol::{
     lease_input,
     phala::{
-        parse_phala_lease_spec, phala_lease_input, phala_workload, reviewed_phala_wrapper,
-        PHALA_CPU_MODEL,
+        parse_phala_ephemeral_lease_spec, parse_phala_lease_spec, phala_ephemeral_lease_input,
+        phala_ephemeral_workload, phala_lease_input, phala_workload,
+        reviewed_phala_ephemeral_wrapper, reviewed_phala_wrapper, PhalaRelayConfig,
+        PHALA_CPU_MODEL, PHALA_EPHEMERAL_CPU_MODEL,
     },
     CapabilityRequirement, JobEnvelopePayload, JobKind, LeaseTerms, SignedJobEnvelope,
     JOB_FRESHNESS_WINDOW_MS, LEASE_DEADLINE_SLACK_MS,
@@ -51,6 +53,16 @@ fn prepare_at(
     max_price_micro_usdc: u64,
     now: u64,
 ) -> Result<PreparedPhala, BuyerError> {
+    prepare_profile_at(buyer, args, None, max_price_micro_usdc, now)
+}
+
+fn prepare_profile_at(
+    buyer: &LocalIdentity,
+    args: &PreparePhala,
+    relay: Option<&PhalaRelayConfig>,
+    max_price_micro_usdc: u64,
+    now: u64,
+) -> Result<PreparedPhala, BuyerError> {
     if args.job_id.is_nil() || !(1..=3600).contains(&args.duration_secs) {
         return Err(invalid(
             "Phala preparation requires a nonnil UUID and 1..3600 seconds",
@@ -76,7 +88,14 @@ fn prepare_at(
             inference_tariff: None,
             gpu_class: Some("cpu".into()),
             min_vram_gb: None,
-            model_id: Some(PHALA_CPU_MODEL.into()),
+            model_id: Some(
+                if relay.is_some() {
+                    PHALA_EPHEMERAL_CPU_MODEL
+                } else {
+                    PHALA_CPU_MODEL
+                }
+                .into(),
+            ),
             kind: JobKind::LeaseSession,
             max_duration_secs: args.duration_secs as u32,
             min_reputation_bps: None,
@@ -89,16 +108,32 @@ fn prepare_at(
         referral_code: None,
         stream: true,
     };
-    let (workload, spec) = phala_workload(
-        &payload,
-        &args.operator_pubkey_b58,
-        &reviewed_phala_wrapper(),
-        &args.image_digest,
-    )
-    .map_err(invalid)?;
-    payload
-        .input
-        .push(phala_lease_input(spec).map_err(invalid)?);
+    let workload = if let Some(relay) = relay {
+        let (workload, spec) = phala_ephemeral_workload(
+            &payload,
+            &args.operator_pubkey_b58,
+            &reviewed_phala_ephemeral_wrapper(),
+            &args.image_digest,
+            relay,
+        )
+        .map_err(invalid)?;
+        payload
+            .input
+            .push(phala_ephemeral_lease_input(spec).map_err(invalid)?);
+        workload
+    } else {
+        let (workload, spec) = phala_workload(
+            &payload,
+            &args.operator_pubkey_b58,
+            &reviewed_phala_wrapper(),
+            &args.image_digest,
+        )
+        .map_err(invalid)?;
+        payload
+            .input
+            .push(phala_lease_input(spec).map_err(invalid)?);
+        workload
+    };
     payload.validate_input().map_err(invalid)?;
     let envelope = SignedJobEnvelope::sign(payload, buyer).map_err(invalid)?;
     Ok(PreparedPhala { envelope, workload })
@@ -113,6 +148,26 @@ pub fn prepare_to_directory(
     output: &Path,
 ) -> Result<PreparedPhala, BuyerError> {
     let prepared = prepare_at(buyer, args, max_price_micro_usdc, crate::epoch_ms())?;
+    persist(&prepared, output)?;
+    Ok(prepared)
+}
+
+/// Explicit fresh-VM, no-KMS preparation. The relay origin and session are
+/// included in the measured workload and the buyer's signed authorization.
+pub fn prepare_ephemeral_to_directory(
+    buyer: &LocalIdentity,
+    args: &PreparePhala,
+    relay: &PhalaRelayConfig,
+    max_price_micro_usdc: u64,
+    output: &Path,
+) -> Result<PreparedPhala, BuyerError> {
+    let prepared = prepare_profile_at(
+        buyer,
+        args,
+        Some(relay),
+        max_price_micro_usdc,
+        crate::epoch_ms(),
+    )?;
     persist(&prepared, output)?;
     Ok(prepared)
 }
@@ -205,9 +260,18 @@ pub fn validate_prepared(
     envelope.verify().map_err(invalid)?;
     let job = &envelope.payload;
     job.validate_input().map_err(invalid)?;
-    let spec = parse_phala_lease_spec(&job.input)
-        .map_err(invalid)?
-        .ok_or_else(|| invalid("prepared Phala envelope has no buyer-signed workload pin"))?;
+    let expires = match (
+        parse_phala_lease_spec(&job.input).map_err(invalid)?,
+        parse_phala_ephemeral_lease_spec(&job.input).map_err(invalid)?,
+    ) {
+        (Some(spec), None) => spec.lease_expires_at_ms,
+        (None, Some(spec)) => spec.lease_expires_at_ms,
+        _ => {
+            return Err(invalid(
+                "prepared Phala envelope requires exactly one buyer-signed workload pin",
+            ))
+        }
+    };
     if job.job_id.is_nil() || !job.stream || job.buyer.pubkey_base58() != expected_buyer {
         return Err(invalid(
             "prepared Phala envelope belongs to another buyer or is not a streaming lease",
@@ -224,7 +288,7 @@ pub fn validate_prepared(
             "prepared Phala issuance is in the future; nothing was submitted",
         ));
     }
-    if now >= spec.lease_expires_at_ms {
+    if now >= expires {
         return Err(invalid("prepared Phala guest window has expired; reconcile the original ID, never refresh it automatically"));
     }
     if now - job.issued_at_ms > JOB_FRESHNESS_WINDOW_MS {
@@ -362,6 +426,70 @@ mod tests {
         let missing = SignedJobEnvelope::sign(payload, &buyer).unwrap();
         assert!(validate_prepared(&missing, &owner, 1200, 1_000_000).is_err());
         assert!(prepare_at(&buyer, &args(), 1199, 1_000_000).is_err());
+    }
+
+    #[test]
+    fn ephemeral_preparation_signs_exact_image_relay_and_distinct_profile() {
+        let buyer = LocalIdentity::generate("ephemeral@buyer");
+        let args = args();
+        let relay = PhalaRelayConfig {
+            url: "https://relay.example.com".into(),
+            session_id: args.job_id.to_string(),
+        };
+        let prepared = prepare_profile_at(&buyer, &args, Some(&relay), 1200, 1_000_000).unwrap();
+        let spec = parse_phala_ephemeral_lease_spec(&prepared.envelope.payload.input)
+            .unwrap()
+            .unwrap();
+        assert!(parse_phala_lease_spec(&prepared.envelope.payload.input)
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            prepared
+                .envelope
+                .payload
+                .capability_requirement
+                .model_id
+                .as_deref(),
+            Some(PHALA_EPHEMERAL_CPU_MODEL)
+        );
+        assert_eq!(spec.relay, relay);
+        assert_eq!(
+            spec.workload_sha256,
+            Sha256::digest(prepared.workload.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        );
+        assert!(prepared.workload.contains(&args.image_digest));
+        let mut other_relay = relay.clone();
+        other_relay.url = "https://other.example.com".into();
+        let other = prepare_profile_at(&buyer, &args, Some(&other_relay), 1200, 1_000_000).unwrap();
+        assert_ne!(prepared.workload, other.workload);
+        let workload: serde_json::Value = serde_json::from_str(&prepared.workload).unwrap();
+        assert_eq!(workload["key_provider"], "none");
+        assert_eq!(workload["kms_enabled"], false);
+        let owner = buyer.agent_id().pubkey_base58();
+        validate_prepared(&prepared.envelope, &owner, 1200, 1_120_000).unwrap();
+        for now in [999_999, 1_120_001, 1_600_000] {
+            assert!(validate_prepared(&prepared.envelope, &owner, 1200, now).is_err());
+        }
+        let mut changed = relay.clone();
+        changed.session_id = Uuid::new_v4().to_string();
+        assert!(prepare_profile_at(&buyer, &args, Some(&changed), 1200, 1_000_000).is_err());
+        for url in [
+            "http://relay.example.com",
+            "https://127.0.0.1",
+            "https://relay.example.com/path",
+            "https://relay.example.com/",
+        ] {
+            changed = relay.clone();
+            changed.url = url.into();
+            assert!(prepare_profile_at(&buyer, &args, Some(&changed), 1200, 1_000_000).is_err());
+        }
+        let mut unsigned = prepared.envelope.payload.clone();
+        unsigned.capability_requirement.model_id = Some(PHALA_CPU_MODEL.into());
+        let mixed = SignedJobEnvelope::sign(unsigned, &buyer).unwrap();
+        assert!(validate_prepared(&mixed, &owner, 1200, 1_000_000).is_err());
     }
 
     #[tokio::test]

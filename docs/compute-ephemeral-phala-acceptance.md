@@ -177,18 +177,17 @@ managed KMS. The [managed-KMS review](../deploy/compute-attested-cpu/kms-policy-
 and [production acceptance gates](compute-hardware-acceptance.md) remain in
 force. `production_qualification` is false in the accepted verifier output.
 
-Native protocol and allocation code persist the exact lease identity and
-provision/create/delete intents, refuse ambiguous create retries, and reconcile
-only the original owned resource. Allocation returns no SSH access or readiness
-verdict. The executable leaves `allow_ephemeral_creation=false`; the native
-executor refuses ephemeral readiness and the native buyer refuses
-`OutboundRelay` until the complete verified transport is integrated.
+At this isolated acceptance, native allocation persisted the exact lease and
+provision/create/delete intents, but native readiness and buyer transport were
+disabled. The subsequent implementation is described in the
+[native lifecycle contract](compute-phala-lease-lifecycle.md#ephemeral-no-kms-native-integration).
+It adds independent buyer admission, signed coordinator relay, cancellation,
+confirmed teardown and metered settlement. Implementation and local tests do
+not turn this historical isolated test into a native paid acceptance.
 
-Production additionally requires native
-admission/quote/instance-pin/SSH integration, cancellation and teardown tests,
-the paid Covenant accounting/settlement path, and a separate deployment
-decision. A successful isolated acceptance is not an advertised production
-lease or a change in served trust.
+Production still requires acceptance of that complete paid path on the deployed
+candidate and a bounded operator creation policy. A successful isolated
+acceptance is not an advertised production lease or a change in served trust.
 
 ## Privately retained evidence hashes
 

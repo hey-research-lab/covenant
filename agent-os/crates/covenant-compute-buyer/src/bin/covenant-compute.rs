@@ -88,8 +88,10 @@ Usage:
   covenant-compute lease open --minutes N --rate R    rent a whole GPU for a window
   covenant-compute lease prepare-phala --job-id UUID --operator PUB --image-digest sha256:... --duration-secs N --rate R --ssh-key PUBLICFILE --output NEWDIR
                                                 prepare a pinned CPU lease offline; creates no resource
+  covenant-compute lease prepare-phala-ephemeral --job-id <uuid> --operator <pubkey> --image-digest <sha256:...> --duration-secs <seconds> --rate <micro-USDC/sec> --ssh-key <public-key-file> --output <new-directory> --relay-origin <https://public-dns>
   covenant-compute lease submit-phala --envelope FILE  submit that original envelope once with a durable budget
   covenant-compute lease probe-phala --envelope FILE --ssh-key PRIVATEFILE  verify and probe its current SSH channel (Open)
+  covenant-compute lease transfer-phala --envelope FILE --ssh-key PRIVATEFILE --source FILE --basename NAME  verify and upload once (Open; ephemeral limit 8 MiB)
   covenant-compute lease view <job-id>          a live lease's endpoint, meter and cost
   covenant-compute lease close <job-id>         end a running lease and settle the meter
   covenant-compute workspace create <name> [--id UUID] [--trust open]  create an encrypted workspace
@@ -703,13 +705,15 @@ async fn main() -> anyhow::Result<()> {
             let action = positional(
                 &args,
                 0,
-                "action (open|prepare-phala|submit-phala|probe-phala|view|close)",
+                "action (open|prepare-phala|prepare-phala-ephemeral|submit-phala|probe-phala|transfer-phala|view|close)",
             )?;
             let mut rest = args.split_off(1);
             match action.as_str() {
                 "prepare-phala" => phala_cli::prepare(&rest, json_out),
+                "prepare-phala-ephemeral" => phala_cli::prepare_ephemeral(&rest, json_out),
                 "submit-phala" => phala_cli::submit(&rest, json_out).await,
                 "probe-phala" => phala_cli::probe(&rest, json_out).await,
+                "transfer-phala" => phala_cli::transfer(&rest, json_out).await,
                 "open" => {
                     let job_id = take_flag_value(&mut rest, "--job-id")
                         .map(|value| parse_explicit_lease_job_id(&value))

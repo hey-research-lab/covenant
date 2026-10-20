@@ -5,7 +5,7 @@
 use crate::BuyerError;
 use covenant_compute_attestation::{
     binding::{
-        self, HardwareChallenge, HardwareEvidence, HardwareScope, HardwareVerdict,
+        self, HardwareChallenge, HardwareEvidence, HardwareProfile, HardwareScope, HardwareVerdict,
         MAX_EVIDENCE_BYTES,
     },
     vendor_types::TrustClass,
@@ -41,15 +41,37 @@ pub fn scope_for_phala_lease(
     envelope.verify().map_err(invalid)?;
     let job = &envelope.payload;
     job.validate_input().map_err(invalid)?;
-    let spec = phala::parse_phala_lease_spec(&job.input)
-        .map_err(invalid)?
-        .ok_or_else(|| invalid("signed Phala workload pin missing"))?;
+    let (profile, operator, generation, expires, workload, relay_host) = match (
+        phala::parse_phala_lease_spec(&job.input).map_err(invalid)?,
+        phala::parse_phala_ephemeral_lease_spec(&job.input).map_err(invalid)?,
+    ) {
+        (Some(spec), None) => (
+            HardwareProfile::Standard,
+            spec.operator_pubkey_b58,
+            spec.lease_generation,
+            spec.lease_expires_at_ms,
+            spec.workload_sha256,
+            None,
+        ),
+        (None, Some(spec)) => {
+            let host = spec.relay.host().map_err(invalid)?.to_owned();
+            (
+                HardwareProfile::PhalaEphemeralDstack061,
+                spec.operator_pubkey_b58,
+                spec.lease_generation,
+                spec.lease_expires_at_ms,
+                spec.workload_sha256,
+                Some(host),
+            )
+        }
+        _ => return Err(invalid("exactly one signed Phala workload pin is required")),
+    };
     if job.buyer.pubkey_base58() != expected_buyer
         || view.job_id != job.job_id
         || view.status != "accepted"
         || view.close_requested
         || now < job.issued_at_ms
-        || now >= spec.lease_expires_at_ms
+        || now >= expires
     {
         return Err(invalid(
             "Phala lease is not live or belongs to another buyer",
@@ -67,39 +89,50 @@ pub fn scope_for_phala_lease(
     if access.job_id != job.job_id
         || access.ready_at_ms < job.issued_at_ms
         || access.ready_at_ms > now
-        || ssh.lease_generation != spec.lease_generation
-        || ssh.transport != Some(SshTransport::Tls)
+        || ssh.lease_generation != generation
+        || ssh.transport
+            != Some(if relay_host.is_some() {
+                SshTransport::OutboundRelay
+            } else {
+                SshTransport::Tls
+            })
         || ssh.port != 443
         || ssh.username != "covenant"
         || ssh.observed_host_keys.len() != 1
     {
         return Err(invalid("Phala SSH channel differs from the signed lease"));
     }
-    let suffix = format!("-1022.{}", phala::PHALA_GATEWAY);
-    let instance = ssh
-        .host
-        .strip_suffix(&suffix)
-        .ok_or_else(|| invalid("unexpected Phala SSH endpoint"))?;
-    if instance.len() != 40
-        || !instance
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-    {
-        return Err(invalid("invalid Phala instance endpoint"));
+    if let Some(expected_host) = relay_host {
+        if ssh.host != expected_host {
+            return Err(invalid("relay host differs from the buyer-signed origin"));
+        }
+    } else {
+        let suffix = format!("-1022.{}", phala::PHALA_GATEWAY);
+        let instance = ssh
+            .host
+            .strip_suffix(&suffix)
+            .ok_or_else(|| invalid("unexpected Phala SSH endpoint"))?;
+        if instance.len() != 40
+            || !instance
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(invalid("invalid Phala instance endpoint"));
+        }
     }
     Ok(HardwareScope {
-        profile: Default::default(),
+        profile,
         job_id: job.job_id,
-        operator_pubkey_b58: spec.operator_pubkey_b58,
+        operator_pubkey_b58: operator,
         buyer_pubkey_b58: expected_buyer.into(),
-        lease_generation: spec.lease_generation,
+        lease_generation: generation,
         host: ssh.host.clone(),
         port: ssh.port,
         transport: ssh.transport,
         username: ssh.username.clone(),
         guest_channel_key: ssh.observed_host_keys[0].clone(),
-        workload_sha256: spec.workload_sha256,
-        lease_expires_at_ms: spec.lease_expires_at_ms,
+        workload_sha256: workload,
+        lease_expires_at_ms: expires,
     })
 }
 
@@ -148,6 +181,9 @@ impl<'a> HardwareClient<'a> {
             ));
         }
         let http = reqwest::Client::builder()
+            .user_agent("Covenant-Compute-Outbound/1")
+            .retry(reqwest::retry::never())
+            .connect_timeout(std::time::Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::none())
             .timeout(std::time::Duration::from_secs(60))
             .build()
@@ -158,7 +194,7 @@ impl<'a> HardwareClient<'a> {
             identity,
         })
     }
-    async fn request<T: DeserializeOwned>(
+    pub(crate) async fn request<T: DeserializeOwned>(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -167,21 +203,9 @@ impl<'a> HardwareClient<'a> {
         if body.len() > MAX_EVIDENCE_BYTES {
             return Err(invalid("hardware request exceeds limit"));
         }
-        let now = crate::epoch_ms();
-        let sig = binding::sign_request(self.identity, method.as_str(), path, &body, now)
-            .map_err(invalid)?;
-        let mut response = self
-            .http
-            .request(method, format!("{}{path}", self.base))
-            .header(
-                "x-covenant-hardware-actor",
-                self.identity.agent_id().pubkey_base58(),
-            )
-            .header("x-covenant-hardware-signed-at", now.to_string())
-            .header("x-covenant-hardware-signature", sig)
-            .header("content-type", "application/json")
-            .body(body)
-            .send()
+        let (http, request) = self.prepared_request(method, path, body)?;
+        let mut response = http
+            .execute(request)
             .await
             .map_err(|_| invalid("hardware request failed"))?;
         let status = response.status();
@@ -207,6 +231,39 @@ impl<'a> HardwareClient<'a> {
         }
         serde_json::from_slice(&bytes).map_err(|_| invalid("malformed hardware response"))
     }
+    /// An owned, already signed request allows bounded cancellation cleanup
+    /// without copying the buyer's key into a background task.
+    pub(crate) fn prepared_request(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Vec<u8>,
+    ) -> Result<(reqwest::Client, reqwest::Request), BuyerError> {
+        if body.len() > MAX_EVIDENCE_BYTES {
+            return Err(invalid("hardware request exceeds limit"));
+        }
+        let now = crate::epoch_ms();
+        let sig = binding::sign_request(self.identity, method.as_str(), path, &body, now)
+            .map_err(invalid)?;
+        let request = self
+            .http
+            .request(method, format!("{}{path}", self.base))
+            .header(
+                "x-covenant-hardware-actor",
+                self.identity.agent_id().pubkey_base58(),
+            )
+            .header("x-covenant-hardware-signed-at", now.to_string())
+            .header("x-covenant-hardware-signature", sig)
+            .header("content-type", "application/json")
+            .body(body)
+            .build()
+            .map_err(invalid)?;
+        Ok((self.http.clone(), request))
+    }
+    pub(crate) fn origin(&self) -> &str {
+        &self.base
+    }
+
     /// Caller supplies scope from its purchased lease and an independently pinned
     /// workload. Never adopt a server-selected scope as the expected identity.
     /// Either the buyer or assigned operator may request the challenge. The
@@ -291,6 +348,10 @@ impl<'a> HardwareClient<'a> {
             return Err(invalid("hardware lease belongs to another buyer"));
         }
         require_live_scope(expected, crate::epoch_ms())?;
+        if expected.profile == HardwareProfile::PhalaEphemeralDstack061 && floor > TrustClass::Open
+        {
+            return Err(invalid("ephemeral Phala currently serves only Open trust; refusing stronger workspace floor"));
+        }
         let result: HardwareEvidenceResponse = self
             .request(
                 reqwest::Method::GET,
@@ -299,12 +360,22 @@ impl<'a> HardwareClient<'a> {
             )
             .await?;
         let now = crate::epoch_ms();
-        binding::verify_saved_verdict(&result.evidence, &result.verdict, expected, now)
-            .map_err(invalid)?;
+        binding::verify_saved_verdict_for_profile(
+            &result.evidence,
+            &result.verdict,
+            expected,
+            now,
+            expected.profile,
+        )
+        .map_err(invalid)?;
         result
             .verdict
             .require_floor(expected, floor, now)
             .map_err(invalid)?;
+        if expected.profile == HardwareProfile::PhalaEphemeralDstack061 {
+            crate::relay::require_opening_grant(&result.verdict, crate::epoch_ms())?;
+            crate::relay::validate_metadata(self, expected, &result.verdict).await?;
+        }
         Ok(result.verdict)
     }
     /// Formats only the single hardware-bound key after local crypto and floor
@@ -446,6 +517,7 @@ mod tests {
                 evidence_sha256: "00".repeat(32),
                 reference_sha256: binding::reference_digest(),
                 guest_identity: "untrusted-coordinator-claim".into(),
+                phala_identity: None,
                 gpu_identity: None,
                 channel_key_fingerprint: "untrusted-key-claim".into(),
                 evidence_class: TrustClass::Attested,
@@ -455,6 +527,167 @@ mod tests {
                 expires_at_ms: now + 300_000,
             },
         }
+    }
+
+    #[test]
+    fn ephemeral_scope_comes_only_from_original_signed_workload_and_relay() {
+        use covenant_compute_protocol::{
+            phala,
+            ssh::{SshAccess, SshTransport},
+            LeaseAccess, LeaseView,
+        };
+        let buyer = LocalIdentity::generate("scope@buyer");
+        let operator = LocalIdentity::generate("scope@operator");
+        let base = scope(&buyer, &operator);
+        let args = crate::phala::PreparePhala {
+            job_id: base.job_id,
+            operator_pubkey_b58: base.operator_pubkey_b58.clone(),
+            image_digest: format!("sha256:{}", "ab".repeat(32)),
+            duration_secs: 600,
+            rate_micro_usdc_per_sec: 1,
+            buyer_ssh_public_key: format!(
+                "{} {}",
+                base.guest_channel_key.algorithm, base.guest_channel_key.key_base64
+            ),
+        };
+        let relay = phala::PhalaRelayConfig {
+            url: "https://relay.example.com".into(),
+            session_id: base.job_id.to_string(),
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let prepared = crate::phala::prepare_ephemeral_to_directory(
+            &buyer,
+            &args,
+            &relay,
+            600,
+            &directory.path().join("prepared"),
+        )
+        .unwrap();
+        let spec = phala::parse_phala_ephemeral_lease_spec(&prepared.envelope.payload.input)
+            .unwrap()
+            .unwrap();
+        let now = prepared.envelope.payload.issued_at_ms + 1;
+        let view = LeaseView {
+            job_id: base.job_id,
+            status: "accepted".into(),
+            close_requested: false,
+            rate_micro_usdc_per_sec: 1,
+            max_duration_secs: 600,
+            elapsed_ms: 0,
+            charged_micro_usdc: 0,
+            access: Some(LeaseAccess {
+                job_id: base.job_id,
+                endpoint: "untrusted human description".into(),
+                ready_at_ms: now,
+                note: None,
+                source_price: None,
+                ssh: Some(SshAccess {
+                    host: "relay.example.com".into(),
+                    port: 443,
+                    username: "covenant".into(),
+                    lease_generation: spec.lease_generation.clone(),
+                    transport: Some(SshTransport::OutboundRelay),
+                    observed_host_keys: vec![base.guest_channel_key],
+                }),
+            }),
+        };
+        let expected =
+            scope_for_phala_lease(&prepared.envelope, &view, &base.buyer_pubkey_b58, now).unwrap();
+        assert_eq!(expected.profile, HardwareProfile::PhalaEphemeralDstack061);
+        assert_eq!(expected.workload_sha256, spec.workload_sha256);
+        for case in 0..8 {
+            let mut changed = view.clone();
+            match case {
+                0 => {
+                    changed.access.as_mut().unwrap().ssh.as_mut().unwrap().host =
+                        "other.example.com".into()
+                }
+                1 => {
+                    changed
+                        .access
+                        .as_mut()
+                        .unwrap()
+                        .ssh
+                        .as_mut()
+                        .unwrap()
+                        .transport = Some(SshTransport::Tls)
+                }
+                2 => changed
+                    .access
+                    .as_mut()
+                    .unwrap()
+                    .ssh
+                    .as_mut()
+                    .unwrap()
+                    .lease_generation
+                    .push('x'),
+                3 => changed.access.as_mut().unwrap().ready_at_ms = now + 1,
+                4 => changed.close_requested = true,
+                5 => changed.status = "closed".into(),
+                6 => changed.job_id = Uuid::new_v4(),
+                _ => changed
+                    .access
+                    .as_mut()
+                    .unwrap()
+                    .ssh
+                    .as_mut()
+                    .unwrap()
+                    .observed_host_keys
+                    .clear(),
+            }
+            assert!(
+                scope_for_phala_lease(&prepared.envelope, &changed, &base.buyer_pubkey_b58, now)
+                    .is_err(),
+                "case {case}"
+            );
+        }
+        assert!(scope_for_phala_lease(
+            &prepared.envelope,
+            &view,
+            &base.buyer_pubkey_b58,
+            spec.lease_expires_at_ms
+        )
+        .is_err());
+        let mut substituted = prepared.envelope.clone();
+        substituted.payload.capability_requirement.model_id = Some(phala::PHALA_CPU_MODEL.into());
+        assert!(scope_for_phala_lease(&substituted, &view, &base.buyer_pubkey_b58, now).is_err());
+    }
+
+    #[tokio::test]
+    async fn ephemeral_stronger_floor_refuses_before_http_and_forged_quote_never_reaches_metadata()
+    {
+        let buyer = LocalIdentity::generate("buyer@ephemeral");
+        let operator = LocalIdentity::generate("operator@ephemeral");
+        let mut expected = scope(&buyer, &operator);
+        expected.profile = HardwareProfile::PhalaEphemeralDstack061;
+        expected.lease_generation = format!("phala-ephemeral-{}-1", expected.job_id);
+        expected.host = "relay.example.com".into();
+        expected.port = 443;
+        expected.transport = Some(covenant_compute_protocol::ssh::SshTransport::OutboundRelay);
+        expected.username = "covenant".into();
+        let forged = forged_response(expected.clone());
+        let server = serve(serde_json::to_vec(&forged).unwrap(), StatusCode::OK, false).await;
+        let client = HardwareClient::new(&server.url, &buyer).unwrap();
+        for floor in [
+            TrustClass::Isolated,
+            TrustClass::Attested,
+            TrustClass::Confidential,
+        ] {
+            assert!(client
+                .verify_lease(&expected, floor)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("only Open"));
+        }
+        assert!(server.records.lock().unwrap().is_empty());
+        assert!(client
+            .verify_lease(&expected, TrustClass::Open)
+            .await
+            .is_err());
+        let records = server.records.lock().unwrap();
+        assert_eq!(records.len(), 1);
+        assert!(records[0].path.ends_with("/verdict"));
     }
 
     #[test]
@@ -520,6 +753,7 @@ mod tests {
         assert_eq!(records.len(), 2);
         for (record, identity) in records.iter().zip([&buyer, &operator]) {
             assert_eq!(record.method, Method::POST);
+            assert_eq!(record.headers["user-agent"], "Covenant-Compute-Outbound/1");
             assert_eq!(
                 record.path,
                 format!("/federation/hardware/{}/challenge", expected.job_id)

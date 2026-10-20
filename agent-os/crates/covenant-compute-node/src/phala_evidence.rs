@@ -1,16 +1,22 @@
 //! Lease-bound collection after the coordinator has recorded access. A consumed
 //! challenge or an ambiguous submission is never retried as a new purchase.
+#[path = "phala/evidence_relay.rs"]
+mod relay;
 use crate::executor::ExecutorError;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use covenant_compute_attestation::{
     binding::{
-        self, GuestEvidence, HardwareChallenge, HardwareEvidence, HardwareScope, HardwareVerdict,
-        MAX_EVIDENCE_BYTES,
+        self, GuestEvidence, HardwareChallenge, HardwareEvidence, HardwareProfile, HardwareScope,
+        HardwareVerdict, MAX_EVIDENCE_BYTES,
     },
     vendor_types::TdxEventEntry,
 };
-use covenant_compute_protocol::{phala, JobEnvelopePayload, LeaseAccess};
+use covenant_compute_protocol::{
+    phala,
+    ssh::{SshAccess, SshHostKey, SshTransport},
+    JobEnvelopePayload, LeaseAccess,
+};
 use covenant_identity::LocalIdentity;
 use dcap_qvl::{
     collateral::{CollateralClient, INTEL_PCS_URL},
@@ -42,6 +48,35 @@ fn now_ms() -> u64 {
 }
 #[async_trait]
 pub trait PhalaEvidence: Send + Sync {
+    fn ephemeral_available(&self) -> bool {
+        false
+    }
+    fn ephemeral_configured(&self, _job: &JobEnvelopePayload) -> Result<(), ExecutorError> {
+        Err(failed("verified ephemeral relay is not configured"))
+    }
+    async fn prepare_ephemeral(
+        &self,
+        _job: &JobEnvelopePayload,
+        _app_id: &str,
+    ) -> Result<(), ExecutorError> {
+        Err(failed("verified ephemeral relay is not configured"))
+    }
+    async fn ephemeral_ready(
+        &self,
+        _job: &JobEnvelopePayload,
+        _app_id: &str,
+        _previous: Option<&VerifiedPhalaAccess>,
+    ) -> Result<VerifiedPhalaAccess, ExecutorError> {
+        Err(failed("verified ephemeral relay is not configured"))
+    }
+    async fn ephemeral_after_access(
+        &self,
+        _job: &JobEnvelopePayload,
+        _access: &LeaseAccess,
+        _pin: &VerifiedPhalaAccess,
+    ) -> Result<(), ExecutorError> {
+        Err(failed("verified ephemeral relay is not configured"))
+    }
     async fn after_access(
         &self,
         job: &JobEnvelopePayload,
@@ -49,11 +84,21 @@ pub trait PhalaEvidence: Send + Sync {
         collector_token: &str,
     ) -> Result<(), ExecutorError>;
 }
+/// A local full-verifier result. The provider and relay cannot construct this
+/// authority; the backend persists it before publishing useful access.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifiedPhalaAccess {
+    pub access: SshAccess,
+    pub app_id: String,
+    pub instance_id: String,
+}
 pub struct PhalaEvidenceClient {
     http: reqwest::Client,
     base: String,
     identity: Arc<LocalIdentity>,
     evidence_root: PathBuf,
+    relay_origin: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -171,6 +216,7 @@ impl PhalaEvidenceClient {
         private_directory(&evidence_root)?;
         Ok(Self {
             http: reqwest::Client::builder()
+                .user_agent("Covenant-Compute-Outbound/1")
                 .redirect(reqwest::redirect::Policy::none())
                 .no_proxy()
                 .connect_timeout(Duration::from_secs(8))
@@ -180,7 +226,18 @@ impl PhalaEvidenceClient {
             base: url.origin().ascii_serialization(),
             identity,
             evidence_root,
+            relay_origin: None,
         })
+    }
+    pub fn with_ephemeral_relay_origin(mut self, origin: String) -> Result<Self, ExecutorError> {
+        phala::PhalaRelayConfig {
+            url: origin.clone(),
+            session_id: uuid::Uuid::new_v4().to_string(),
+        }
+        .validate()
+        .map_err(failed)?;
+        self.relay_origin = Some(origin);
+        Ok(self)
     }
     async fn coordinator(
         &self,
@@ -396,6 +453,35 @@ impl PhalaEvidenceClient {
 }
 #[async_trait]
 impl PhalaEvidence for PhalaEvidenceClient {
+    fn ephemeral_available(&self) -> bool {
+        self.relay_origin.is_some()
+    }
+    fn ephemeral_configured(&self, job: &JobEnvelopePayload) -> Result<(), ExecutorError> {
+        self.ephemeral_spec(job).map(|_| ())
+    }
+    async fn prepare_ephemeral(
+        &self,
+        job: &JobEnvelopePayload,
+        app_id: &str,
+    ) -> Result<(), ExecutorError> {
+        self.open_relay_session(job, app_id).await
+    }
+    async fn ephemeral_ready(
+        &self,
+        job: &JobEnvelopePayload,
+        app_id: &str,
+        previous: Option<&VerifiedPhalaAccess>,
+    ) -> Result<VerifiedPhalaAccess, ExecutorError> {
+        self.verify_ephemeral_readiness(job, app_id, previous).await
+    }
+    async fn ephemeral_after_access(
+        &self,
+        job: &JobEnvelopePayload,
+        access: &LeaseAccess,
+        pin: &VerifiedPhalaAccess,
+    ) -> Result<(), ExecutorError> {
+        self.submit_ephemeral_evidence(job, access, pin).await
+    }
     async fn after_access(
         &self,
         job: &JobEnvelopePayload,

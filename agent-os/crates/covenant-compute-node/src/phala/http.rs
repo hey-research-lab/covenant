@@ -594,6 +594,8 @@ mod tests {
                 max_new_resources: 1,
                 planning_reserve_micro_usd: 10000,
                 valid_until_ms: now_ms() + 120_000,
+                job_id: None,
+                buyer_pubkey_b58: None,
             },
             collector_token: "09".repeat(32),
         }

@@ -1,5 +1,59 @@
 # Phala CPU lease lifecycle
 
+## Ephemeral no-KMS native integration
+
+The separate `phala-cpu-ephemeral` executor serves only
+`phala-cpu-ephemeral-dstack061`. It uses a new VM and disk per signed lease,
+the independently verified `phala_ephemeral_dstack061` profile, and an outbound
+SSH connection through the coordinator. Managed KMS remains disabled and the
+served trust ceiling remains **`Open`**. The earlier
+[isolated live acceptance](compute-ephemeral-phala-acceptance.md) qualifies the
+pinned guest; it does not prove this native paid integration or its deployment.
+
+Buyer preparation uses `lease prepare-phala-ephemeral` with the exact HTTPS
+coordinator origin as `--relay-origin`; generation is `phala-ephemeral-{job-id}-1`.
+The node derives the profile and workload from the signed envelope, verifies a
+fresh Intel quote, and pins the verified boot app and instance before publishing
+access. A second coordinator challenge is independently verified and saved.
+The buyer re-verifies the complete evidence and requires the relay metadata to
+match the original lease and cryptographically verified app and instance.
+
+The coordinator requires `COVENANT_COMPUTE_HARDWARE_LEASE_PINS=1`,
+`COVENANT_COMPUTE_EPHEMERAL_RELAY=1` and
+`COVENANT_COMPUTE_EPHEMERAL_RELAY_ORIGIN` set to that exact origin. It retains
+relay tombstones in `journal.relay.json` beside its main persistent journal.
+Restart refuses to reconstruct an old session or reuse its credentials; the
+operator retains its original provider cleanup obligation. Buyer and operator
+requests use signed Covenant identities; no buyer bearer secret enters the VM.
+
+The node additionally requires `COVENANT_PHALA_ALLOW_EPHEMERAL_CREATION=1`,
+`COVENANT_PHALA_RELAY_ORIGIN`, and the independently selected production
+`COVENANT_PHALA_EXPECTED_DEVICE_ID`. Placement, digest and the one-use creation
+allowance remain explicit. `COVENANT_PHALA_KMS_ID` is not used by this executor.
+Unresolved resources retain capacity; exhausting the allowance advertises zero
+availability. The implementation does not automatically grant a new allowance.
+
+Each lease permits one SSH stream. Open it before the original hardware
+challenge's 120-second opening deadline; the saved verdict's longer lifetime
+does not extend that deadline. A diagnostic probe consumes the stream. Native
+workspace restore uses one SSH command with stdin, and `lease transfer-phala`
+provides a fixed synthetic-file transfer with guest byte count and SHA-256.
+Both require strict attested host-key checking. Source data is limited to
+8 MiB, relay ciphertext to 16 MiB, and relay streams to 300 seconds; the native
+operation also retains its shorter deadline. A workspace demanding a trust
+class above `Open` is refused before download or decryption.
+
+Buyer close and original signed expiry stop the meter. Close during VM startup
+or evidence collection cancels admission and queues deletion of the original
+resource. A successful ephemeral execution receipt requires durable confirmed
+deletion: HTTP 204 alone is insufficient, and GET must confirm absence.
+Confirmation may wait up to 60 seconds after session cleanup; an unresolved
+delete produces a failed execution and refund while durable cleanup continues.
+Cleanup latency cannot extend the paid meter. Receipt settlement, provider
+absence, and final provider USD billing are separately retained evidence.
+
+## Managed-KMS diagnostic integration
+
 The `phala-cpu` node executor connects Covenant's signed lease, provider
 lifecycle, genuine hardware evidence and buyer SSH/workspace paths. It serves
 only `phala-cpu-dstack061`, a CPU lease profile. The compiled trust ceiling is

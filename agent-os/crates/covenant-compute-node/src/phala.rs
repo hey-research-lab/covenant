@@ -33,12 +33,13 @@ use uuid::Uuid;
 
 use crate::executor::{ChunkSink, ExecutionOutcome, ExecutorError, JobExecutor};
 use crate::lease::{LeaseCloseSource, LeaseControl, LeaseExecutor, SessionBackend};
-use crate::phala_evidence::PhalaEvidence;
+use crate::phala_evidence::{PhalaEvidence, VerifiedPhalaAccess};
 
 pub use http::PhalaCloud;
 pub const OS_IMAGE_SHA256: &str =
     "ec43cb8c5e04b6bb6c53b33b16076a01d83d01f7f4b703f2f78a0d947d6247e6";
 const RECOVERY_INTERVAL: Duration = Duration::from_secs(5);
+const FINAL_CLEANUP_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_JOURNAL_BYTES: u64 = 32 * 1024 * 1024;
 
 fn failed(message: impl Into<String>) -> ExecutorError {
@@ -70,7 +71,7 @@ pub struct PhalaConfig {
     pub wrapper_template: Value,
     pub image_digest: String,
     pub allow_managed_kms_creation: bool,
-    /// Allocation-only enablement; never authorizes metadata-only readiness.
+    /// Explicit native ephemeral enablement; readiness still requires a full quote.
     pub allow_ephemeral_creation: bool,
     pub creation_allowance: Option<CreationAllowance>,
     pub ready_timeout: Duration,
@@ -91,6 +92,11 @@ pub struct CreationAllowance {
     pub max_new_resources: u8,
     pub planning_reserve_micro_usd: u64,
     pub valid_until_ms: u64,
+    /// Optional paired pins for a bounded canary. Legacy allowances omit both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buyer_pubkey_b58: Option<String>,
 }
 impl CreationAllowance {
     pub fn validate(&self, operator: &str) -> Result<(), ExecutorError> {
@@ -120,6 +126,31 @@ impl CreationAllowance {
         {
             return Err(failed("invalid reviewed Phala creation allowance"));
         }
+        match (&self.job_id, &self.buyer_pubkey_b58) {
+            (None, None) => {}
+            (Some(job), Some(buyer)) if !job.is_nil() => {
+                covenant_compute_protocol::validate_address_b58("Phala allowance buyer", buyer)
+                    .map_err(|e| failed(e.to_string()))?;
+            }
+            _ => {
+                return Err(failed(
+                    "Phala allowance job and buyer pins must be a complete valid pair",
+                ))
+            }
+        }
+        Ok(())
+    }
+    fn validate_lease_pin(&self, job: Uuid, buyer: &str) -> Result<(), ExecutorError> {
+        if self.job_id.is_some_and(|expected| expected != job)
+            || self
+                .buyer_pubkey_b58
+                .as_deref()
+                .is_some_and(|expected| expected != buyer)
+        {
+            return Err(failed(
+                "Phala lease differs from reviewed job and buyer allowance pins",
+            ));
+        }
         Ok(())
     }
 }
@@ -144,6 +175,8 @@ pub struct LeasePlan {
 
 impl LeasePlan {
     fn validate_spec(&self) -> Result<(), ExecutorError> {
+        self.allowance
+            .validate_lease_pin(self.job_id, &self.buyer_pubkey_b58)?;
         let (id, operator) = match (&self.spec, &self.ephemeral_spec) {
             (Some(spec), None) => {
                 spec.validate().map_err(|error| failed(error.to_string()))?;
@@ -273,6 +306,8 @@ struct Row {
     delete_attempts: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     observed_instance_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    verified_ephemeral: Option<VerifiedPhalaAccess>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -386,7 +421,12 @@ impl Journal {
                 ) && row.provision.is_none())
                 || (matches!(row.phase, Phase::Created | Phase::Ready) && row.vm_uuid.is_none())
                 || (row.phase == Phase::Ready && row.access.is_none())
-                || (row.plan.is_ephemeral() && (row.phase == Phase::Ready || row.access.is_some()))
+                || (row.plan.is_ephemeral()
+                    && row.phase == Phase::Ready
+                    && row.verified_ephemeral.is_none())
+                || (row.plan.is_ephemeral()
+                    && row.access.is_some() != row.verified_ephemeral.is_some())
+                || (!row.plan.is_ephemeral() && row.verified_ephemeral.is_some())
                 || row
                     .observed_instance_id
                     .as_ref()
@@ -399,6 +439,14 @@ impl Journal {
             }
             if let Some(access) = &row.access {
                 access.validate().map_err(|e| failed(e.to_string()))?;
+            }
+            if let Some(pin) = &row.verified_ephemeral {
+                validate_ephemeral_pin(row, pin)?;
+                if row.access.as_ref() != Some(&pin.access) {
+                    return Err(failed(
+                        "Phala journal access differs from verified ephemeral pin",
+                    ));
+                }
             }
         }
         Ok(())
@@ -679,6 +727,7 @@ impl PhalaSessionBackend {
                 failed("Phala creation requires an explicit reviewed planning allowance")
             })?;
         allowance.validate(&self.config.operator_pubkey_b58)?;
+        allowance.validate_lease_pin(job.job_id, &job.buyer.pubkey_base58())?;
         if expires_at_ms > allowance.valid_until_ms
             || expires_at_ms.saturating_sub(job.issued_at_ms) > allowance.max_runtime_secs * 1000
         {
@@ -824,6 +873,12 @@ impl PhalaSessionBackend {
                     Ok(Some(machine)) => {
                         if validate_machine(&row, &machine).is_err()
                             || observe_ephemeral_instance(&mut row, &machine).is_err()
+                            || row.verified_ephemeral.as_ref().is_some_and(|pin| {
+                                machine
+                                    .instance_id
+                                    .as_ref()
+                                    .is_some_and(|id| id != &pin.instance_id)
+                            })
                         {
                             row.close_requested = true;
                         }
@@ -916,6 +971,7 @@ impl PhalaSessionBackend {
                     last_observed_ms: now_ms(),
                     delete_attempts: 0,
                     observed_instance_id: None,
+                    verified_ephemeral: None,
                 };
                 self.save(row.clone())?;
                 let provision = self.provider.provision(&row.plan).await?;
@@ -945,6 +1001,19 @@ impl PhalaSessionBackend {
             {
                 return Err(failed("Phala create disabled, expired or buyer-closed"));
             }
+            if row.plan.is_ephemeral() && self.evidence.ephemeral_configured(job).is_ok() {
+                // Original app ID is durable before relay initialization. A
+                // lost acknowledgement may only reconcile this same session.
+                self.evidence
+                    .prepare_ephemeral(job, &row.provision.as_ref().unwrap().app_id)
+                    .await?;
+                if now_ms() >= row.plan.expires_at_ms()
+                    || self.close_source.is_closed(job.job_id).await
+                    || self.close_requests.lock().contains(&job.job_id)
+                {
+                    return Err(failed("ephemeral lease closed while preparing relay"));
+                }
+            }
             row.phase = Phase::CreateIntent;
             self.save(row.clone())?;
             let id = self
@@ -962,8 +1031,8 @@ impl PhalaSessionBackend {
     }
 
     /// Allocate only one new single-boot VM. Returned provider observations are
-    /// not attestation or SSH access. A later verifier must bind an exact quote
-    /// before any native ephemeral readiness API can be added.
+    /// not attestation or SSH access. Native readiness uses a separate full
+    /// quote verification stage before publishing an access grant.
     pub async fn allocate_ephemeral(
         &self,
         job: &JobEnvelopePayload,
@@ -994,6 +1063,16 @@ impl PhalaSessionBackend {
             })?;
             validate_machine(&row, &machine)?;
             observe_ephemeral_instance(&mut row, &machine)?;
+            if row.verified_ephemeral.as_ref().is_some_and(|pin| {
+                machine
+                    .instance_id
+                    .as_ref()
+                    .is_some_and(|id| id != &pin.instance_id)
+            }) {
+                return Err(failed(
+                    "ephemeral instance differs from its verified immutable pin",
+                ));
+            }
             let closed = self.close_source.is_closed(job.job_id).await;
             let observed_at_ms = now_ms();
             if observed_at_ms < row.last_observed_ms
@@ -1003,7 +1082,9 @@ impl PhalaSessionBackend {
                 return Err(failed("ephemeral allocation expired or was buyer-closed"));
             }
             row.vm_uuid = Some(machine.vm_uuid);
-            row.phase = Phase::Created;
+            if row.phase != Phase::Ready {
+                row.phase = Phase::Created;
+            }
             row.last_observed_ms = observed_at_ms;
             self.save(row.clone())?;
             Ok(PhalaAllocation {
@@ -1023,10 +1104,9 @@ impl PhalaSessionBackend {
 
     async fn open_inner(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
         let _operation = self.operations.lock().await;
-        if self.plan(job)?.is_ephemeral() {
-            return Err(failed(
-                "native ephemeral readiness requires independently verified relay attestation",
-            ));
+        let ephemeral = self.plan(job)?.is_ephemeral();
+        if ephemeral {
+            self.evidence.ephemeral_configured(job)?;
         }
         let mut row = self.allocate_inner(job).await?;
         let started = tokio::time::Instant::now();
@@ -1048,9 +1128,55 @@ impl PhalaSessionBackend {
             };
             if let Some(machine) = machine {
                 validate_machine(&row, &machine)?;
+                if ephemeral {
+                    observe_ephemeral_instance(&mut row, &machine)?;
+                }
                 row.vm_uuid = Some(machine.vm_uuid);
                 self.save(row.clone())?;
                 if machine.running {
+                    if ephemeral {
+                        let pin = self
+                            .evidence
+                            .ephemeral_ready(
+                                job,
+                                &row.provision.as_ref().unwrap().app_id,
+                                row.verified_ephemeral.as_ref(),
+                            )
+                            .await?;
+                        validate_ephemeral_pin(&row, &pin)?;
+                        if machine
+                            .instance_id
+                            .as_ref()
+                            .is_some_and(|id| id != &pin.instance_id)
+                            || row
+                                .verified_ephemeral
+                                .as_ref()
+                                .is_some_and(|old| old != &pin)
+                        {
+                            return Err(failed(
+                                "ephemeral guest identity changed; replacement forbidden",
+                            ));
+                        }
+                        if now_ms() >= row.plan.expires_at_ms()
+                            || self.close_source.is_closed(job.job_id).await
+                            || self.close_requests.lock().contains(&job.job_id)
+                        {
+                            return Err(failed("ephemeral lease closed during verification"));
+                        }
+                        row.phase = Phase::Ready;
+                        row.access = Some(pin.access.clone());
+                        row.verified_ephemeral = Some(pin.clone());
+                        row.last_observed_ms = now_ms();
+                        self.save(row)?;
+                        return Ok(LeaseAccess {
+                            job_id: job.job_id,
+                            endpoint: format!("ssh+relay://{}@{}:{}", pin.access.username, pin.access.host, pin.access.port),
+                            ssh: Some(pin.access),
+                            source_price: None,
+                            ready_at_ms: now_ms(),
+                            note: Some("Single-boot Phala CPU; locally verified ephemeral guest; served trust remains Open".into()),
+                        });
+                    }
                     // Transient collector unavailability is expected at boot;
                     // identity mismatches never become an access grant.
                     if let Ok(access) = self.provider.identity(&row.plan, &machine).await {
@@ -1087,6 +1213,33 @@ impl PhalaSessionBackend {
             tokio::time::sleep(self.config.poll_interval).await;
         }
     }
+}
+
+fn validate_ephemeral_pin(row: &Row, pin: &VerifiedPhalaAccess) -> Result<(), ExecutorError> {
+    let spec = row
+        .plan
+        .ephemeral_spec
+        .as_ref()
+        .ok_or_else(|| failed("ephemeral pin requires explicit profile"))?;
+    pin.access.validate().map_err(|e| failed(e.to_string()))?;
+    if row
+        .provision
+        .as_ref()
+        .is_none_or(|p| p.app_id != pin.app_id)
+        || !lower_hex(&pin.instance_id, 40)
+        || pin.access.host != spec.relay.host().map_err(|e| failed(e.to_string()))?
+        || pin.access.port != 443
+        || pin.access.username != "covenant"
+        || pin.access.transport != Some(SshTransport::OutboundRelay)
+        || pin.access.lease_generation != spec.lease_generation
+        || pin.access.observed_host_keys.len() != 1
+        || pin.access.observed_host_keys[0].algorithm != "ssh-ed25519"
+    {
+        return Err(failed(
+            "verified ephemeral access differs from immutable lease",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_access(row: &Row, machine: &Machine, access: &SshAccess) -> Result<(), ExecutorError> {
@@ -1140,9 +1293,17 @@ impl SessionBackend for PhalaSessionBackend {
                 "hardware evidence access differs from ready Phala lease",
             ));
         }
-        self.evidence
-            .after_access(job, access, &row.plan.collector_token)
-            .await
+        if row.plan.is_ephemeral() {
+            let pin = row
+                .verified_ephemeral
+                .as_ref()
+                .ok_or_else(|| failed("ephemeral evidence requires verified readiness"))?;
+            self.evidence.ephemeral_after_access(job, access, pin).await
+        } else {
+            self.evidence
+                .after_access(job, access, &row.plan.collector_token)
+                .await
+        }
     }
 }
 
@@ -1158,6 +1319,47 @@ impl PhalaExecutor {
         Self {
             lease: LeaseExecutor::new(backend.clone(), LeaseControl::new()).watching(source),
             backend,
+        }
+    }
+
+    async fn finish_ephemeral(
+        &self,
+        job: &JobEnvelopePayload,
+        outcome: Result<ExecutionOutcome, ExecutorError>,
+        cleanup_timeout: Duration,
+    ) -> Result<ExecutionOutcome, ExecutorError> {
+        let outcome = outcome?;
+        if parse_phala_ephemeral_lease_spec(&job.input)
+            .map_err(|e| failed(e.to_string()))?
+            .is_none()
+        {
+            return Ok(outcome);
+        }
+        self.backend.request_close(job.job_id);
+        let confirmed = tokio::time::timeout(cleanup_timeout, async {
+            loop {
+                let row = self.backend.row(job.job_id)?;
+                if row.phase == Phase::Deleted {
+                    return Ok::<(), ExecutorError>(());
+                }
+                if self.backend.journal.lock().poisoned {
+                    return Err(failed(
+                        "Phala deletion journal needs durable reconciliation",
+                    ));
+                }
+                // Asynchronous provider deletion may briefly return the same
+                // VM. Retry only ownership-checked cleanup, never creation.
+                let _ = self.backend.reconcile().await;
+                if self.backend.row(job.job_id)?.phase == Phase::Deleted {
+                    return Ok(());
+                }
+                tokio::time::sleep(self.backend.config.poll_interval.min(RECOVERY_INTERVAL)).await;
+            }
+        })
+        .await;
+        match confirmed {
+            Ok(Ok(())) => Ok(outcome),
+            _ => Err(failed("ephemeral Phala deletion is unconfirmed; original resource and cleanup intent remain durable; successful receipt refused")),
         }
     }
 }
@@ -1189,7 +1391,10 @@ impl JobExecutor for PhalaExecutor {
             .map_err(|e| e.to_string())?
             .is_ephemeral()
         {
-            return Err("ephemeral allocation is not yet a native verified lease executor".into());
+            self.backend
+                .evidence
+                .ephemeral_configured(job)
+                .map_err(|e| e.to_string())?;
         }
         self.backend.admit(job).map_err(|e| e.to_string())
     }
@@ -1198,7 +1403,10 @@ impl JobExecutor for PhalaExecutor {
         job: &JobEnvelopePayload,
         deadline: Duration,
     ) -> Result<ExecutionOutcome, ExecutorError> {
-        self.lease.execute(job, deadline).await
+        let _cleanup = CloseOnDrop(self.backend.clone(), job.job_id);
+        let outcome = self.lease.execute(job, deadline).await;
+        self.finish_ephemeral(job, outcome, FINAL_CLEANUP_TIMEOUT)
+            .await
     }
     async fn execute_streaming(
         &self,
@@ -1207,17 +1415,20 @@ impl JobExecutor for PhalaExecutor {
         sink: ChunkSink,
     ) -> Result<ExecutionOutcome, ExecutorError> {
         let _cleanup = CloseOnDrop(self.backend.clone(), job.job_id);
-        self.lease.execute_streaming(job, deadline, sink).await
+        let outcome = self.lease.execute_streaming(job, deadline, sink).await;
+        self.finish_ephemeral(job, outcome, FINAL_CLEANUP_TIMEOUT)
+            .await
     }
     async fn health(&self) -> Result<(), ExecutorError> {
-        if self.backend.config.allow_ephemeral_creation
-            || self.backend.config.wrapper_template["key_provider"] == "none"
-        {
-            return Err(failed(
-                "ephemeral allocation is not yet a native verified lease executor",
-            ));
+        let ephemeral = self.backend.config.wrapper_template["key_provider"] == "none";
+        if ephemeral && !self.backend.evidence.ephemeral_available() {
+            return Err(failed("native ephemeral relay verifier is not configured"));
         }
-        if !self.backend.config.allow_managed_kms_creation {
+        if !(if ephemeral {
+            self.backend.config.allow_ephemeral_creation
+        } else {
+            self.backend.config.allow_managed_kms_creation
+        }) {
             return Err(failed("Phala new leases disabled; recovery remains active"));
         }
         let Some(allowance) = &self.backend.config.creation_allowance else {

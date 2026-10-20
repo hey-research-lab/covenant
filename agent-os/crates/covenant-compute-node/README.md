@@ -516,11 +516,19 @@ wildcard capacity cannot satisfy its compiler contract.
 | `COVENANT_PHALA_OS_IMAGE` | (required) | Exact reviewed production OS identifier; provisioning explicitly refuses development preference. |
 | `COVENANT_PHALA_KMS_ID` | (required) | Exact reviewed KMS identifier, checked against the provision response. |
 | `COVENANT_PHALA_GUEST_IMAGE_DIGEST` | (required) | Qualified `sha256:` guest image digest, matching the buyer's signed workload. |
+| `COVENANT_PHALA_ALLOW_EPHEMERAL_CREATION` | `0` | Enables the separate single-boot no-KMS model only with a valid creation allowance. |
+| `COVENANT_PHALA_EXPECTED_DEVICE_ID` | (required for ephemeral) | Independently selected 64-character lowercase hardware device pin; provider placement must match. |
+| `COVENANT_PHALA_RELAY_ORIGIN` | (required for ephemeral) | Canonical public HTTPS coordinator origin, matching the buyer-signed workload. |
 | `COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION` | `0` | `1` explicitly enables the creation gate; it is not KMS policy qualification or a trust promotion. Keep disabled until review. |
 | `COVENANT_PHALA_CREATION_ALLOWANCE_FILE` | (unset) | Reviewed one-use allowance JSON, at most 16 KiB; required in addition to the creation switch. Its USD reserve is not a provider invoice cap. |
 
-Set `COVENANT_COMPUTE_NODE_MAX_IN_FLIGHT=1`; the only served model is
-`phala-cpu-dstack061`. Recovery of the original journal-owned resource precedes
+Set `COVENANT_COMPUTE_NODE_MAX_IN_FLIGHT=1`. Executor `phala-cpu` serves
+`phala-cpu-dstack061`; explicit executor `phala-cpu-ephemeral` serves only
+`phala-cpu-ephemeral-dstack061` and does not read a managed KMS identifier.
+The ephemeral path creates a new VM/disk, verifies a fresh TDX quote against
+the original provisioned app before publishing access, and then submits a
+second coordinator-issued challenge. The buyer independently verifies that
+evidence before opening its single bounded SSH stream. Recovery of the original journal-owned resource precedes
 fresh admission and does not depend on enabling new creation. Preserve
 `<node-home>/phala-leases` and `<node-home>/phala-evidence`. The account health
 check is read-only; startup does not create a benchmark CVM. A new image and

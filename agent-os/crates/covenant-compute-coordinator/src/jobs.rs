@@ -329,13 +329,14 @@ impl JobRecord {
     /// bounds the end even if evidence collection or provider deletion is slow.
     /// Persisted settlement stamps are handled separately and never repriced.
     pub fn live_lease_elapsed_ms(&self, now_ms: u64) -> u64 {
-        let cutoff = match covenant_compute_protocol::phala::parse_phala_lease_spec(
-            &self.envelope.payload.input,
-        ) {
-            Ok(Some(spec)) => now_ms.min(spec.lease_expires_at_ms),
-            Ok(None) => now_ms,
-            Err(_) => return 0,
-        };
+        let cutoff =
+            match covenant_compute_protocol::phala::phala_lease_window(&self.envelope.payload) {
+                Ok(Some((_, expires_at_ms))) => now_ms
+                    .min(expires_at_ms)
+                    .min(self.close_requested_at_ms.unwrap_or(now_ms)),
+                Ok(None) => now_ms,
+                Err(_) => return 0,
+            };
         self.accepted_at_ms
             .map(|started| cutoff.saturating_sub(started))
             .unwrap_or(0)

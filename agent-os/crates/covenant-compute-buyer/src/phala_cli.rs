@@ -7,7 +7,9 @@ use covenant_compute_buyer::{
     ssh::SshClient,
     SingleAttemptClient,
 };
-use covenant_compute_protocol::phala::parse_phala_lease_spec;
+use covenant_compute_protocol::phala::{
+    parse_phala_ephemeral_lease_spec, parse_phala_lease_spec, PhalaRelayConfig,
+};
 use std::{
     collections::BTreeMap,
     path::PathBuf,
@@ -26,6 +28,7 @@ struct PrepareArgs {
     rate: u64,
     ssh_key: PathBuf,
     output: PathBuf,
+    relay: Option<PhalaRelayConfig>,
 }
 
 fn flags(args: &[String], allowed: &[&str]) -> Result<BTreeMap<String, String>> {
@@ -56,18 +59,23 @@ fn flags(args: &[String], allowed: &[&str]) -> Result<BTreeMap<String, String>> 
 }
 
 fn parse_prepare(args: &[String]) -> Result<PrepareArgs> {
-    let values = flags(
-        args,
-        &[
-            "--job-id",
-            "--operator",
-            "--image-digest",
-            "--duration-secs",
-            "--rate",
-            "--ssh-key",
-            "--output",
-        ],
-    )?;
+    parse_prepare_profile(args, false)
+}
+
+fn parse_prepare_profile(args: &[String], ephemeral: bool) -> Result<PrepareArgs> {
+    let mut allowed = vec![
+        "--job-id",
+        "--operator",
+        "--image-digest",
+        "--duration-secs",
+        "--rate",
+        "--ssh-key",
+        "--output",
+    ];
+    if ephemeral {
+        allowed.push("--relay-origin");
+    }
+    let values = flags(args, &allowed)?;
     let job_id = parse_explicit_lease_job_id(&values["--job-id"])?;
     let operator = values["--operator"].clone();
     covenant_compute_protocol::validate_address_b58("Phala operator", &operator)?;
@@ -95,6 +103,16 @@ fn parse_prepare(args: &[String]) -> Result<PrepareArgs> {
         duration_secs.checked_mul(rate).is_some(),
         "Phala lease ceiling overflows"
     );
+    let relay = if ephemeral {
+        let relay = PhalaRelayConfig {
+            url: values["--relay-origin"].clone(),
+            session_id: job_id.to_string(),
+        };
+        relay.validate()?;
+        Some(relay)
+    } else {
+        None
+    };
     Ok(PrepareArgs {
         job_id,
         operator,
@@ -103,11 +121,19 @@ fn parse_prepare(args: &[String]) -> Result<PrepareArgs> {
         rate,
         ssh_key: PathBuf::from(&values["--ssh-key"]),
         output: PathBuf::from(&values["--output"]),
+        relay,
     })
 }
 
 pub fn prepare(args: &[String], json_out: bool) -> Result<()> {
-    let args = parse_prepare(args)?;
+    prepare_profile(parse_prepare(args)?, json_out)
+}
+
+pub fn prepare_ephemeral(args: &[String], json_out: bool) -> Result<()> {
+    prepare_profile(parse_prepare_profile(args, true)?, json_out)
+}
+
+fn prepare_profile(args: PrepareArgs, json_out: bool) -> Result<()> {
     let options = PreparePhala {
         job_id: args.job_id,
         operator_pubkey_b58: args.operator,
@@ -123,22 +149,39 @@ pub fn prepare(args: &[String], json_out: bool) -> Result<()> {
     )?;
     // Offline deliberately bypasses load_ctx: no coordinator is required.
     let buyer = load_identity(&prepared_home()?)?;
-    let prepared = phala::prepare_to_directory(&buyer, &options, cap, &args.output)?;
-    let spec = parse_phala_lease_spec(&prepared.envelope.payload.input)?.unwrap();
+    let prepared = if let Some(relay) = &args.relay {
+        phala::prepare_ephemeral_to_directory(&buyer, &options, relay, cap, &args.output)?
+    } else {
+        phala::prepare_to_directory(&buyer, &options, cap, &args.output)?
+    };
+    let (expires, workload_sha256, profile) =
+        if let Some(spec) = parse_phala_ephemeral_lease_spec(&prepared.envelope.payload.input)? {
+            (
+                spec.lease_expires_at_ms,
+                spec.workload_sha256,
+                "phala_ephemeral_dstack061",
+            )
+        } else {
+            let spec = parse_phala_lease_spec(&prepared.envelope.payload.input)?
+                .context("missing signed Phala workload")?;
+            (spec.lease_expires_at_ms, spec.workload_sha256, "standard")
+        };
     let (workload, envelope) = phala::output_paths(&args.output.canonicalize()?);
     let latest_submission = prepared
         .envelope
         .payload
         .issued_at_ms
         .saturating_add(covenant_compute_protocol::JOB_FRESHNESS_WINDOW_MS)
-        .min(spec.lease_expires_at_ms.saturating_sub(1));
+        .min(expires.saturating_sub(1));
     let summary = serde_json::json!({
         "job_id": args.job_id, "status": "prepared_offline",
         "issued_at_ms": prepared.envelope.payload.issued_at_ms,
         "latest_submission_at_ms": latest_submission,
-        "lease_expires_at_ms": spec.lease_expires_at_ms,
+        "lease_expires_at_ms": expires,
+        "hardware_profile": profile,
+        "relay": args.relay,
         "ceiling_micro_usdc": prepared.envelope.payload.price_micro_usdc,
-        "workload_sha256": spec.workload_sha256,
+        "workload_sha256": workload_sha256,
         "workload_file": workload, "envelope_file": envelope,
         "served_trust_ceiling": "open"
     });
@@ -151,6 +194,9 @@ pub fn prepare(args: &[String], json_out: bool) -> Result<()> {
         );
         println!("Workload: {}", workload.display());
         println!("Signed envelope: {}", envelope.display());
+        if args.relay.is_some() {
+            println!("Fresh VM and one SSH connection per lease; a probe consumes that connection. Relay origin is buyer-signed.");
+        }
         println!("Submit within 120 seconds and before guest expiry; stale preparation is never refreshed automatically. Served trust remains Open.");
     }
     Ok(())
@@ -187,7 +233,20 @@ pub async fn submit(args: &[String], json_out: bool) -> Result<()> {
 }
 
 pub async fn probe(args: &[String], json_out: bool) -> Result<()> {
-    let values = flags(args, &["--envelope", "--ssh-key"])?;
+    use_channel(args, json_out, false).await
+}
+
+pub async fn transfer(args: &[String], json_out: bool) -> Result<()> {
+    use_channel(args, json_out, true).await
+}
+
+async fn use_channel(args: &[String], json_out: bool, transfer: bool) -> Result<()> {
+    let allowed = if transfer {
+        vec!["--envelope", "--ssh-key", "--source", "--basename"]
+    } else {
+        vec!["--envelope", "--ssh-key"]
+    };
+    let values = flags(args, &allowed)?;
     let envelope = phala::read_prepared_envelope(&PathBuf::from(&values["--envelope"]))?;
     let ctx = load_ctx()?;
     envelope.verify()?;
@@ -211,19 +270,37 @@ pub async fn probe(args: &[String], json_out: bool) -> Result<()> {
         &ctx.identity.agent_id().pubkey_base58(),
         now,
     )?;
-    let output = SshClient::default()
-        .probe(
-            &hardware,
-            &scope,
-            TrustClass::Open,
-            &PathBuf::from(&values["--ssh-key"]),
-        )
-        .await?;
+    let ephemeral = scope.profile
+        == covenant_compute_attestation::binding::HardwareProfile::PhalaEphemeralDstack061;
+    if ephemeral && !json_out {
+        println!("This operation consumes the ephemeral lease's only SSH connection; do not probe before a workspace transfer.");
+    }
+    let client = SshClient::default();
+    let key = PathBuf::from(&values["--ssh-key"]);
+    let output = if transfer {
+        client
+            .upload_file(
+                &hardware,
+                &scope,
+                TrustClass::Open,
+                &key,
+                &PathBuf::from(&values["--source"]),
+                &values["--basename"],
+            )
+            .await?
+    } else {
+        client
+            .probe(&hardware, &scope, TrustClass::Open, &key)
+            .await?
+    };
     if json_out {
         println!(
             "{}",
             serde_json::json!({
-                "job_id": envelope.payload.job_id, "status": "diagnostic_probe_succeeded",
+                "job_id": envelope.payload.job_id,
+                "status": if transfer { "diagnostic_transfer_succeeded" } else { "diagnostic_probe_succeeded" },
+                "single_connection_consumed": ephemeral,
+                "lease_close_command": format!("covenant-compute lease close {}", envelope.payload.job_id),
                 "served_trust_ceiling": "open",
                 "stdout": String::from_utf8_lossy(&output.stdout),
                 "stderr": String::from_utf8_lossy(&output.stderr)
@@ -231,13 +308,18 @@ pub async fn probe(args: &[String], json_out: bool) -> Result<()> {
         );
     } else {
         println!(
-            "Diagnostic SSH probe succeeded for {}; served trust remains Open.",
+            "Diagnostic SSH {} succeeded for {}; served trust remains Open.",
+            if transfer { "transfer" } else { "probe" },
             envelope.payload.job_id
         );
         print!("{}", String::from_utf8_lossy(&output.stdout));
         if !output.stderr.is_empty() {
             eprint!("{}", String::from_utf8_lossy(&output.stderr));
         }
+        println!(
+            "Close the lease to stop further billing: covenant-compute lease close {}",
+            envelope.payload.job_id
+        );
     }
     Ok(())
 }
@@ -290,6 +372,33 @@ mod tests {
             assert!(parse_prepare(&args).is_err(), "{flag}/{value}");
         }
     }
+    #[test]
+    fn ephemeral_requires_explicit_canonical_relay_and_cannot_alias_standard_prepare() {
+        let args = [
+            good(),
+            vec!["--relay-origin".into(), "https://relay.example.com".into()],
+        ]
+        .concat();
+        let parsed = parse_prepare_profile(&args, true).unwrap();
+        assert_eq!(parsed.relay.unwrap().session_id, parsed.job_id.to_string());
+        assert!(parse_prepare(&args).is_err());
+        assert!(parse_prepare_profile(&good(), true).is_err());
+        for origin in [
+            "http://relay.example.com",
+            "https://relay.example.com/",
+            "https://u:p@relay.example.com",
+            "https://relay.example.com:443",
+        ] {
+            let args = [good(), vec!["--relay-origin".into(), origin.into()]].concat();
+            assert!(parse_prepare_profile(&args, true).is_err());
+        }
+        assert!(flags(
+            &["--source".into(), "file".into()],
+            &["--envelope", "--ssh-key", "--source", "--basename"]
+        )
+        .is_err());
+    }
+
     #[test]
     fn submit_and_probe_cannot_infer_missing_paths_or_accept_extra_actions() {
         assert!(flags(

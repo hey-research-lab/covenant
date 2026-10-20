@@ -251,6 +251,7 @@ fn completed_verification_cannot_extend_collection_or_lease_time() {
     // This synthetic verdict tests only the post-verification timing gate;
     // it is never treated as cryptographically verified evidence.
     let verdict = HardwareVerdict {
+        phala_identity: None,
         challenge,
         evidence_sha256: "00".repeat(32),
         reference_sha256: binding::reference_digest(),
@@ -394,6 +395,7 @@ fn cache_unverified_fixture(
 ) -> HardwareEvidence {
     let evidence = bad_evidence(challenge.clone());
     let verdict = HardwareVerdict {
+        phala_identity: None,
         challenge: challenge.clone(),
         evidence_sha256: "00".repeat(32),
         reference_sha256: binding::reference_digest(),
@@ -788,4 +790,149 @@ fn phala_challenge_cannot_be_reused_with_changed_workload_transport_or_key() {
         service.scope(id, 0, now).unwrap().workload_sha256,
         "ef".repeat(32)
     );
+}
+
+fn ephemeral_fixture() -> (
+    Arc<CoordinatorState>,
+    LocalIdentity,
+    LocalIdentity,
+    Uuid,
+    u64,
+    covenant_compute_protocol::phala::PhalaEphemeralLeaseSpec,
+) {
+    use covenant_compute_protocol::phala::*;
+    let (state, buyer, operator, id, now, _) = phala_fixture();
+    let mut record = state.jobs().get(id).unwrap();
+    let mut payload = record.envelope.payload;
+    payload.input.retain(|content| !matches!(content, covenant_mcp::Content::Json { value } if value.get("phala_lease").is_some()));
+    payload.capability_requirement.model_id = Some(PHALA_EPHEMERAL_CPU_MODEL.into());
+    let relay = PhalaRelayConfig {
+        url: "https://relay.example.com".into(),
+        session_id: id.to_string(),
+    };
+    let (_, spec) = phala_ephemeral_workload(
+        &payload,
+        &operator.agent_id().pubkey_base58(),
+        &reviewed_phala_ephemeral_wrapper(),
+        &format!("sha256:{}", "cd".repeat(32)),
+        &relay,
+    )
+    .unwrap();
+    payload
+        .input
+        .push(phala_ephemeral_lease_input(spec.clone()).unwrap());
+    payload.validate_input().unwrap();
+    record.envelope = SignedJobEnvelope::sign(payload, &buyer).unwrap();
+    let ssh = record.lease_access.as_mut().unwrap().ssh.as_mut().unwrap();
+    ssh.host = relay.host().unwrap().into();
+    ssh.transport = Some(covenant_compute_protocol::ssh::SshTransport::OutboundRelay);
+    ssh.lease_generation = spec.lease_generation.clone();
+    record.lease_access.as_mut().unwrap().endpoint =
+        "ssh+relay://covenant@relay.example.com:443".into();
+    state.jobs().insert(id, record).unwrap();
+    (state, buyer, operator, id, now, spec)
+}
+
+#[test]
+fn ephemeral_profile_is_derived_from_signed_lease_and_caps_both_paid_meters() {
+    let (state, buyer, _, id, now, spec) = ephemeral_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    let service =
+        HardwareService::open_signed_leases(state.clone(), &directory.path().join("hardware"))
+            .unwrap();
+    let challenge = service
+        .challenge(id, &buyer.agent_id().pubkey_base58(), 0, now)
+        .unwrap();
+    assert_eq!(
+        challenge.scope.profile,
+        HardwareProfile::PhalaEphemeralDstack061
+    );
+    assert_eq!(challenge.scope.workload_sha256, spec.workload_sha256);
+    assert_eq!(
+        challenge.scope.lease_expires_at_ms,
+        spec.lease_expires_at_ms
+    );
+    assert!(service.scope(id, 0, spec.lease_expires_at_ms).is_err());
+    let record = state.jobs().get(id).unwrap();
+    let late = spec.lease_expires_at_ms + 120_000;
+    assert_eq!(record.live_lease_elapsed_ms(late), 540_000);
+    let observation = crate::onchain_meter::observe_lease(&record, late).unwrap();
+    assert_eq!(observation.elapsed_ms, 540_000);
+    assert_eq!(observation.charged_micro_usdc, 540);
+    let legacy = HardwareService::open(
+        state.clone(),
+        &directory.path().join("legacy"),
+        "ab".repeat(32),
+    )
+    .unwrap();
+    assert!(
+        legacy.scope(id, 0, now).is_err(),
+        "fixed-workload diagnostic mode cannot enable an ephemeral profile"
+    );
+    state.jobs().request_lease_close(id, now + 1).unwrap();
+    assert!(service.match_live_scope(&challenge.scope, now + 1).is_err());
+    let closed = state.jobs().get(id).unwrap();
+    assert_eq!(
+        closed.live_lease_elapsed_ms(late),
+        1,
+        "provider deletion latency must not be charged after buyer close"
+    );
+    assert_eq!(
+        crate::onchain_meter::observe_lease(&closed, late)
+            .unwrap()
+            .elapsed_ms,
+        1
+    );
+}
+
+#[test]
+fn ephemeral_scope_rejects_substituted_channel_operator_or_generation() {
+    let (state, _, _, id, now, _) = ephemeral_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    let service =
+        HardwareService::open_signed_leases(state.clone(), &directory.path().join("hardware"))
+            .unwrap();
+    let original = state.jobs().get(id).unwrap();
+    for case in 0..6 {
+        let mut changed = original.clone();
+        let ssh = changed.lease_access.as_mut().unwrap().ssh.as_mut().unwrap();
+        match case {
+            0 => ssh.transport = Some(covenant_compute_protocol::ssh::SshTransport::Tls),
+            1 => ssh.host = "other.example.com".into(),
+            2 => ssh.lease_generation.push_str("-replacement"),
+            3 => ssh
+                .observed_host_keys
+                .push(ssh.observed_host_keys[0].clone()),
+            4 => ssh.username = "root".into(),
+            _ => {
+                changed.operator_pubkey_b58 = LocalIdentity::generate("wrong@operator")
+                    .agent_id()
+                    .pubkey_base58()
+            }
+        }
+        state.jobs().insert(id, changed).unwrap();
+        assert!(service.scope(id, 0, now).is_err(), "mutation {case}");
+    }
+    state.jobs().insert(id, original).unwrap();
+    assert!(service.scope(id, 0, now).is_ok());
+}
+
+#[tokio::test]
+async fn ephemeral_remote_evidence_cannot_downgrade_the_selected_profile() {
+    let (state, _, operator, id, now, _) = ephemeral_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    let mut service =
+        HardwareService::open_signed_leases(state, &directory.path().join("hardware")).unwrap();
+    service.clock = Arc::new(move || now);
+    let actor = operator.agent_id().pubkey_base58();
+    let challenge = service.challenge(id, &actor, 0, now).unwrap();
+    let mut evidence = bad_evidence(challenge);
+    evidence.challenge.scope.profile = HardwareProfile::Standard;
+    assert!(service
+        .submit(id, &actor, evidence, now)
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("current lease/endpoint/key"));
+    assert!(!service.book.lock().data.rows[&id].consumed);
 }

@@ -487,6 +487,14 @@ impl<'a> WorkspaceClient<'a> {
         )
         .await?;
         let scope = scope_for_phala_lease(envelope, &current, &workspace.owner, crate::epoch_ms())?;
+        if scope.profile
+            == covenant_compute_attestation::binding::HardwareProfile::PhalaEphemeralDstack061
+            && snapshot.plaintext_bytes > crate::relay::MAX_TRANSFER_BYTES
+        {
+            return Err(protocol(
+                "ephemeral relay workspace transfer exceeds the 8 MiB payload limit",
+            ));
+        }
         hardware.verify_lease(&scope, floor).await?;
         let temporary = tempfile::tempdir().map_err(protocol)?;
         let plaintext = temporary.path().join("snapshot");
@@ -742,6 +750,34 @@ mod lease_gate_tests {
 
     #[tokio::test]
     async fn restore_to_lease_checks_hardware_before_requesting_or_decrypting_snapshot() {
+        rejected_restore(false, WorkspaceTrustFloor::Open, 4, "409").await;
+        rejected_restore(true, WorkspaceTrustFloor::Open, 4, "409").await;
+    }
+
+    #[tokio::test]
+    async fn ephemeral_floor_and_payload_limit_refuse_before_verdict_or_plaintext() {
+        for floor in [
+            WorkspaceTrustFloor::Isolated,
+            WorkspaceTrustFloor::Attested,
+            WorkspaceTrustFloor::Confidential,
+        ] {
+            rejected_restore(true, floor, 4, "only Open").await;
+        }
+        rejected_restore(
+            true,
+            WorkspaceTrustFloor::Open,
+            crate::relay::MAX_TRANSFER_BYTES + 1,
+            "8 MiB",
+        )
+        .await;
+    }
+
+    async fn rejected_restore(
+        ephemeral: bool,
+        floor: WorkspaceTrustFloor,
+        bytes: u64,
+        expected_error: &str,
+    ) {
         let buyer = LocalIdentity::generate("workspace-ssh@buyer");
         let operator = LocalIdentity::generate("workspace-ssh@operator");
         let now = crate::epoch_ms();
@@ -758,7 +794,14 @@ mod lease_gate_tests {
                 inference_tariff: None,
                 gpu_class: Some("cpu".into()),
                 min_vram_gb: None,
-                model_id: Some(phala::PHALA_CPU_MODEL.into()),
+                model_id: Some(
+                    if ephemeral {
+                        phala::PHALA_EPHEMERAL_CPU_MODEL
+                    } else {
+                        phala::PHALA_CPU_MODEL
+                    }
+                    .into(),
+                ),
                 kind: JobKind::LeaseSession,
                 max_duration_secs: 600,
                 min_reputation_bps: None,
@@ -776,15 +819,35 @@ mod lease_gate_tests {
             referral_code: None,
             stream: true,
         };
-        let (_, spec) = phala::phala_workload(
-            &job,
-            &operator.agent_id().pubkey_base58(),
-            &phala::reviewed_phala_wrapper(),
-            &format!("sha256:{}", "ab".repeat(32)),
-        )
-        .unwrap();
-        job.input
-            .push(phala::phala_lease_input(spec.clone()).unwrap());
+        let generation = if ephemeral {
+            let relay = phala::PhalaRelayConfig {
+                url: "https://relay.example.com".into(),
+                session_id: job.job_id.to_string(),
+            };
+            let (_, spec) = phala::phala_ephemeral_workload(
+                &job,
+                &operator.agent_id().pubkey_base58(),
+                &phala::reviewed_phala_ephemeral_wrapper(),
+                &format!("sha256:{}", "ab".repeat(32)),
+                &relay,
+            )
+            .unwrap();
+            let generation = spec.lease_generation.clone();
+            job.input
+                .push(phala::phala_ephemeral_lease_input(spec).unwrap());
+            generation
+        } else {
+            let (_, spec) = phala::phala_workload(
+                &job,
+                &operator.agent_id().pubkey_base58(),
+                &phala::reviewed_phala_wrapper(),
+                &format!("sha256:{}", "ab".repeat(32)),
+            )
+            .unwrap();
+            let generation = spec.lease_generation.clone();
+            job.input.push(phala::phala_lease_input(spec).unwrap());
+            generation
+        };
         let envelope = SignedJobEnvelope::sign(job, &buyer).unwrap();
         let lease = LeaseView {
             job_id: envelope.payload.job_id,
@@ -796,11 +859,19 @@ mod lease_gate_tests {
                 note: None,
                 source_price: None,
                 ssh: Some(SshAccess {
-                    host: format!("{}-1022.{}", "a".repeat(40), phala::PHALA_GATEWAY),
+                    host: if ephemeral {
+                        "relay.example.com".into()
+                    } else {
+                        format!("{}-1022.{}", "a".repeat(40), phala::PHALA_GATEWAY)
+                    },
                     port: 443,
                     username: "covenant".into(),
-                    lease_generation: spec.lease_generation,
-                    transport: Some(SshTransport::Tls),
+                    lease_generation: generation,
+                    transport: Some(if ephemeral {
+                        SshTransport::OutboundRelay
+                    } else {
+                        SshTransport::Tls
+                    }),
                     observed_host_keys: vec![key],
                 }),
             }),
@@ -843,12 +914,12 @@ mod lease_gate_tests {
             id: Uuid::new_v4(),
             owner: buyer.agent_id().pubkey_base58(),
             name: "gated".into(),
-            trust_floor: WorkspaceTrustFloor::Open,
+            trust_floor: floor,
             version: 1,
             snapshot: Some(WorkspaceSnapshot {
                 version: 1,
-                plaintext_bytes: 4,
-                ciphertext_bytes: ciphertext_len(4).unwrap(),
+                plaintext_bytes: bytes,
+                ciphertext_bytes: ciphertext_len(bytes).unwrap(),
                 ciphertext_sha256: "a".repeat(64),
                 created_at_ms: now,
             }),
@@ -862,14 +933,15 @@ mod lease_gate_tests {
             )
             .await
             .unwrap_err();
-        assert!(error.to_string().contains("409"), "{error}");
-        assert_eq!(
-            *calls.lock().unwrap(),
-            vec![
-                lease_path,
-                format!("/federation/hardware/{}/verdict", envelope.payload.job_id),
-            ]
-        );
+        assert!(error.to_string().contains(expected_error), "{error}");
+        let mut expected = vec![lease_path];
+        if expected_error == "409" {
+            expected.push(format!(
+                "/federation/hardware/{}/verdict",
+                envelope.payload.job_id
+            ));
+        }
+        assert_eq!(*calls.lock().unwrap(), expected);
         // No workspace download grant, object fetch, decryption, or SSH request
         // occurred. A server-selected scope cannot bypass this gate.
         server.abort();

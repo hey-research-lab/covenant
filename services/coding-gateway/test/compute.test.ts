@@ -58,6 +58,7 @@ function mockMarket(
     rate?: number;
     post?: (plan: WireJob, key: string) => unknown | Promise<unknown>;
     cancel?: (job: WireJob) => unknown | Promise<unknown>;
+    cancelByKey?: (key: string) => unknown | Promise<unknown>;
     get?: (job: WireJob) => unknown | Promise<unknown>;
   } = {},
 ) {
@@ -66,6 +67,11 @@ function mockMarket(
   const keys: string[] = [];
   const fetch = mockFetch(async (url, init) => {
     if (url.endsWith('/v1/offers')) return [offer('a', options.rate ?? 1_200_000)];
+    if (url.includes('/v1/jobs/by-key/') && init?.method === 'DELETE') {
+      const key = decodeURIComponent(url.split('/').pop()!);
+      if (options.cancelByKey) return options.cancelByKey(key);
+      return new Response('{}', { status: 404 });
+    }
     if (url.endsWith('/v1/jobs') && init?.method === 'POST') {
       const plan = JSON.parse(String(init.body));
       const key = (init.headers as Record<string, string>)['Idempotency-Key'];
@@ -360,7 +366,11 @@ describe('bounded durable ComputeSession', () => {
     const session = new ComputeSession(cfg, { runKey: 'unknown' });
     await expect(session.launch()).rejects.toThrow('timeout');
     const report = await ComputeSession.recover(cfg);
-    expect(report.runs[0]).toMatchObject({ runKey: 'unknown', complete: false, pendingJobIds: [] });
+    expect(report.runs[0]).toMatchObject({
+      runKey: 'unknown',
+      complete: false,
+      pendingJobIds: [],
+    });
     expect(report.runs[0].pendingLaunchKeys).toHaveLength(1);
     expect(market.plans).toHaveLength(1);
     await expect(new ComputeSession(cfg, { runKey: 'unknown' }).launch()).rejects.toThrow('closed');
@@ -439,6 +449,228 @@ describe('bounded durable ComputeSession', () => {
 });
 
 describe('cleanup and receipt settlement', () => {
+  it('does not delay known-job cleanup behind an unknown-key request', async () => {
+    let release!: () => void;
+    const cancelled = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let posts = 0;
+    const known = {
+      id: 'already-known',
+      status: 'running',
+      offer_id: 'a',
+      maximum_usdc_micros: 100_000,
+      access_url: null,
+      error: null,
+      receipt: null,
+    };
+    const market = mockMarket({
+      post: () => {
+        if (++posts === 1) return known;
+        throw new Error('second response lost');
+      },
+      cancel: (job) => {
+        release();
+        return settledJob(job);
+      },
+      cancelByKey: async (key) => {
+        await cancelled;
+        return { idempotency_key: key, cancellation_recorded: true, job: null };
+      },
+    });
+    market.jobs.set(known.id, known);
+    const session = new ComputeSession(
+      { ...journalConfig(), maxLaunches: 2 },
+      { runKey: 'parallel-cleanup' },
+    );
+    await session.launch();
+    await expect(session.launch()).rejects.toThrow('second response lost');
+    expect(await session.reap()).toMatchObject({ complete: true, settled: [{ job_id: known.id }] });
+    expect(market.plans).toHaveLength(2);
+    expect(session.committedUsd()).toBe(0.2);
+  });
+
+  it('recovers a lost launch response by key and settles its receipt without another POST', async () => {
+    let accepted!: WireJob;
+    const market = mockMarket({
+      post: (plan) => {
+        accepted = {
+          id: 'lost-response-job',
+          status: 'stopping',
+          offer_id: plan.offer.id,
+          maximum_usdc_micros: plan.maximum_usdc_micros,
+          access_url: null,
+          error: null,
+          receipt: null,
+        };
+        throw new Error('response lost after acceptance');
+      },
+      cancelByKey: (key) => ({
+        idempotency_key: key,
+        cancellation_recorded: true,
+        job: accepted,
+      }),
+    });
+    const cfg = journalConfig();
+    const session = new ComputeSession(cfg, { runKey: 'lost-response' });
+    await expect(session.launch()).rejects.toThrow('response lost');
+    market.jobs.set(accepted.id, accepted);
+    const recovered = await ComputeSession.recover(cfg);
+    expect(recovered.runs[0]).toMatchObject({
+      complete: true,
+      pendingLaunchKeys: [],
+      pendingJobIds: [],
+      settled: [{ job_id: accepted.id, receipt: { charged_usdc_micros: 4_000 } }],
+    });
+    expect(market.plans).toHaveLength(1);
+    const lookup = market.fetch.mock.calls.find(([url]) => String(url).includes('/by-key/'))!;
+    expect(lookup[0]).toBe(`${cfg.apiUrl}/v1/jobs/by-key/${market.keys[0]}`);
+    expect(lookup[1]).toMatchObject({
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer beta-token' },
+    });
+    const restarted = new ComputeSession(cfg, { runKey: 'lost-response' });
+    expect(restarted.committedUsd()).toBe(0.1);
+    await expect(restarted.launch()).rejects.toThrow('closed');
+  });
+
+  it('accepts only a sealed absence, preserves the consumed booking and survives restart', async () => {
+    const market = mockMarket({
+      post: () => {
+        throw new Error('unknown delivery');
+      },
+      cancelByKey: (key) => ({ idempotency_key: key, cancellation_recorded: true, job: null }),
+    });
+    const cfg = journalConfig();
+    const session = new ComputeSession(cfg, { runKey: 'sealed-absent' });
+    await expect(session.launch()).rejects.toThrow('unknown delivery');
+    expect(await session.reap()).toMatchObject({
+      complete: true,
+      settled: [],
+      pendingLaunchKeys: [],
+      pendingJobIds: [],
+    });
+    const saved = Object.values(
+      JSON.parse(readFileSync(cfg.journalPath, 'utf8')).runs,
+    )[0] as WireJob;
+    expect(saved).toMatchObject({ closed: true, maxLaunches: 1, maxUsdcMicros: 200_000 });
+    expect(saved.reservations).toHaveLength(1);
+    expect(saved.reservations[0]).toMatchObject({
+      rejected: true,
+      key: market.keys[0],
+      plan: market.plans[0],
+    });
+    const restarted = new ComputeSession(cfg, { runKey: 'sealed-absent' });
+    expect(restarted.committedUsd()).toBe(0.1);
+    await expect(restarted.launch()).rejects.toThrow('closed');
+    expect((await ComputeSession.recover(cfg)).runs[0].complete).toBe(true);
+    expect(market.plans).toHaveLength(1);
+    expect(
+      market.fetch.mock.calls.filter(([url]) => String(url).includes('/by-key/')),
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    ['missing seal', (key: string) => ({ idempotency_key: key, job: null })],
+    [
+      'false seal',
+      (key: string) => ({ idempotency_key: key, cancellation_recorded: false, job: null }),
+    ],
+    [
+      'string seal',
+      (key: string) => ({ idempotency_key: key, cancellation_recorded: 'true', job: null }),
+    ],
+    ['wrong key', () => ({ idempotency_key: 'other-key', cancellation_recorded: true, job: null })],
+    ['missing job', (key: string) => ({ idempotency_key: key, cancellation_recorded: true })],
+    [
+      'malformed job',
+      (key: string) => ({
+        idempotency_key: key,
+        cancellation_recorded: true,
+        job: { id: 'untrusted-id' },
+      }),
+    ],
+    ['empty body', () => new Response(null, { status: 204 })],
+    ['not found', () => new Response('{}', { status: 404 })],
+    ['no authentication', () => new Response('{}', { status: 401 })],
+    ['wrong owner', () => new Response('{}', { status: 403 })],
+    [
+      'timeout',
+      () => {
+        throw new Error('timeout');
+      },
+    ],
+  ])(
+    'retains an unknown booking on %s and safely retries background cancellation',
+    async (_name, reply) => {
+      let valid = false;
+      const market = mockMarket({
+        post: () => {
+          throw new Error('lost response');
+        },
+        cancelByKey: (key) =>
+          valid ? { idempotency_key: key, cancellation_recorded: true, job: null } : reply(key),
+      });
+      const cfg = journalConfig();
+      const session = new ComputeSession(cfg, { runKey: 'invalid-key-cancellation' });
+      await expect(session.launch()).rejects.toThrow('lost response');
+      const before = JSON.parse(readFileSync(cfg.journalPath, 'utf8'));
+      Object.values(before.runs).forEach((run) => {
+        (run as WireJob).closed = true;
+      });
+      expect(await session.reap()).toMatchObject({
+        complete: false,
+        pendingJobIds: [],
+        settled: [],
+      });
+      expect(session.inspect().pendingLaunchKeys).toEqual(market.keys);
+      expect(JSON.parse(readFileSync(cfg.journalPath, 'utf8'))).toEqual(before);
+      valid = true;
+      expect(await session.reap()).toMatchObject({ complete: true, settled: [] });
+      expect(market.plans).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    { offer_id: 'different-offer' },
+    { maximum_usdc_micros: 99_999 },
+    { receipt: { runtime_secs: 1, charged_usdc_micros: 1, refunded_usdc_micros: 1 } },
+  ])(
+    'does not attach an ID from a key result that mismatches its booking: %j',
+    async (mismatch) => {
+      const market = mockMarket({
+        post: () => {
+          throw new Error('lost response');
+        },
+        cancelByKey: (key) => ({
+          idempotency_key: key,
+          cancellation_recorded: true,
+          job: {
+            id: 'untrusted-id',
+            status: 'cancelled',
+            offer_id: 'a',
+            maximum_usdc_micros: 100_000,
+            access_url: null,
+            error: null,
+            receipt: null,
+            ...mismatch,
+          },
+        }),
+      });
+      const session = new ComputeSession(journalConfig(), { runKey: 'mismatched-key-job' });
+      await expect(session.launch()).rejects.toThrow('lost response');
+      expect(await session.reap()).toMatchObject({
+        complete: false,
+        pendingLaunchKeys: market.keys,
+        pendingJobIds: [],
+        settled: [],
+      });
+      expect(
+        market.fetch.mock.calls.filter(([url]) => String(url).endsWith('/untrusted-id')),
+      ).toHaveLength(0);
+    },
+  );
+
   it('polls stopping until a terminal receipt conserves the booked maximum', async () => {
     let polls = 0;
     mockMarket({

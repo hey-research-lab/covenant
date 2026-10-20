@@ -72,6 +72,9 @@ async function boot(
     stored?: unknown[];
     allowedRunKey?: string;
     directory?: string;
+    computeFetch?: (url: string, init?: RequestInit) => unknown | Promise<unknown>;
+    backendFailure?: boolean;
+    backendOutput?: string;
   } = {},
 ) {
   vi.resetModules();
@@ -106,7 +109,11 @@ async function boot(
   // the local HTTP server below use the native fetch implementation.
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => {
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (options.computeFetch && String(url).startsWith('https://compute.invalid/')) {
+        const body = await options.computeFetch(String(url), init);
+        return body instanceof Response ? body : new Response(JSON.stringify(body));
+      }
       throw new Error('unexpected external request');
     }),
   );
@@ -117,41 +124,47 @@ async function boot(
     return { id: 'smoke-job' };
   });
   const reap = vi.fn(async (key: string) => structuredClone(reports.get(key)!));
-  vi.doMock('../src/compute.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../src/compute.js')>();
-    return {
-      ...actual,
-      ComputeSession: class {
-        readonly key: string;
-        constructor(cfg: ComputeConfig, opts: ComputeSessionOptions) {
-          constructions.push({ cfg, options: opts });
-          this.key = opts.runKey;
-          if (!reports.has(this.key))
-            reports.set(this.key, {
-              runKey: this.key,
-              complete: true,
-              settled: [],
-              pendingJobIds: [],
-              pendingLaunchKeys: [],
-            });
-        }
-        launch() {
-          return launch(this.key);
-        }
-        inspect() {
-          return structuredClone(reports.get(this.key)!);
-        }
-        reap() {
-          return reap(this.key);
-        }
-        static async recover() {
-          return { runs: [] };
-        }
-      },
-    };
-  });
+  if (options.computeFetch) vi.doUnmock('../src/compute.js');
+  else
+    vi.doMock('../src/compute.js', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('../src/compute.js')>();
+      return {
+        ...actual,
+        ComputeSession: class {
+          readonly key: string;
+          constructor(cfg: ComputeConfig, opts: ComputeSessionOptions) {
+            constructions.push({ cfg, options: opts });
+            this.key = opts.runKey;
+            if (!reports.has(this.key))
+              reports.set(this.key, {
+                runKey: this.key,
+                complete: true,
+                settled: [],
+                pendingJobIds: [],
+                pendingLaunchKeys: [],
+              });
+          }
+          launch() {
+            return launch(this.key);
+          }
+          inspect() {
+            return structuredClone(reports.get(this.key)!);
+          }
+          reap() {
+            return reap(this.key);
+          }
+          static async recover() {
+            return { runs: [] };
+          }
+        },
+      };
+    });
   let ready = true;
-  const check = vi.fn(async () => ({ ready, failed: ready ? [] : ['model'], dependencies: {} }));
+  const check = vi.fn(async () => ({
+    ready,
+    failed: ready ? [] : ['model'],
+    dependencies: {},
+  }));
   vi.doMock('../src/readiness.js', () => ({
     GatewayReadiness: class {
       check = check;
@@ -174,12 +187,20 @@ async function boot(
     },
   }));
   const backend = vi.fn(async (opts: RunOptions) => {
-    if (opts.computeSession) await opts.computeSession.launch();
+    if (opts.computeSession)
+      await opts.computeSession.launch().catch((error: unknown) => {
+        // The model can handle a failed GPU tool result and finish its E2B work.
+        if (!options.computeFetch) throw error;
+      });
+    if (options.backendFailure) {
+      await opts.recordProviderRequest?.();
+      throw new Error('model reply outcome unknown');
+    }
     opts.emit({ type: 'message.delta', text: 'working' });
     // Even a legacy backend's premature terminal event must be suppressed.
     opts.emit({ type: 'run.completed', output: 'premature backend success' });
     return {
-      output: 'task done',
+      output: options.backendOutput ?? 'task done',
       usage: { inputTokens: 100, outputTokens: 10, cacheReadTokens: 0, cacheCreationTokens: 0 },
     };
   });
@@ -230,6 +251,7 @@ async function boot(
     reap,
     backend,
     createSandbox,
+    sandbox,
     check,
     runPath,
     directory,
@@ -256,6 +278,200 @@ const request = (id: string, gpu = true) => ({
 });
 
 describe('GPU gateway authorization and lifecycle', () => {
+  it('preserves complete receipt and accounting evidence in long output, persisted state, and terminal SSE', async () => {
+    const gateway = await boot({ backendOutput: 'Long model explanation. '.repeat(1_000) });
+    const submitted = await gateway.post(request('long-output'));
+    const { run_id } = (await submitted.json()) as { run_id: string };
+    await untilStatus(gateway, run_id, 'stopping');
+    gateway.reports.set('long-output', settled('long-output'));
+    await gateway.reconcileCompute();
+    const final = await untilStatus(gateway, run_id, 'completed');
+    expect(final.output.length).toBeLessThanOrEqual(8_000);
+    expect(final.output).toContain('[model output truncated]');
+    expect(final.output).toContain('[gpu_workspace final receipts:');
+    const accounting = JSON.parse(final.output.match(/\[run accounting: (.*)\]$/)[1]);
+    expect(accounting).toMatchObject({
+      authoritativeBillingReceipt: false,
+      gpuSettledUsd: 0.01,
+      totalAccountedUsd: 0.13045,
+      sandbox: { method: 'maximum_reservation_not_invoice' },
+    });
+    const saved = JSON.parse(readFileSync(gateway.runPath, 'utf8'))[0];
+    expect(saved.output).toBe(final.output);
+    expect(
+      saved.events.find((event: { type: string }) => event.type === 'run.completed').output,
+    ).toBe(final.output);
+    const sse = await (await gateway.get(`/v1/runs/${run_id}/events`)).text();
+    const terminal = sse
+      .split('\n')
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => JSON.parse(line.slice(6)))
+      .find((event) => event.event === 'run.completed');
+    expect(terminal.output).toBe(final.output);
+    expect(gateway.createSandbox).toHaveBeenCalledOnce();
+    expect(gateway.launch).toHaveBeenCalledOnce();
+  });
+
+  it('automatically settles a lost GPU response with model and E2B accounting after cancellation', async () => {
+    let recoverable = false;
+    let key = '';
+    let posts = 0;
+    let job: Record<string, unknown>;
+    const gateway = await boot({
+      computeFetch: (url, init) => {
+        if (url.endsWith('/v1/offers'))
+          return [
+            {
+              id: 'vast:test-offer',
+              gpu: { model: 'RTX 4090', vram_mib: 24_576 },
+              rate_usdc_micros_per_hour: 1_200_000,
+              online: true,
+            },
+          ];
+        if (url.endsWith('/v1/jobs') && init?.method === 'POST') {
+          posts++;
+          const plan = JSON.parse(String(init.body));
+          key = (init.headers as Record<string, string>)['Idempotency-Key'];
+          job = {
+            id: 'accepted-before-response-loss',
+            status: 'stopping',
+            offer_id: plan.offer.id,
+            maximum_usdc_micros: plan.maximum_usdc_micros,
+            access_url: null,
+            error: null,
+            receipt: null,
+          };
+          return new Response(JSON.stringify({ error: { code: 'provider_unavailable' } }), {
+            status: 503,
+          });
+        }
+        if (url.endsWith(`/v1/jobs/by-key/${key}`) && init?.method === 'DELETE')
+          return recoverable
+            ? { idempotency_key: key, cancellation_recorded: true, job }
+            : new Response('{}', { status: 503 });
+        if (url.endsWith('/v1/jobs/accepted-before-response-loss') && init?.method === 'DELETE')
+          return {
+            ...job,
+            status: 'cancelled',
+            receipt: {
+              job_id: job.id,
+              runtime_secs: 30,
+              charged_usdc_micros: 10_000,
+              refunded_usdc_micros: 90_000,
+              provisioning_secs: 20,
+              provisioning_usdc_micros: 6_667,
+              commitment: 'vast:instance:test:destroyed',
+            },
+          };
+        throw new Error('unexpected compute request');
+      },
+    });
+    const body = request('lost-response-lifecycle');
+    const submitted = await gateway.post(body);
+    const { run_id } = (await submitted.json()) as { run_id: string };
+    const stopping = await untilStatus(gateway, run_id, 'stopping');
+    // The first finally/reaper pass also finishes before inspecting the journal.
+    await gateway.reconcileCompute();
+    expect(stopping).toMatchObject({ compute: { complete: false, pendingLaunchKeys: [key] } });
+    expect(stopping.costUsd).toBeUndefined();
+    expect(gateway.sandbox.destroy).toHaveBeenCalledOnce();
+    expect(
+      await (
+        await nativeFetch(`${gateway.origin}/v1/runs/${run_id}/stop`, {
+          method: 'POST',
+          headers: gateway.headers,
+        })
+      ).json(),
+    ).toMatchObject({ status: 'stopping' });
+    recoverable = true;
+    await gateway.reconcileCompute();
+    const final = await untilStatus(gateway, run_id, 'cancelled');
+    expect(final.compute).toMatchObject({
+      complete: true,
+      pendingLaunchKeys: [],
+      pendingJobIds: [],
+      settled: [
+        {
+          job_id: 'accepted-before-response-loss',
+          status: 'cancelled',
+          receipt: {
+            charged_usdc_micros: 10_000,
+            refunded_usdc_micros: 90_000,
+            provisioning_usdc_micros: 6_667,
+            commitment: 'vast:instance:test:destroyed',
+          },
+        },
+      ],
+    });
+    expect(final.costUsd).toBeCloseTo(0.13045, 6);
+    expect(final.output).toContain('gpu_workspace final receipts');
+    const accounting = JSON.parse(final.output.match(/\[run accounting: (.*)\]$/)[1]);
+    expect(accounting).toMatchObject({
+      version: 1,
+      authoritativeBillingReceipt: false,
+      model: {
+        method: 'usage_estimate',
+        estimatedUsd: 0.00045,
+        usage: { inputTokens: 100, outputTokens: 10 },
+      },
+      sandbox: {
+        provider: 'e2b',
+        method: 'maximum_reservation_not_invoice',
+        maximumUsd: 0.12,
+        accountedUsd: 0.12,
+      },
+      gpuSettledUsd: 0.01,
+      totalAccountedUsd: 0.13045,
+    });
+    const saved = JSON.parse(readFileSync(gateway.runPath, 'utf8'))[0];
+    expect(saved.nonComputeUsd).toBeCloseTo(0.12045, 6);
+    expect(saved.usage).toMatchObject({ inputTokens: 100, outputTokens: 10 });
+    expect(
+      saved.events.filter((event: { type: string }) => event.type === 'run.failed'),
+    ).toHaveLength(1);
+    expect(await (await gateway.get('/v1/budget')).json()).toMatchObject({
+      reserved: 0,
+      active: 0,
+      dailyUsd: 0.13045,
+    });
+    const journal = JSON.parse(readFileSync(join(gateway.directory, 'gpu.json'), 'utf8'));
+    const reservation = Object.values(journal.runs)[0] as Record<string, any>;
+    expect(reservation).toMatchObject({ closed: true, maxLaunches: 1 });
+    expect(reservation.reservations).toHaveLength(1);
+    expect(posts).toBe(1);
+    expect(gateway.backend).toHaveBeenCalledOnce();
+    expect(gateway.createSandbox).toHaveBeenCalledOnce();
+    expect(await (await gateway.post(body)).json()).toEqual({ run_id });
+    await gateway.reconcileCompute();
+    expect(posts).toBe(1);
+  });
+
+  it('reports a conservative model hold and unknown usage after a lost model reply', async () => {
+    const gateway = await boot({ backendFailure: true });
+    const response = await gateway.post(request('unknown-model-usage'));
+    const { run_id } = (await response.json()) as { run_id: string };
+    await untilStatus(gateway, run_id, 'stopping');
+    gateway.reports.set('unknown-model-usage', settled('unknown-model-usage'));
+    await gateway.reconcileCompute();
+    const final = await untilStatus(gateway, run_id, 'failed');
+    const accounting = JSON.parse(final.output.match(/\[run accounting: (.*)\]$/)[1]);
+    expect(accounting.model).toEqual({
+      method: 'conservative_hold',
+      usage: null,
+      estimatedUsd: null,
+      accountedUsd: 0.18,
+    });
+    expect(accounting.sandbox).toMatchObject({
+      method: 'maximum_reservation_not_invoice',
+      maximumUsd: 0.12,
+      accountedUsd: 0.12,
+    });
+    expect(accounting.nonComputeUsd).toBe(0.3);
+    expect(accounting.totalAccountedUsd).toBe(0.31);
+    expect(final.costUsd).toBe(0.31);
+    expect(gateway.sandbox.destroy).toHaveBeenCalledOnce();
+  });
+
   it('rejects every different run key before readiness, reservation, or provider work', async () => {
     const gateway = await boot({ allowedRunKey: 'a'.repeat(64) });
     gateway.setReady(false);

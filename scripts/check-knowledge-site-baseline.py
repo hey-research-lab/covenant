@@ -39,7 +39,7 @@ prefixes = (
 exact = {
     "landing/app/_brand.tsx", "landing/app/sitemap.ts",
     "scripts/check-knowledge-site-baseline.py",
-    "pnpm-lock.yaml",
+    "package.json", "pnpm-lock.yaml",
     "landing/public/install/compute.sh",
 }
 errors, paths = [], []
@@ -87,7 +87,8 @@ if installer_hash not in (
 
 # Production's workspace lock omitted landing's direct sharp dependency, which
 # already resolves to 0.35.5 through the existing root override and snapshot.
-# Permit only the reviewed importer repair; no dependency resolution changes.
+# Preserve that importer repair, and admit the exact reviewed paired dependency
+# fix for GHSA-q3jh-wrc6-jgq8 / GHSA-8r9p-f939-6h3c (follow-redirects 1.16.1).
 lock = git("show", base + ":pnpm-lock.yaml").decode()
 before, landing = lock.split("\n  landing:\n", 1)
 landing, after = landing.split("\n  packages/config:\n", 1)
@@ -99,8 +100,21 @@ addition = (
 )
 fixed_landing = landing if addition in landing else landing.replace(anchor, addition + anchor, 1)
 fixed_lock = before + "\n  landing:\n" + fixed_landing + "\n  packages/config:\n" + after
-if read("pnpm-lock.yaml").decode() not in (lock, fixed_lock):
-    errors.append("Unreviewed dependency lock change")
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+baseline_package_hash = digest(git("show", base + ":package.json"))
+dependency_pair = (digest(read("package.json")), digest(read("pnpm-lock.yaml")))
+allowed_dependency_pairs = {
+    (baseline_package_hash, digest(lock.encode())),
+    (baseline_package_hash, digest(fixed_lock.encode())),
+    (
+        "8dcf7c3461dc2b43b6c6b3ebc7e1fb0b5776212d9bac2ab2020bb4f336f08f20",
+        "a635a61c17d0ef9d45125b589dae81446fbdc210832b24f025cdceb96c8c3720",
+    ),
+}
+if dependency_pair not in allowed_dependency_pairs:
+    errors.append("Unreviewed package/lock pair")
 
 # Existing pages and artwork remain outside the allowlist.
 print(json.dumps({

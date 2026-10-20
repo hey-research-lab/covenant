@@ -1,0 +1,2738 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-20T15:16:04.527837+00:00",
+  "measurement": "retrieval-only; no LLM correctness or token claim",
+  "binary": {
+    "sha256": "636e02fe8ffca61c2ce417fec91c45dac5c412f7f34abcc5af78e97fa0d50f36",
+    "version": "covenant-compute 0.4.1"
+  },
+  "rg_version": "ripgrep 15.2.0 (rev e89fff89ac)",
+  "corpus": {
+    "source": "examples/knowledge",
+    "sha256": "0526ea3105269cedeba997331c2e2c826bdfcb3f53b59e4ffc052a6d3eeab540",
+    "files": 9,
+    "utf8_bytes": 1813,
+    "manifest": [
+      {
+        "path": "README.md",
+        "utf8_bytes": 904,
+        "sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569"
+      },
+      {
+        "path": "python/orders.py",
+        "utf8_bytes": 238,
+        "sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683"
+      },
+      {
+        "path": "python/pricing.py",
+        "utf8_bytes": 32,
+        "sha256": "77833a93eaefb8acc93f6243656c61a1b6e87d29b9a3782495b9df30c75cbbea"
+      },
+      {
+        "path": "rust/src/lib.rs",
+        "utf8_bytes": 149,
+        "sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d"
+      },
+      {
+        "path": "rust/src/pricing.rs",
+        "utf8_bytes": 38,
+        "sha256": "22e828b9e11064790351d826ac5003d0399e205f7f9233e58fe87d55610b3317"
+      },
+      {
+        "path": "web/OrderCard.tsx",
+        "utf8_bytes": 172,
+        "sha256": "e909d2406062e4ef0d5a73de4b1a4dc4ea3a1c9cbe748ddd3a27b083db5adc35"
+      },
+      {
+        "path": "web/format.js",
+        "utf8_bytes": 66,
+        "sha256": "98a43c57dd8f8d2d0b1b730bf3c5914577eec39bcb0bd7a484088315a04b2aac"
+      },
+      {
+        "path": "web/orders.ts",
+        "utf8_bytes": 179,
+        "sha256": "2a9aa5380007cd1cfa0617f352f69f1359a11c456b2a34e8f9d57f686d0b74f6"
+      },
+      {
+        "path": "web/pricing.ts",
+        "utf8_bytes": 35,
+        "sha256": "9eaae00e3e3e203e467e2ff8956eb127d68cc9ed136dd38f6c8e7b1cc1144847"
+      }
+    ]
+  },
+  "configuration": {
+    "query_runs": 5,
+    "compile_runs": 3,
+    "query_limit": 50,
+    "os_cache_flushed": false,
+    "includes_process_startup": true,
+    "backend_order": "alternating each repetition",
+    "source_copied_outside_git": true
+  },
+  "commands": {
+    "knowledge": "covenant-compute knowledge query QUERY --limit 50 --store STORE --project PROJECT --json",
+    "rg": "rg --json --fixed-strings -- QUERY ."
+  },
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "compile": {
+    "cold": {
+      "wall_ms": {
+        "runs": 3,
+        "min": 17.471417,
+        "median": 18.089541,
+        "max": 590.733875
+      },
+      "observations": [
+        {
+          "wall_ms": 590.733875,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "476a93ac10aee65f5a24e214c6fd92d5a0ed09f2bab8b144c981cd9a1fe29ca8",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-cold-0.stdout",
+          "stderr_file": "raw/compile-cold-0.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 0
+        },
+        {
+          "wall_ms": 18.089541,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "476a93ac10aee65f5a24e214c6fd92d5a0ed09f2bab8b144c981cd9a1fe29ca8",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-cold-1.stdout",
+          "stderr_file": "raw/compile-cold-1.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 0
+        },
+        {
+          "wall_ms": 17.471417,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "476a93ac10aee65f5a24e214c6fd92d5a0ed09f2bab8b144c981cd9a1fe29ca8",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-cold-2.stdout",
+          "stderr_file": "raw/compile-cold-2.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 0
+        }
+      ]
+    },
+    "warm": {
+      "wall_ms": {
+        "runs": 3,
+        "min": 14.298541,
+        "median": 16.605291,
+        "max": 23.487541
+      },
+      "observations": [
+        {
+          "wall_ms": 14.298541,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "128c5ca8fea4d7dc87ae0df7d3535d2954a1903cccc028c391d0f753c03c1db2",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-warm-0.stdout",
+          "stderr_file": "raw/compile-warm-0.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 9
+        },
+        {
+          "wall_ms": 16.605291,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "128c5ca8fea4d7dc87ae0df7d3535d2954a1903cccc028c391d0f753c03c1db2",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-warm-1.stdout",
+          "stderr_file": "raw/compile-warm-1.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 9
+        },
+        {
+          "wall_ms": 23.487541,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "128c5ca8fea4d7dc87ae0df7d3535d2954a1903cccc028c391d0f753c03c1db2",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-warm-2.stdout",
+          "stderr_file": "raw/compile-warm-2.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 9
+        }
+      ]
+    },
+    "full": {
+      "wall_ms": {
+        "runs": 3,
+        "min": 14.258708,
+        "median": 60.454375,
+        "max": 128.243792
+      },
+      "observations": [
+        {
+          "wall_ms": 128.243792,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "476a93ac10aee65f5a24e214c6fd92d5a0ed09f2bab8b144c981cd9a1fe29ca8",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-full-0.stdout",
+          "stderr_file": "raw/compile-full-0.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 0
+        },
+        {
+          "wall_ms": 60.454375,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "476a93ac10aee65f5a24e214c6fd92d5a0ed09f2bab8b144c981cd9a1fe29ca8",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-full-1.stdout",
+          "stderr_file": "raw/compile-full-1.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 0
+        },
+        {
+          "wall_ms": 14.258708,
+          "returncode": 0,
+          "process_ok": true,
+          "stdout_utf8_bytes": 689,
+          "stderr_utf8_bytes": 0,
+          "stdout_sha256": "476a93ac10aee65f5a24e214c6fd92d5a0ed09f2bab8b144c981cd9a1fe29ca8",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_file": "raw/compile-full-2.stdout",
+          "stderr_file": "raw/compile-full-2.stderr",
+          "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+          "coverage": {
+            "excluded": 0,
+            "files": 9,
+            "languages": {
+              "javascript": 1,
+              "markdown": 1,
+              "python": 2,
+              "rust": 2,
+              "tsx": 1,
+              "typescript": 2
+            },
+            "objects": 36,
+            "partial": false,
+            "relationships": 41,
+            "resolved": 31,
+            "unresolved": 10
+          },
+          "reused_files": 0
+        }
+      ]
+    }
+  },
+  "queries": [
+    {
+      "id": "total-symbol",
+      "question": "Where is calculate_total defined or called?",
+      "query": "calculate_total",
+      "target_paths": [
+        "python/orders.py",
+        "web/orders.ts",
+        "web/OrderCard.tsx",
+        "rust/src/lib.rs"
+      ],
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.071833,
+            "median": 4.437292,
+            "max": 5.055375
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 21569,
+            "median": 21569,
+            "max": 21569
+          },
+          "observations": [
+            {
+              "wall_ms": 5.055375,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 21569,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a0fa0b9ebeca887db311fb6eb83a9ad7b39686971a91800fb9bb2b0f22dab9cd",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-knowledge-0.stdout",
+              "stderr_file": "raw/total-symbol-knowledge-0.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 15,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.6045,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 21569,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a0fa0b9ebeca887db311fb6eb83a9ad7b39686971a91800fb9bb2b0f22dab9cd",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-knowledge-1.stdout",
+              "stderr_file": "raw/total-symbol-knowledge-1.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 15,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.071833,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 21569,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a0fa0b9ebeca887db311fb6eb83a9ad7b39686971a91800fb9bb2b0f22dab9cd",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-knowledge-2.stdout",
+              "stderr_file": "raw/total-symbol-knowledge-2.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 15,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.285959,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 21569,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a0fa0b9ebeca887db311fb6eb83a9ad7b39686971a91800fb9bb2b0f22dab9cd",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-knowledge-3.stdout",
+              "stderr_file": "raw/total-symbol-knowledge-3.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 15,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.437292,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 21569,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a0fa0b9ebeca887db311fb6eb83a9ad7b39686971a91800fb9bb2b0f22dab9cd",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-knowledge-4.stdout",
+              "stderr_file": "raw/total-symbol-knowledge-4.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 15,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 5.186625,
+            "median": 5.422792,
+            "max": 6.524833
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 3522,
+            "median": 3523,
+            "max": 3525
+          },
+          "observations": [
+            {
+              "wall_ms": 6.524833,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 3525,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "441e3c6fb0d54e84c0c7d7565f4ca3b6bc6ea7d2d2578c2dc870dbf32148d776",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-rg-0.stdout",
+              "stderr_file": "raw/total-symbol-rg-0.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 7,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.422792,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 3522,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "1a265df3f00e6dec67202a90e28c232a9ff08e03bff766a181d731db673fff96",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-rg-1.stdout",
+              "stderr_file": "raw/total-symbol-rg-1.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 7,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.572958,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 3523,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "bd1759bb55cc9e5ae2caa4787879bca5ba6af211f344dd7dceffd655b15f8155",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-rg-2.stdout",
+              "stderr_file": "raw/total-symbol-rg-2.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 7,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.186625,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 3522,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "b27265d16bab0ee8117730c03be5202392c2b79a81e9eb781f6178362eca41f3",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-rg-3.stdout",
+              "stderr_file": "raw/total-symbol-rg-3.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 7,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.306583,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 3523,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "2e191c564761f3b96b4a52b42e97357351cf473cfa0e3d222765e4c69dcbc570",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/total-symbol-rg-4.stdout",
+              "stderr_file": "raw/total-symbol-rg-4.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "README.md"
+              ],
+              "result_paths": [
+                "README.md",
+                "python/orders.py",
+                "rust/src/lib.rs",
+                "web/OrderCard.tsx",
+                "web/orders.ts"
+              ],
+              "result_count": 7,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "unit-price",
+      "question": "Where does the unit_price spelling appear?",
+      "query": "unit_price",
+      "target_paths": [
+        "python/orders.py",
+        "python/pricing.py",
+        "rust/src/lib.rs",
+        "rust/src/pricing.rs"
+      ],
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 3.992292,
+            "median": 4.079125,
+            "max": 4.129709
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 12704,
+            "median": 12704,
+            "max": 12704
+          },
+          "observations": [
+            {
+              "wall_ms": 4.079125,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 12704,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c7731bb0b352a87636061003484ecc29a376247e6cd603101a6cb507e5f3d1cf",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-knowledge-0.stdout",
+              "stderr_file": "raw/unit-price-knowledge-0.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 10,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.063166,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 12704,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c7731bb0b352a87636061003484ecc29a376247e6cd603101a6cb507e5f3d1cf",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-knowledge-1.stdout",
+              "stderr_file": "raw/unit-price-knowledge-1.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 10,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 3.992292,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 12704,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c7731bb0b352a87636061003484ecc29a376247e6cd603101a6cb507e5f3d1cf",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-knowledge-2.stdout",
+              "stderr_file": "raw/unit-price-knowledge-2.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 10,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.129709,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 12704,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c7731bb0b352a87636061003484ecc29a376247e6cd603101a6cb507e5f3d1cf",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-knowledge-3.stdout",
+              "stderr_file": "raw/unit-price-knowledge-3.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 10,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.090417,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 12704,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c7731bb0b352a87636061003484ecc29a376247e6cd603101a6cb507e5f3d1cf",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-knowledge-4.stdout",
+              "stderr_file": "raw/unit-price-knowledge-4.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 10,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.055667,
+            "median": 5.108791,
+            "max": 5.622583
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 2634,
+            "median": 2634,
+            "max": 2634
+          },
+          "observations": [
+            {
+              "wall_ms": 4.055667,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2634,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "9c3c739d37c3f453872b1038b01d4008276c6c35a5b285b8cfdba4ea33ffc385",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-rg-0.stdout",
+              "stderr_file": "raw/unit-price-rg-0.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.108791,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2634,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "611ef67d38a17e563198c1c09141ae6e290e6a80581df12904d2ea321139b8c2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-rg-1.stdout",
+              "stderr_file": "raw/unit-price-rg-1.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.622583,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2634,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "84f9085e22349b384572fbce90e13913a5be81d321d1f3b044abd5fb1d997aff",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-rg-2.stdout",
+              "stderr_file": "raw/unit-price-rg-2.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.09275,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2634,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c1ac72e69f95ac44534619b3bd79ec762ee4e02031608cde0e3101128c6caa13",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-rg-3.stdout",
+              "stderr_file": "raw/unit-price-rg-3.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.146375,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2634,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "d94ef895fab36006163a49c44df61e6c367600d8dd974dd39a019373114000b9",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/unit-price-rg-4.stdout",
+              "stderr_file": "raw/unit-price-rg-4.stderr",
+              "target_paths_found": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "typescript-price",
+      "question": "Where does the TypeScript unitPrice spelling appear?",
+      "query": "unitPrice",
+      "target_paths": [
+        "web/orders.ts",
+        "web/pricing.ts"
+      ],
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 3.922083,
+            "median": 4.037292,
+            "max": 4.129375
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 6408,
+            "median": 6408,
+            "max": 6408
+          },
+          "observations": [
+            {
+              "wall_ms": 3.981666,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 6408,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "e12c2e5f8b9cd736716424de4fa17fed26ce7dc85e7d0ed7ac17191977bd2ba2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-knowledge-0.stdout",
+              "stderr_file": "raw/typescript-price-knowledge-0.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.129375,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 6408,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "e12c2e5f8b9cd736716424de4fa17fed26ce7dc85e7d0ed7ac17191977bd2ba2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-knowledge-1.stdout",
+              "stderr_file": "raw/typescript-price-knowledge-1.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 3.922083,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 6408,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "e12c2e5f8b9cd736716424de4fa17fed26ce7dc85e7d0ed7ac17191977bd2ba2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-knowledge-2.stdout",
+              "stderr_file": "raw/typescript-price-knowledge-2.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.074666,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 6408,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "e12c2e5f8b9cd736716424de4fa17fed26ce7dc85e7d0ed7ac17191977bd2ba2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-knowledge-3.stdout",
+              "stderr_file": "raw/typescript-price-knowledge-3.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.037292,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 6408,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "e12c2e5f8b9cd736716424de4fa17fed26ce7dc85e7d0ed7ac17191977bd2ba2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-knowledge-4.stdout",
+              "stderr_file": "raw/typescript-price-knowledge-4.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 5,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.247417,
+            "median": 5.21475,
+            "max": 6.582833
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 1551,
+            "median": 1551,
+            "max": 1553
+          },
+          "observations": [
+            {
+              "wall_ms": 5.290375,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 1551,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "44c3f1488d87cd63a2a47435425ade24d3c1517b6420827aca0992047ba90c31",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-rg-0.stdout",
+              "stderr_file": "raw/typescript-price-rg-0.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.193334,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 1551,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "1f91f3178e6274bb15c3563be08f4dc203f21ffa27ad69f53d90cddeb2038003",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-rg-1.stdout",
+              "stderr_file": "raw/typescript-price-rg-1.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 6.582833,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 1553,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "77b5c0ba3e3ef207232c3a31faa8da38c246ca87a5e7233ccf406d9564b8cda8",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-rg-2.stdout",
+              "stderr_file": "raw/typescript-price-rg-2.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.21475,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 1551,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "4009511bae56b6a7dc326c690baee30302cb1331c20f8f1301dd28ba9c32a910",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-rg-3.stdout",
+              "stderr_file": "raw/typescript-price-rg-3.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.247417,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 1551,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "ec6044b12128188bfd811daae122b1cad0408b3d7812ed26c489688871eed577",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/typescript-price-rg-4.stdout",
+              "stderr_file": "raw/typescript-price-rg-4.stderr",
+              "target_paths_found": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/orders.ts",
+                "web/pricing.ts"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "format-units",
+      "question": "Where is formatUnits declared?",
+      "query": "formatUnits",
+      "target_paths": [
+        "web/format.js"
+      ],
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 3.948792,
+            "median": 4.1455,
+            "max": 5.075375
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 2633,
+            "median": 2633,
+            "max": 2633
+          },
+          "observations": [
+            {
+              "wall_ms": 3.948792,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2633,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f71482cbc92d69f963895dea3ac668db4a061614bd9927d57fc00002b38ad535",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-knowledge-0.stdout",
+              "stderr_file": "raw/format-units-knowledge-0.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 2,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.076625,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2633,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f71482cbc92d69f963895dea3ac668db4a061614bd9927d57fc00002b38ad535",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-knowledge-1.stdout",
+              "stderr_file": "raw/format-units-knowledge-1.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 2,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.1455,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2633,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f71482cbc92d69f963895dea3ac668db4a061614bd9927d57fc00002b38ad535",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-knowledge-2.stdout",
+              "stderr_file": "raw/format-units-knowledge-2.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 2,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.075375,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2633,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f71482cbc92d69f963895dea3ac668db4a061614bd9927d57fc00002b38ad535",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-knowledge-3.stdout",
+              "stderr_file": "raw/format-units-knowledge-3.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 2,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.668542,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 2633,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f71482cbc92d69f963895dea3ac668db4a061614bd9927d57fc00002b38ad535",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-knowledge-4.stdout",
+              "stderr_file": "raw/format-units-knowledge-4.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 2,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 3.918167,
+            "median": 5.136542,
+            "max": 5.457459
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 797,
+            "median": 797,
+            "max": 797
+          },
+          "observations": [
+            {
+              "wall_ms": 3.918167,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 797,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a266efc7a7afe0b63da81465678f1328faa00ff5c4e26f302b4bbbfb7082b3bf",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-rg-0.stdout",
+              "stderr_file": "raw/format-units-rg-0.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.136542,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 797,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "b36cabfff4cab4cbfa6c9a9b56834ea555dfe44466a3aa7a664ad99d9baa9803",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-rg-1.stdout",
+              "stderr_file": "raw/format-units-rg-1.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.223291,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 797,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c896313e7812354e4ea23bb2613b53d7a7520e6a204eec19af4d3fcd542e58aa",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-rg-2.stdout",
+              "stderr_file": "raw/format-units-rg-2.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.457459,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 797,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "86e38934f851effaf11fd7520c45bcdf3cbdfd7a11a3ab1642827608341377cc",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-rg-3.stdout",
+              "stderr_file": "raw/format-units-rg-3.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.055167,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 797,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "b5b03fe6704ca34b3f6f3d3b4a2726d3d1cc6e401d8b39e0cf5fde1ad1501220",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/format-units-rg-4.stdout",
+              "stderr_file": "raw/format-units-rg-4.stderr",
+              "target_paths_found": [
+                "web/format.js"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "web/format.js"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "rust-qualified-call",
+      "question": "Where is the qualified Rust price call?",
+      "query": "pricing::unit_price",
+      "target_paths": [
+        "rust/src/lib.rs"
+      ],
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 3.998791,
+            "median": 4.283459,
+            "max": 4.829833
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 10279,
+            "median": 10279,
+            "max": 10279
+          },
+          "observations": [
+            {
+              "wall_ms": 4.829833,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 10279,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "ea0a51f3731a44e767900ae68cd2e8cf4492b73ae5ba2167e2374ea1b50a1c56",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-knowledge-0.stdout",
+              "stderr_file": "raw/rust-qualified-call-knowledge-0.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/pricing.rs"
+              ],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 8,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.283459,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 10279,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "ea0a51f3731a44e767900ae68cd2e8cf4492b73ae5ba2167e2374ea1b50a1c56",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-knowledge-1.stdout",
+              "stderr_file": "raw/rust-qualified-call-knowledge-1.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/pricing.rs"
+              ],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 8,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.07925,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 10279,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "ea0a51f3731a44e767900ae68cd2e8cf4492b73ae5ba2167e2374ea1b50a1c56",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-knowledge-2.stdout",
+              "stderr_file": "raw/rust-qualified-call-knowledge-2.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/pricing.rs"
+              ],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 8,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.611666,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 10279,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "ea0a51f3731a44e767900ae68cd2e8cf4492b73ae5ba2167e2374ea1b50a1c56",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-knowledge-3.stdout",
+              "stderr_file": "raw/rust-qualified-call-knowledge-3.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/pricing.rs"
+              ],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 8,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 3.998791,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 10279,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "ea0a51f3731a44e767900ae68cd2e8cf4492b73ae5ba2167e2374ea1b50a1c56",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-knowledge-4.stdout",
+              "stderr_file": "raw/rust-qualified-call-knowledge-4.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/pricing.rs"
+              ],
+              "result_paths": [
+                "python/orders.py",
+                "python/pricing.py",
+                "rust/src/lib.rs",
+                "rust/src/pricing.rs"
+              ],
+              "result_count": 8,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.140709,
+            "median": 5.303917,
+            "max": 5.612417
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 816,
+            "median": 816,
+            "max": 817
+          },
+          "observations": [
+            {
+              "wall_ms": 5.381792,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 816,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "11cc49d8f24d799454a3a0435b89a79b1616fb5660bf7dc6e9bf1b4bef3e404b",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-rg-0.stdout",
+              "stderr_file": "raw/rust-qualified-call-rg-0.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "rust/src/lib.rs"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.612417,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 816,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f38a8a748e16d13a7a2f62112b0e1e94dbf3be81bb73e6ace856ee33547c5a5f",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-rg-1.stdout",
+              "stderr_file": "raw/rust-qualified-call-rg-1.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "rust/src/lib.rs"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.140709,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 816,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "931addcdafb6b9993b46254dbb9a911316b82645c8a74fec1fa602c4dadc530d",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-rg-2.stdout",
+              "stderr_file": "raw/rust-qualified-call-rg-2.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "rust/src/lib.rs"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.303917,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 817,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f43b968a81c9a7cfba360802225247021916c5d03d6a9f1de8e7423db8ae6fc9",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-rg-3.stdout",
+              "stderr_file": "raw/rust-qualified-call-rg-3.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "rust/src/lib.rs"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.365583,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 816,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "3eb4f384ead25a6c594055335180bfeb583339a4383c7b8077938d6fe40151eb",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/rust-qualified-call-rg-4.stdout",
+              "stderr_file": "raw/rust-qualified-call-rg-4.stderr",
+              "target_paths_found": [
+                "rust/src/lib.rs"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "rust/src/lib.rs"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "prose-literal",
+      "question": "Where is the no-model-key limitation stated?",
+      "query": "No model key",
+      "target_paths": [
+        "README.md"
+      ],
+      "direct_search_case": true,
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.036166,
+            "median": 4.30375,
+            "max": 4.689375
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 5724,
+            "median": 5724,
+            "max": 5724
+          },
+          "observations": [
+            {
+              "wall_ms": 4.036166,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5724,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a4b4280f10de78a9bda0be5985ee87b5fb6fecc307b75e46a6a4195f65fe8104",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-knowledge-0.stdout",
+              "stderr_file": "raw/prose-literal-knowledge-0.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.409041,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5724,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a4b4280f10de78a9bda0be5985ee87b5fb6fecc307b75e46a6a4195f65fe8104",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-knowledge-1.stdout",
+              "stderr_file": "raw/prose-literal-knowledge-1.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.201708,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5724,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a4b4280f10de78a9bda0be5985ee87b5fb6fecc307b75e46a6a4195f65fe8104",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-knowledge-2.stdout",
+              "stderr_file": "raw/prose-literal-knowledge-2.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.689375,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5724,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a4b4280f10de78a9bda0be5985ee87b5fb6fecc307b75e46a6a4195f65fe8104",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-knowledge-3.stdout",
+              "stderr_file": "raw/prose-literal-knowledge-3.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.30375,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5724,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a4b4280f10de78a9bda0be5985ee87b5fb6fecc307b75e46a6a4195f65fe8104",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-knowledge-4.stdout",
+              "stderr_file": "raw/prose-literal-knowledge-4.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.30025,
+            "median": 5.304334,
+            "max": 5.853916
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 833,
+            "median": 834,
+            "max": 834
+          },
+          "observations": [
+            {
+              "wall_ms": 5.304334,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 834,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "a1a21bd900f39931f01896f6a518a0f697a5630f4fe150860f2605812b7cc1c0",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-rg-0.stdout",
+              "stderr_file": "raw/prose-literal-rg-0.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.30025,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 833,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "5821551fdd81f070f612ea41c060f7d4b4cf85b72a5005c03d9da240b97f6b23",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-rg-1.stdout",
+              "stderr_file": "raw/prose-literal-rg-1.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.259625,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 834,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "5d185675cb4af816bf24054bfb1e7660596b3b735e87ff940beef626f79f56d7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-rg-2.stdout",
+              "stderr_file": "raw/prose-literal-rg-2.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.585625,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 833,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "dec4b997eecc2edeb819a520138eb5d4e89927262797989ea7a60864270f2587",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-rg-3.stdout",
+              "stderr_file": "raw/prose-literal-rg-3.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.853916,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 834,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "6ba803ffd2c4aa824a9a073ec403787d144fe606c03fec519e4ef4542defa854",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-literal-rg-4.stdout",
+              "stderr_file": "raw/prose-literal-rg-4.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "prose-preservation",
+      "question": "Where are preserved source bytes described?",
+      "query": "The source snapshot preserves the bytes",
+      "target_paths": [
+        "README.md"
+      ],
+      "direct_search_case": true,
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.308584,
+            "median": 4.590916,
+            "max": 6.238792
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 5901,
+            "median": 5901,
+            "max": 5901
+          },
+          "observations": [
+            {
+              "wall_ms": 4.590916,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5901,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c4bd9ed76e7e232453b6c1dd9cf975d32b2c0e975737f4305443b94195843e9b",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-knowledge-0.stdout",
+              "stderr_file": "raw/prose-preservation-knowledge-0.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 6.238792,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5901,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c4bd9ed76e7e232453b6c1dd9cf975d32b2c0e975737f4305443b94195843e9b",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-knowledge-1.stdout",
+              "stderr_file": "raw/prose-preservation-knowledge-1.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.82125,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5901,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c4bd9ed76e7e232453b6c1dd9cf975d32b2c0e975737f4305443b94195843e9b",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-knowledge-2.stdout",
+              "stderr_file": "raw/prose-preservation-knowledge-2.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.465417,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5901,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c4bd9ed76e7e232453b6c1dd9cf975d32b2c0e975737f4305443b94195843e9b",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-knowledge-3.stdout",
+              "stderr_file": "raw/prose-preservation-knowledge-3.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.308584,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 5901,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c4bd9ed76e7e232453b6c1dd9cf975d32b2c0e975737f4305443b94195843e9b",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-knowledge-4.stdout",
+              "stderr_file": "raw/prose-preservation-knowledge-4.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 3,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.049792,
+            "median": 5.526584,
+            "max": 5.654583
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 850,
+            "median": 851,
+            "max": 851
+          },
+          "observations": [
+            {
+              "wall_ms": 5.526584,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 851,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "040afdbee6efc9246abccaee060e007cb9d3833cd9942462528212ca262eeba2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-rg-0.stdout",
+              "stderr_file": "raw/prose-preservation-rg-0.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.483084,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 851,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "9ed48045a9b6adb2116cf0590af4ab9d7219362a90046584cbfed187505f77b4",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-rg-1.stdout",
+              "stderr_file": "raw/prose-preservation-rg-1.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.540708,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 851,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "f02d9534f0dd814b3662d225cb4910778f002300742d076219e766016d4a9d93",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-rg-2.stdout",
+              "stderr_file": "raw/prose-preservation-rg-2.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.049792,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 850,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "7ef294526df11724672eea23e64858f856a6b4876064f6e56ad17792ed472a43",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-rg-3.stdout",
+              "stderr_file": "raw/prose-preservation-rg-3.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.654583,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 851,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "1a60a0464850de0991b266a53af6c3d7fb4aca5439587eb1c1bee57fb01061b2",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/prose-preservation-rg-4.stdout",
+              "stderr_file": "raw/prose-preservation-rg-4.stderr",
+              "target_paths_found": [
+                "README.md"
+              ],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [
+                "README.md"
+              ],
+              "result_count": 1,
+              "target_path_coverage": 1.0,
+              "expected_no_matches_passed": null,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "absent-symbol",
+      "question": "Is a nonexistent billing scheduler present?",
+      "query": "nonexistent_billing_scheduler",
+      "target_paths": [],
+      "expected_no_matches": true,
+      "backends": {
+        "knowledge": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 3.878,
+            "median": 4.032084,
+            "max": 4.174917
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 134,
+            "median": 134,
+            "max": 134
+          },
+          "observations": [
+            {
+              "wall_ms": 3.971333,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 134,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "cdc2bb49030f6aa60aafbfa9190118bd28857fa077cda2c8a7bb10af5aa3d8cb",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-knowledge-0.stdout",
+              "stderr_file": "raw/absent-symbol-knowledge-0.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.174917,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 134,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "cdc2bb49030f6aa60aafbfa9190118bd28857fa077cda2c8a7bb10af5aa3d8cb",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-knowledge-1.stdout",
+              "stderr_file": "raw/absent-symbol-knowledge-1.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.03225,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 134,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "cdc2bb49030f6aa60aafbfa9190118bd28857fa077cda2c8a7bb10af5aa3d8cb",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-knowledge-2.stdout",
+              "stderr_file": "raw/absent-symbol-knowledge-2.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.032084,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 134,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "cdc2bb49030f6aa60aafbfa9190118bd28857fa077cda2c8a7bb10af5aa3d8cb",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-knowledge-3.stdout",
+              "stderr_file": "raw/absent-symbol-knowledge-3.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 3.878,
+              "returncode": 0,
+              "process_ok": true,
+              "stdout_utf8_bytes": 134,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "cdc2bb49030f6aa60aafbfa9190118bd28857fa077cda2c8a7bb10af5aa3d8cb",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-knowledge-4.stdout",
+              "stderr_file": "raw/absent-symbol-knowledge-4.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            }
+          ]
+        },
+        "rg": {
+          "wall_ms": {
+            "runs": 5,
+            "min": 4.090292,
+            "median": 5.200083,
+            "max": 5.367458
+          },
+          "stdout_utf8_bytes": {
+            "runs": 5,
+            "min": 263,
+            "median": 263,
+            "max": 263
+          },
+          "observations": [
+            {
+              "wall_ms": 5.299084,
+              "returncode": 1,
+              "process_ok": true,
+              "stdout_utf8_bytes": 263,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "d6492f1357009507ebfc19b2663f36d7dab2c690433db20b44ab523b25adb65d",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-rg-0.stdout",
+              "stderr_file": "raw/absent-symbol-rg-0.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.367458,
+              "returncode": 1,
+              "process_ok": true,
+              "stdout_utf8_bytes": 263,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "c4acac79fd424bce9bf6822c5748c4cf30bf1209708117b2193c94601a61c1de",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-rg-1.stdout",
+              "stderr_file": "raw/absent-symbol-rg-1.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.142541,
+              "returncode": 1,
+              "process_ok": true,
+              "stdout_utf8_bytes": 263,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "214a470b1a818d5c5407754bfb47b3961aabf44c44459d7794399129e667fb11",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-rg-2.stdout",
+              "stderr_file": "raw/absent-symbol-rg-2.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 5.200083,
+              "returncode": 1,
+              "process_ok": true,
+              "stdout_utf8_bytes": 263,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "070dba6dee62aecaec6080be5f4055dc109109467679ff729384800d5491426d",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-rg-3.stdout",
+              "stderr_file": "raw/absent-symbol-rg-3.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            },
+            {
+              "wall_ms": 4.090292,
+              "returncode": 1,
+              "process_ok": true,
+              "stdout_utf8_bytes": 263,
+              "stderr_utf8_bytes": 0,
+              "stdout_sha256": "88b9579d5b0702015715435a86e81151b34d762c96749438a558e74575fe9598",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_file": "raw/absent-symbol-rg-4.stdout",
+              "stderr_file": "raw/absent-symbol-rg-4.stderr",
+              "target_paths_found": [],
+              "missing_target_paths": [],
+              "additional_paths": [],
+              "result_paths": [],
+              "result_count": 0,
+              "target_path_coverage": null,
+              "expected_no_matches_passed": true,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "direct_search_wins": [],
+  "acceptance": {
+    "total_runs": 80,
+    "accepted_runs": 80,
+    "failures": [],
+    "snapshot_equivalence": true
+  },
+  "reproduce": "python3 scripts/benchmark-knowledge.py --binary agent-os/target/release/covenant-compute --source examples/knowledge --out docs/evidence/knowledge/benchmark-new-run --runs 5 --compile-runs 3"
+}

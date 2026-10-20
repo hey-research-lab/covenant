@@ -73,7 +73,7 @@ export default function ComputeKnowledgePage() {
             <h2 id="local-title" className={display.className}>One snapshot.<br />A shared view.</h2>
             <p className={styles.copy}>Compile once, then inspect the same saved source through the CLI, a browser viewer or a read-only MCP connection. Historical queries stay attached to the snapshot you select.</p>
             <p className={styles.small}>Build from the preview source in a complete Covenant checkout. The compile command returns your project ID; the viewer prints its private loopback URL.</p>
-          <p className={styles.small}><a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/compute-knowledge.md">Read the source guide ↗</a><br /><span>Preview branch link; available after source publication.</span></p>
+          <p className={styles.small}><a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/compute-knowledge.md">Read the source guide ↗</a><br /><span>Preview branch documentation.</span></p>
           </div>
           <div className={styles.terminal}>
             <div className={styles.terminalBar}><span>LOCAL WORKFLOW</span><span>CLI PREVIEW</span></div>
@@ -115,7 +115,11 @@ covenant-compute knowledge mcp --project <id>`}</code></pre>
             <p className={styles.eyebrow}>Built into Compute</p>
             <h2 id="availability-title" className={display.className}>Local first.<br />Remote is the next gate.</h2>
             <p className={styles.copy}>The preview includes a remote compilation path for a pinned public GitHub revision. A remote result must pass receipt and snapshot verification before local import.</p>
-            <p className={styles.small}><a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/evidence/knowledge/benchmark-2026-10-20/report.md">Read the local measurement report ↗</a><br />Preview branch link; source publication pending. Direct search was faster and smaller on the measured fixture.</p>
+            <p className={styles.small}>
+              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/evidence/knowledge/benchmark-release-2026-10-20/report.md">Optimized preview measurements ↗</a><br />
+              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/evidence/knowledge/benchmark-2026-10-20/report.md">Earlier debug measurements ↗</a><br />
+              Both runs used the same small fixture. Direct search returned fewer bytes in all seven matching cases. Knowledge had lower median command latency in the optimized run; direct search was faster in the debug run. The optimized run overlapped regression tests. These measurements establish neither production performance nor token savings. Preview branch documentation.
+            </p>
             <p className={styles.small}>The remote compiler is not deployed or accepted through a funded production run. No remote service, pricing, performance or token savings is being announced here.</p>
           </div>
           <dl className={styles.statusList}>

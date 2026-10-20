@@ -81,8 +81,8 @@ Optional development update while the gate remains closed: “We’re testing re
 | Local viewer | `knowledge_viewer.rs`, viewer assets, browser QA | Loopback/token/auth/error/size tests and responsive QA | Local read-only viewer; not a hosted team workspace |
 | Remote candidate | `knowledge_remote.rs`, protocol/node knowledge modules | Source matching, cap/budget, receipt, tamper/container failure tests | “remote implementation preview”; no availability claim |
 | Container isolation | Node runner and `deploy/knowledge-compiler` | Runtime args + cleanup tests; actual image gate separate | Candidate runner restrictions; no TEE claim |
-| Local measurements | [local report](evidence/knowledge/benchmark-2026-10-20/report.md) and raw results | Raw repeated results + reproducible commands | Only measured fixture numbers with corpus/machine caveat |
-| Packaged/released | No published artifact in this task | Signed/checksummed release and fresh install | **Not released** |
+| Local measurements | [initial unoptimized report](evidence/knowledge/benchmark-2026-10-20/report.md), [optimized preview](evidence/knowledge/benchmark-release-2026-10-20/report.md) and raw results | Raw repeated results + reproducible commands | Only measured fixture numbers with corpus/build/load caveats |
+| Packaged/released | [Unsigned Apple Silicon preview and extracted-package checks](evidence/knowledge/package-release-preview-2026-10-20.json); no published release | Signed/checksummed public release and fresh install | **Local candidate only; not publicly released** |
 | Deployed/paid accepted | No deployment or funded acceptance in this task | Explicit user authorization + independent receipt evidence | **Not deployed / not funded acceptance** |
 | Token/cost savings, comparative superiority | No controlled experiment | Matched task quality and token/cost experiment | **Do not claim** |
 | Private/team remote access | No shared daemon knowledge-query authorization adapter | Threat model and project authorization acceptance | **Follow-up scope** |

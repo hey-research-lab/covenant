@@ -1,0 +1,8 @@
+{
+  "passed": 1236,
+  "failed": 0,
+  "ignored": 40,
+  "test_binaries": 26,
+  "source_revision": "fa8c47153c859fac092ab7397b32d61937e0efcf",
+  "command": "cargo test --locked -p covenant-knowledge -p covenant-compute-protocol -p covenant-compute-node -p covenant-compute-buyer --lib --tests --quiet"
+}

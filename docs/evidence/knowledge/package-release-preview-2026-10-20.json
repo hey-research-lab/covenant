@@ -1,0 +1,53 @@
+{
+  "status": "unsigned_local_preview",
+  "source_revision": "fa8c47153c859fac092ab7397b32d61937e0efcf",
+  "target": "aarch64-apple-darwin",
+  "profile": "release; strip=symbols",
+  "binary_sha256": "636e02fe8ffca61c2ce417fec91c45dac5c412f7f34abcc5af78e97fa0d50f36",
+  "public_release": false,
+  "funded_acceptance": false,
+  "real_oci_acceptance": false,
+  "archive_sha256": "2f97419ac25f0b5b57b67cf3e5eddfd45f9de6d7ab02f719b866d4fe289e821b",
+  "archive_bytes": 6586752,
+  "smoke": {
+    "result": "pass",
+    "mode": "unpacked-package",
+    "buyer_version": "covenant-compute 0.4.1",
+    "binary_sha256": "636e02fe8ffca61c2ce417fec91c45dac5c412f7f34abcc5af78e97fa0d50f36",
+    "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+    "example_files": 9,
+    "verified_citations": 18,
+    "license_files": [
+      "tree-sitter-0.25.10-LICENSE.txt",
+      "tree-sitter-rust-0.24.2-LICENSE.txt",
+      "tree-sitter-javascript-0.25.0-LICENSE.txt",
+      "tree-sitter-typescript-0.23.2-LICENSE.txt",
+      "tree-sitter-python-0.25.0-LICENSE.txt",
+      "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+      "OFL-Archivo.txt",
+      "OFL-JetBrainsMono.txt"
+    ],
+    "checks": [
+      "packaged-licenses",
+      "original-example-files",
+      "offline-help",
+      "offline-compile",
+      "status",
+      "multi-language-search",
+      "exact-source-citations",
+      "show",
+      "snapshot-verification",
+      "incremental-cache",
+      "mcp-initialize",
+      "mcp-notifications",
+      "mcp-six-read-only-tools",
+      "mcp-all-six-reads",
+      "mcp-citations",
+      "mcp-no-mutation",
+      "mcp-project-boundary",
+      "source-unchanged",
+      "no-buyer-identity"
+    ],
+    "scope": "Offline local artifact checks. No source execution, purchase, release or deployment."
+  }
+}

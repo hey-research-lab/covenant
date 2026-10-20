@@ -7,9 +7,11 @@ acceptance records or authorize spending, deployment, release publication, or po
 
 ## Local results
 
-The following command completed with **1,230 passed, zero failed, 40 ignored**
-across 25 test binaries. Ignored environment-dependent tests were not accepted
+The following command completed with **1,236 passed, zero failed, 40 ignored**
+across 26 test binaries. Ignored environment-dependent tests were not accepted
 as evidence; no real OCI runtime or funded job was exercised.
+The [machine-readable result](evidence/knowledge/validation-2026-10-20.json)
+records tested source `fa8c47153c859fac092ab7397b32d61937e0efcf`.
 
 ```sh
 cd agent-os
@@ -18,7 +20,7 @@ CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \
   -p covenant-compute-node -p covenant-compute-buyer --lib --tests --quiet
 ```
 
-The core suite includes 19 original tests for all supported language families,
+The core suite includes 22 original extraction/lifecycle tests and three concurrency tests for all supported language families,
 exact captured source spans, dirty and committed revisions, exclusions,
 symlinks and invalid paths, malformed syntax, ambiguous calls, multiple imports,
 Markdown sections, incremental/full equivalence, deletion/rename history,
@@ -53,8 +55,10 @@ not a production payment, a GitHub visibility attestation or a real OCI run.
 - [Reproducible retrieval measurements](evidence/knowledge/benchmark-2026-10-20/report.md)
   retain raw commands, stdout, timings, corpus and executable hashes. All 80
   retrieval runs completed as expected. On this nine-file, 1,813-byte fixture,
-  direct `rg` search was faster and returned fewer bytes for every matching
-  question. No speed, token savings or LLM answer-quality claim is supported.
+  direct `rg` search was faster and smaller in the initial unoptimized run.
+  The [optimized preview run](evidence/knowledge/benchmark-release-2026-10-20/report.md)
+  had lower Knowledge command latency while direct search still returned fewer
+  bytes in every matching case; background test load was not isolated. No speed, token savings or LLM answer-quality claim is supported.
 - [Behavioral research](compute-knowledge-research.md) distinguishes observed
   behavior of the pinned reference application from Covenant's original tests.
 
@@ -63,7 +67,7 @@ not a production payment, a GitHub visibility attestation or a real OCI run.
 | Gate | Status |
 |---|---|
 | Local compiler and interfaces | Implemented; relevant suites and responsive viewer checks passed |
-| Local package candidate | Offline package smoke is required; see package acceptance output |
+| Local package candidate | Optimized, unsigned Apple Silicon archive built; [19 extracted-package checks passed](evidence/knowledge/package-release-preview-2026-10-20.json), including 18 exact citations and all six MCP reads |
 | Signed public macOS/Linux release | Not published; existing release workflow remains the publishing path |
 | Actual OCI compiler image | Docker is unavailable in this environment; image execution unverified |
 | Public operator and routing rollout | Not deployed |

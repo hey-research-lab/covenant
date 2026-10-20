@@ -1,8 +1,10 @@
 # Hatcher GPU smoke deployment
 
-Prepared 2026-10-18. This is a deployment and verification checklist, not evidence
-of a completed deployment or GPU run. No paid smoke test has been performed.
-Keep Hatcher's dispatch queue paused until Covenant explicitly confirms readiness.
+Historical preparation snapshot, written 2026-10-18. Service versions and rollout
+steps below describe the original preparation, not current production state.
+For the subsequent lost-response incident and automatic recovery rollout, see
+[Hatcher automatic recovery](hatcher-automatic-recovery.md). Keep the dispatch
+queue paused unless a new paid run is explicitly authorized.
 
 ## Services and source
 

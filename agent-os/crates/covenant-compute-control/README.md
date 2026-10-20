@@ -119,6 +119,7 @@ Configured tokens are hashed in memory and are never written to SQLite or logs.
 | `GET /v1/jobs` | This owner's jobs, newest first, capped at 100. |
 | `GET /v1/jobs/{id}` | One job, refreshed against the provider. |
 | `DELETE /v1/jobs/{id}` | Cancel and settle. |
+| `DELETE /v1/jobs/by-key/{key}` | Seal this owner's launch key and cancel its job, including when the launch response was lost. |
 
 `{id}` is the UUID returned by the launch. Anything else is refused with
 `invalid_job_id`, and a job belonging to another owner is `job_not_found`.
@@ -186,15 +187,41 @@ The response is the job:
 
 A launch that reaches the provider answers `provisioning`, then moves through
 `running` and `stopping` to `completed`, `cancelled`, or `failed`. `funding`
-means the reservation is held and the provider has not been reached yet: a
-client sees it on `GET /v1/jobs` after a launch answered `provider_unavailable`,
-until the next reconciliation pass retries the allocation. `access_url` carries
+means the reservation is held but allocation has not been confirmed. After
+durable preparation, a provider error returns the stored job and its ID rather
+than losing that identity in an error response. Allocation may already exist;
+the next reconciliation pass resolves it. `access_url` carries
 the workspace credential and is returned only by the response that obtained it;
 it is never stored and never appears in `GET /v1/jobs`.
 
 The `Idempotency-Key` header is mandatory. Repeating a key with the same plan
 returns the same job; repeating it with a different plan is refused with
 `idempotency_conflict`, whether or not the original offer still exists.
+
+### Cancelling an uncertain launch
+
+Use `DELETE /v1/jobs/by-key/{key}` with the original `Idempotency-Key` and the
+same bearer credential. This operation never creates a booking. It atomically
+seals the owner's key against future submissions and requests cancellation of
+any existing job. A delayed launch request that was still validating offers
+cannot prepare a job after that seal commits.
+
+The response is `{"idempotency_key":"...","job":null,"cancellation_recorded":true}`
+when no booking exists. Clients must validate the exact echoed key and the true
+seal flag before resolving their unknown launch. A non-null `job` has the usual
+job schema; it can remain `stopping` while provider cleanup is unavailable.
+Repeat the DELETE or poll the known job until its terminal receipt is present.
+Timeouts and malformed or unsuccessful responses do not establish cleanup.
+
+Seals persist across restarts and are scoped to the authenticated owner. They
+do not reserve or restore spend, and clients must retain their consumed launch
+count. POST with a sealed key returns `409 idempotency_key_cancelled`.
+
+A definitive provider rejection has a durable zero-charge, full-refund receipt
+identified as `provider: "control-plane"`. It records the customer's reservation
+settlement, not a provider invoice. Cancellation also fills a missing receipt
+on legacy records already settled at zero for `provider_rejected`, only when
+there is no provider allocation reference or running timestamp.
 
 ### Errors
 
@@ -210,7 +237,7 @@ Every error, including 404 and 405, uses one envelope:
 | 401 | `unauthorized` |
 | 404 | `job_not_found`, `unknown_route` |
 | 405 | `method_not_allowed` |
-| 409 | `stale_offer`, `idempotency_conflict`, `spend_cap_exceeded`, `spend_cap_below_commitments` |
+| 409 | `stale_offer`, `idempotency_conflict`, `idempotency_key_cancelled`, `spend_cap_exceeded`, `spend_cap_below_commitments` |
 | 422 | `unknown_app`, `invalid_launch_plan`, `app_unavailable`, `invalid_duration`, `offer_offline`, `insufficient_gpu_memory`, `insufficient_trust`, `invalid_offer_rate`, `invalid_maximum_usdc_micros` |
 | 500 | `internal_error` |
 | 503 | `provider_unavailable` |

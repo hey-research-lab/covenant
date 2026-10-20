@@ -49,6 +49,15 @@ an hourly-rate string of `0.058000`. This is a catalog component observed at
 that read, not an all-in invoice cap, a permanent quote or spending approval.
 The earlier signed-in total estimate must not be replaced with this component.
 
+The [memory diagnostic](compute-memory-diagnostic-evidence.md) records the
+subsequent tested image and exact update of that same CVM. On 2026-10-20,
+the new workload passed fresh Intel TDX verification and attested SSH checks:
+128-MiB `noswap` workspace tmpfs, empty guest swap, zero cgroup swap allowance
+and usage, and disabled core dumps. A synthetic 1-MiB file was created, read
+and removed inside the guest. Docker CI separately passed real SSH transfer,
+capacity, restart-erasure and swap-watchdog negatives. These observations do
+not qualify KMS policy, paid lifecycle integration or a production release.
+
 ## Remaining production gates
 
 1. **KMS and administrative policy: production qualification rejected.**
@@ -63,15 +72,13 @@ The earlier signed-in total estimate must not be replaced with this component.
    Accepting the current managed-policy threat model can authorize only a
    finite synthetic pilot at `Open`; it is not an alternative production-trust
    qualification and cannot establish persistent-secret exclusivity.
-2. **Current guest image and release qualification.** Build and qualify a new
-   digest-pinned guest image containing the typed transport binding and the
-   memory/swap controls below. The historical diagnostic image is not this
-   candidate. Retain exact source, image provenance, real SSH/SFTP container
-   smoke and current suite results, then verify the actual mounts, cgroups,
-   guest swap and core-dump behavior on the existing diagnostic CVM.
-   Updated-image and live swap verification remain pending; no new resource
-   has been created for that check. Earlier hardware evidence does not
-   qualify a newly built image automatically.
+2. **Production release qualification.** The new digest-pinned diagnostic
+   image passed real SSH/SFTP container smoke and live mounts/cgroup/swap/core
+   checks on the existing CVM. Its source, registry bytes and runtime evidence
+   are retained in the memory diagnostic record. This is not a production
+   promotion, signed release provenance or acceptance of another image.
+   Complete the release review against the ultimately accepted KMS/profile
+   and paid lifecycle evidence before publishing production capacity.
 3. **Bounded paid lifecycle acceptance.** Approve separate native Compute USDC
    and provider USD exposure, exact placement, one new resource, finite
    lifetime and cleanup ownership. Exercise the integrated lease, evidence,
@@ -89,7 +96,7 @@ privileged pre-launch behavior and the reviewed wrapper's other settings still
 belong in the policy decision. Application isolation checks do not prove
 provider-independent custody of persistent secrets.
 
-## Candidate guest memory controls
+## Guest memory controls
 
 The current source hardening makes the SSH workspace a 128-MiB `tmpfs` with
 `noswap`, rather than a persistent workspace volume. SSH `/run` and `/tmp`
@@ -112,10 +119,9 @@ Unsupported runtime controls fail closed.
 The signed app-compose wrapper explicitly contains **`"swap_size": "0"`**.
 Omission, numeric zero or another value is rejected. The node compares the
 provider's normalized Compose hash to the exact buyer-signed workload before
-creation; it cannot silently accept changed swap settings. These controls
-are under implementation/qualification and are not yet a claim about the
-updated live image. They depend on the measured guest and do not resolve the
-separate KMS production rejection.
+creation; it cannot silently accept changed swap settings. The live diagnostic
+confirmed this exact wrapper hash and the actual runtime controls. They depend
+on the measured guest and do not resolve the separate KMS production rejection.
 
 ## Review record before one live attempt
 
@@ -191,10 +197,13 @@ inventory guard, workspace formatting, full repository guard scripts and
 documentation link/diff checks passed. Clippy passed with warnings denied for
 all targets in the five affected crates, including both executable entry paths.
 The earlier source head passed Rust, landing and guest-image CI. Native
-platform release builds failed on a version mismatch; the 0.5 version alignment
-is being corrected. Those earlier results do not qualify the current guest
-memory changes. Current-head checks, updated-image qualification and live
-swap verification remain pending; no full workspace test-suite success or
-new image qualification is claimed.
+packaging is now consistently version 0.5.0; no release tag was created.
+At source `232bf28755387a4cbf803a53b02fc0880e0eb7c7`, all 47 Python tests
+passed without skips, focused protocol tests and repository guards passed,
+and both image workflows passed the actual Docker smoke. Registry
+manifest/config bytes and labels were independently checked before the
+same image's live memory/swap diagnostic. Rust CI, landing CI and all four
+native platform builds also passed at that source; the memory diagnostic
+record links those runs. These results do not establish paid acceptance.
 No paid integrated lease, customer-data transfer, production trust promotion
 or provider-deletion acceptance has run for this change.

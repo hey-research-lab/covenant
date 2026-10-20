@@ -6,12 +6,13 @@ only `phala-cpu-dstack061`, a CPU lease profile. The compiled trust ceiling is
 **`Open`**. New managed-KMS creation is disabled by default and remains disabled
 pending the [acceptance decision](compute-hardware-acceptance.md).
 
-This is the implementation and operating contract, not a live release record.
-A new guest image must be built and qualified for the typed transport schema
-and the memory/swap controls below. Updated-image and live swap verification
-on the existing diagnostic CVM remain pending; this check creates no new resource.
-The earlier [real CPU diagnostic](compute-hardware-diagnostic-evidence.md) does
-not establish acceptance of this integrated paid flow.
+This is the implementation and operating contract. The updated guest image
+passed real Docker SSH/storage tests and a fresh TDX-bound memory/swap check on
+the existing diagnostic CVM on 2026-10-20; see the
+[memory diagnostic record](compute-memory-diagnostic-evidence.md).
+No new resource was created. Neither that check nor the earlier
+[CPU diagnostic](compute-hardware-diagnostic-evidence.md) establishes acceptance
+of the integrated paid flow or a production attested-rental release.
 
 ## Signed lifetime and workload
 
@@ -39,7 +40,7 @@ instance port `18090`, mapped to container port `8090`; native dstack reserves
 host port `8090`. TLS gateway identity and the guest's SSH host key are separate
 checks, and both are bound into the hardware scope.
 
-## Candidate guest memory and runtime checks
+## Guest memory and runtime checks
 
 The current source uses a 128-MiB `noswap` tmpfs for `/workspace`. SSH `/run`
 and `/tmp` use 8-MiB and 16-MiB `noswap` tmpfs mounts. A new
@@ -61,8 +62,10 @@ continues checking, publishes short-lived status bound to the lease and public
 key, and stops SSH while invalidating status on failure. The collector checks
 its own controls and that status before and after guest information RPCs and
 quote collection. Thus a blocking RPC cannot reuse an earlier safe status
-after SSH has stopped. These are candidate controls pending image/runtime
-qualification, not proof of provider-independent memory or secret custody.
+after SSH has stopped. The diagnostic verified the actual SSH-side kernel
+controls and collected a quote through the guarded collector. This establishes
+the recorded runtime behavior; it does not establish provider-independent
+memory or secret custody.
 
 ## Operator configuration
 

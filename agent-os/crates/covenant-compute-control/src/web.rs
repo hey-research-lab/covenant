@@ -8,7 +8,7 @@ use axum::extract::{DefaultBodyLimit, FromRequestParts, Path, State};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{delete, get};
 use axum::{Json, Router};
 use covenant_compute::{ComputeApp, ComputeJob, ComputeOffer, LaunchPlan};
 use serde::Serialize;
@@ -16,7 +16,7 @@ use tower::limit::GlobalConcurrencyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 
 use crate::auth::{AuthError, AuthRegistry, Principal};
-use crate::service::{ControlPlane, ServiceError};
+use crate::service::{CancellationByKey, ControlPlane, ServiceError};
 use crate::store::StoreError;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -35,6 +35,7 @@ pub fn router(auth: Arc<AuthRegistry>, control: ControlPlane) -> Router {
         .route("/v1/apps", get(apps))
         .route("/v1/offers", get(offers))
         .route("/v1/jobs", get(jobs).post(create_job))
+        .route("/v1/jobs/by-key/:key", delete(cancel_job_by_key))
         .route("/v1/jobs/:id", get(job).delete(cancel_job))
         .fallback(unknown_route)
         .method_not_allowed_fallback(unsupported_method)
@@ -110,6 +111,14 @@ async fn cancel_job(
     Path(id): Path<String>,
 ) -> Result<Json<ComputeJob>, ApiError> {
     Ok(Json(state.control.cancel(&principal, &id).await?))
+}
+
+async fn cancel_job_by_key(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(key): Path<String>,
+) -> Result<Json<CancellationByKey>, ApiError> {
+    Ok(Json(state.control.cancel_by_key(&principal, &key).await?))
 }
 
 #[async_trait]
@@ -271,6 +280,11 @@ impl IntoResponse for ApiError {
                 StatusCode::CONFLICT,
                 "idempotency_conflict",
                 "Idempotency-Key identifies a different launch".into(),
+            ),
+            Self::Service(ServiceError::Store(StoreError::IdempotencyKeyCancelled)) => (
+                StatusCode::CONFLICT,
+                "idempotency_key_cancelled",
+                "Idempotency-Key was permanently cancelled".into(),
             ),
             Self::Service(ServiceError::Store(StoreError::SpendCapExceeded)) => (
                 StatusCode::CONFLICT,

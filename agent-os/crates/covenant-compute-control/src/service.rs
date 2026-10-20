@@ -7,6 +7,7 @@ use covenant_compute::{
     MIN_DURATION_SECS,
 };
 use futures::{stream, StreamExt};
+use serde::Serialize;
 use thiserror::Error;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -25,6 +26,13 @@ pub struct RecoveryReport {
     pub reconciled: usize,
     pub deferred: usize,
     pub released: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CancellationByKey {
+    pub idempotency_key: String,
+    pub job: Option<ComputeJob>,
+    pub cancellation_recorded: bool,
 }
 
 #[derive(Clone)]
@@ -96,16 +104,26 @@ impl ControlPlane {
         if job.is_terminal() {
             return Ok(job.wire());
         }
-        if job.is_cancel_requested() {
-            return self.cancel_coordinated(job).await;
+        let owner = job.owner.clone();
+        let id = job.id.clone();
+        let result = if job.is_cancel_requested() {
+            self.cancel_coordinated(job).await
+        } else if job.is_prepared() {
+            self.launch_provider(job).await
+        } else if disposition == SubmitDisposition::Replay {
+            self.refresh(job).await
+        } else {
+            Ok(job.wire())
+        };
+        match result {
+            // Once preparation is durable, the caller must retain the job ID
+            // even when the provider's launch outcome cannot be determined.
+            Err(ServiceError::Provider(error)) => {
+                tracing::warn!(job_id = %id, %error, "submitted job awaits provider reconciliation");
+                Ok(self.store.job(&owner, &id).await?.wire())
+            }
+            other => other,
         }
-        if job.is_prepared() {
-            return self.launch_provider(job).await;
-        }
-        if disposition == SubmitDisposition::Replay {
-            return self.refresh(job).await;
-        }
-        Ok(job.wire())
     }
 
     pub async fn jobs(&self, principal: &Principal) -> Result<Vec<ComputeJob>, ServiceError> {
@@ -139,6 +157,39 @@ impl ControlPlane {
         }
         tracing::info!(job_id = %job.id, "compute job cancellation requested");
         self.cancel_coordinated(job).await
+    }
+
+    pub async fn cancel_by_key(
+        &self,
+        principal: &Principal,
+        idempotency_key: &str,
+    ) -> Result<CancellationByKey, ServiceError> {
+        validate_idempotency_key(idempotency_key)?;
+        let stored = self
+            .store
+            .request_cancel_by_key(&principal.id, idempotency_key, now_ms()?)
+            .await?;
+        let job = match stored {
+            None => None,
+            Some(job) if job.is_terminal() => Some(job.wire()),
+            Some(job) => {
+                let id = job.id.clone();
+                tracing::info!(job_id = %id, "compute job cancellation recorded by launch key");
+                match self.cancel_coordinated(job).await {
+                    Ok(job) => Some(job),
+                    Err(ServiceError::Provider(error)) => {
+                        tracing::warn!(job_id = %id, %error, "cancelled launch awaits provider cleanup");
+                        Some(self.store.job(&principal.id, &id).await?.wire())
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        };
+        Ok(CancellationByKey {
+            idempotency_key: idempotency_key.to_owned(),
+            job,
+            cancellation_recorded: true,
+        })
     }
 
     pub async fn recover(&self) -> Result<RecoveryReport, ServiceError> {

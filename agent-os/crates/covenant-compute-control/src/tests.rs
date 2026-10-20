@@ -27,6 +27,8 @@ struct FakeProvider {
     launch_available: AtomicBool,
     launch_rejected: AtomicBool,
     launch_provisioning: AtomicBool,
+    lose_next_launch_response: AtomicBool,
+    block_next_offers: AtomicBool,
     block_next_launch: AtomicBool,
     block_next_poll: AtomicBool,
     allocations: AtomicUsize,
@@ -34,6 +36,8 @@ struct FakeProvider {
     cancellations: AtomicUsize,
     launch_entered: Notify,
     launch_release: Notify,
+    offers_entered: Notify,
+    offers_release: Notify,
     poll_entered: Notify,
     poll_release: Notify,
     jobs: Mutex<HashMap<String, (LaunchPlan, ProviderJob)>>,
@@ -49,6 +53,8 @@ impl FakeProvider {
             launch_available: AtomicBool::new(true),
             launch_rejected: AtomicBool::new(false),
             launch_provisioning: AtomicBool::new(false),
+            lose_next_launch_response: AtomicBool::new(false),
+            block_next_offers: AtomicBool::new(false),
             block_next_launch: AtomicBool::new(false),
             block_next_poll: AtomicBool::new(false),
             allocations: AtomicUsize::new(0),
@@ -56,6 +62,8 @@ impl FakeProvider {
             cancellations: AtomicUsize::new(0),
             launch_entered: Notify::new(),
             launch_release: Notify::new(),
+            offers_entered: Notify::new(),
+            offers_release: Notify::new(),
             poll_entered: Notify::new(),
             poll_release: Notify::new(),
             jobs: Mutex::new(HashMap::new()),
@@ -115,6 +123,10 @@ impl FakeProvider {
 #[async_trait]
 impl ProviderBackend for FakeProvider {
     async fn offers(&self) -> Result<Vec<ComputeOffer>, ProviderError> {
+        if self.block_next_offers.swap(false, Ordering::SeqCst) {
+            self.offers_entered.notify_one();
+            self.offers_release.notified().await;
+        }
         if !self.available.load(Ordering::SeqCst) {
             return Err(ProviderError::Unavailable);
         }
@@ -164,6 +176,9 @@ impl ProviderBackend for FakeProvider {
             .insert(provider_id, (request.plan, job.clone()));
         self.allocations.fetch_add(1, Ordering::SeqCst);
         self.active_allocations.fetch_add(1, Ordering::SeqCst);
+        if self.lose_next_launch_response.swap(false, Ordering::SeqCst) {
+            return Err(ProviderError::Unavailable);
+        }
         Ok(job)
     }
 
@@ -361,11 +376,12 @@ async fn restart_recovers_prepared_launch_without_a_second_allocation() {
     let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
 
     provider.set_launch_available(false);
-    let error = control
+    let pending = control
         .submit(&owner, "restart-key", plan(1_800))
         .await
-        .unwrap_err();
-    assert!(matches!(error, ServiceError::Provider(_)));
+        .unwrap();
+    assert_eq!(pending.status, JobStatus::Funding);
+    assert!(pending.receipt.is_none());
 
     provider.set_launch_available(true);
     let restarted = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
@@ -378,6 +394,7 @@ async fn restart_recovers_prepared_launch_without_a_second_allocation() {
         .await
         .unwrap();
     assert_eq!(replay.status, JobStatus::Running);
+    assert_eq!(pending.id, replay.id);
     assert_eq!(provider.allocations.load(Ordering::SeqCst), 1);
 }
 
@@ -1573,4 +1590,360 @@ async fn a_reused_key_conflicts_even_after_the_offer_rotates() {
         error,
         ServiceError::Store(StoreError::IdempotencyConflict)
     ));
+}
+
+#[tokio::test]
+async fn absent_key_cancellation_seals_a_failed_preflight_across_restart_without_spend() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    provider.set_available(false);
+    let owner = principal("owner-a", 1_000_000);
+    let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    assert!(matches!(
+        control.submit(&owner, "preflight", plan(300)).await,
+        Err(ServiceError::Provider(ProviderError::Unavailable))
+    ));
+    let sealed = control.cancel_by_key(&owner, "preflight").await.unwrap();
+    assert_eq!(sealed.idempotency_key, "preflight");
+    assert!(sealed.cancellation_recorded);
+    assert!(sealed.job.is_none());
+    assert_eq!(provider.cancellations.load(Ordering::SeqCst), 0);
+
+    let restarted = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    assert!(restarted
+        .cancel_by_key(&owner, "preflight")
+        .await
+        .unwrap()
+        .job
+        .is_none());
+    assert!(matches!(
+        restarted.submit(&owner, "preflight", plan(300)).await,
+        Err(ServiceError::Store(StoreError::IdempotencyKeyCancelled))
+    ));
+    let db = rusqlite::Connection::open(temp.path().join("control.sqlite3")).unwrap();
+    for table in ["jobs", "quotes", "launch_authorizations", "spend_accounts"] {
+        let count: u64 = db
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "sealing must not consume {table}");
+    }
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn cancellation_while_offers_are_awaiting_blocks_the_delayed_prepare() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    provider.block_next_offers.store(true, Ordering::SeqCst);
+    let owner = principal("owner-a", 1_000_000);
+    let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let submit = tokio::spawn({
+        let control = control.clone();
+        let owner = owner.clone();
+        async move { control.submit(&owner, "late-prepare", plan(300)).await }
+    });
+    tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        provider.offers_entered.notified(),
+    )
+    .await
+    .unwrap();
+    let cancellation = control.cancel_by_key(&owner, "late-prepare").await.unwrap();
+    assert!(cancellation.job.is_none());
+    provider.offers_release.notify_one();
+    assert!(matches!(
+        submit.await.unwrap(),
+        Err(ServiceError::Store(StoreError::IdempotencyKeyCancelled))
+    ));
+    assert!(control.jobs(&owner).await.unwrap().is_empty());
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn lost_provider_launch_response_keeps_job_id_and_key_cleanup_recovers_the_allocation() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    provider
+        .lose_next_launch_response
+        .store(true, Ordering::SeqCst);
+    let owner = principal("owner-a", 1_000_000);
+    let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let pending = control
+        .submit(&owner, "lost-response", plan(300))
+        .await
+        .unwrap();
+    assert_eq!(pending.status, JobStatus::Funding);
+    assert!(pending.receipt.is_none());
+    assert!(pending.access_url.is_none());
+    assert_eq!(provider.active_allocations.load(Ordering::SeqCst), 1);
+
+    // A caller that lost the entire HTTP response can use only its original key.
+    let restarted = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let result = restarted
+        .cancel_by_key(&owner, "lost-response")
+        .await
+        .unwrap();
+    let settled = result.job.unwrap();
+    assert_eq!(settled.id, pending.id);
+    assert_eq!(settled.status, JobStatus::Cancelled);
+    assert_eq!(
+        settled.receipt.unwrap().refunded_usdc_micros,
+        plan(300).maximum_usdc_micros
+    );
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 1);
+    assert_eq!(provider.active_allocations.load(Ordering::SeqCst), 0);
+    restarted.recover().await.unwrap();
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 1);
+    assert!(matches!(
+        restarted.submit(&owner, "lost-response", plan(300)).await,
+        Err(ServiceError::Store(StoreError::IdempotencyKeyCancelled))
+    ));
+}
+
+#[tokio::test]
+async fn key_cancellation_is_owner_scoped_and_retries_pending_provider_cleanup() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let owner = principal("owner-a", 1_000_000);
+    let foreign = principal("owner-b", 1_000_000);
+    let job = control
+        .submit(&owner, "shared-key", plan(300))
+        .await
+        .unwrap();
+    let foreign_result = control.cancel_by_key(&foreign, "shared-key").await.unwrap();
+    assert!(foreign_result.job.is_none());
+    assert_eq!(provider.active_allocations.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        control.job(&owner, &job.id).await.unwrap().status,
+        JobStatus::Running
+    );
+
+    provider.set_available(false);
+    let pending = control.cancel_by_key(&owner, "shared-key").await.unwrap();
+    assert!(pending.cancellation_recorded);
+    let pending = pending.job.unwrap();
+    assert_eq!(pending.id, job.id);
+    assert_eq!(pending.status, JobStatus::Stopping);
+    assert!(pending.receipt.is_none());
+    provider.set_available(true);
+    let settled = control
+        .cancel_by_key(&owner, "shared-key")
+        .await
+        .unwrap()
+        .job
+        .unwrap();
+    assert_eq!(settled.status, JobStatus::Cancelled);
+    assert!(settled.receipt.is_some());
+    let again = control
+        .cancel_by_key(&owner, "shared-key")
+        .await
+        .unwrap()
+        .job
+        .unwrap();
+    assert_eq!(again, settled);
+    assert_eq!(provider.active_allocations.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.cancellations.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn key_cancellation_during_launch_waits_for_and_releases_the_same_allocation() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    provider.block_next_launch();
+    let owner = principal("owner-a", 1_000_000);
+    let store = SqliteStore::open(temp.path().join("control.sqlite3"))
+        .await
+        .unwrap();
+    let control = ControlPlane::new(AppCatalog::builtin(), store.clone(), provider.clone());
+    let submit = tokio::spawn({
+        let control = control.clone();
+        let owner = owner.clone();
+        async move { control.submit(&owner, "inflight", plan(300)).await }
+    });
+    tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        provider.wait_for_blocked_launch(),
+    )
+    .await
+    .unwrap();
+    let id = store.recoverable_jobs().await.unwrap().remove(0).id;
+    let cancel = tokio::spawn({
+        let control = control.clone();
+        let owner = owner.clone();
+        async move { control.cancel_by_key(&owner, "inflight").await }
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while !store
+            .job(&owner.id, &id)
+            .await
+            .unwrap()
+            .is_cancel_requested()
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    provider.release_blocked_launch();
+    let submitted = submit.await.unwrap().unwrap();
+    let cancelled = cancel.await.unwrap().unwrap().job.unwrap();
+    assert_eq!(submitted.id, cancelled.id);
+    assert_eq!(cancelled.status, JobStatus::Cancelled);
+    assert!(cancelled.receipt.is_some());
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 1);
+    assert_eq!(provider.active_allocations.load(Ordering::SeqCst), 0);
+    assert_eq!(provider.cancellations.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn definitive_rejection_has_a_durable_refund_receipt_and_repairs_precise_legacy_rows() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    provider.set_launch_rejected(true);
+    let owner = principal("owner-a", 1_000_000);
+    let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let rejected = control.submit(&owner, "rejected", plan(300)).await.unwrap();
+    assert_eq!(rejected.status, JobStatus::Failed);
+    let receipt = rejected.receipt.as_ref().unwrap();
+    assert_eq!(receipt.provider, "control-plane");
+    assert_eq!(receipt.charged_usdc_micros, 0);
+    assert_eq!(receipt.runtime_secs, 0);
+    assert_eq!(receipt.refunded_usdc_micros, plan(300).maximum_usdc_micros);
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 0);
+
+    let db = rusqlite::Connection::open(temp.path().join("control.sqlite3")).unwrap();
+    let before: (u64, u64) = db.query_row("SELECT reserved_usdc_micros, committed_usdc_micros FROM spend_accounts WHERE owner='owner-a'", [], |r| Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(before, (0, 0));
+    db.execute(
+        "UPDATE jobs SET receipt_json=NULL WHERE id=?1",
+        [&rejected.id],
+    )
+    .unwrap();
+    let restarted = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let repaired = restarted
+        .cancel_by_key(&owner, "rejected")
+        .await
+        .unwrap()
+        .job
+        .unwrap();
+    assert_eq!(repaired.receipt, rejected.receipt);
+    let reread = control_plane(&temp, provider)
+        .await
+        .unwrap()
+        .job(&owner, &rejected.id)
+        .await
+        .unwrap();
+    assert_eq!(reread.receipt, rejected.receipt);
+    let after: (u64, u64) = db.query_row("SELECT reserved_usdc_micros, committed_usdc_micros FROM spend_accounts WHERE owner='owner-a'", [], |r| Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(before, after);
+}
+
+#[tokio::test]
+async fn legacy_receipt_repair_does_not_invent_settlement_for_other_failures() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    provider.set_launch_rejected(true);
+    let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let owner = principal("owner-a", 1_000_000);
+    let db = rusqlite::Connection::open(temp.path().join("control.sqlite3")).unwrap();
+    for (index, historical_change) in [
+        "error='provider_stopped'",
+        "provider_job_id='upstream-allocation'",
+        "ready_at_ms=created_at_ms",
+        "committed_usdc_micros=1",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let key = format!("unsettled-{index}");
+        let job = control.submit(&owner, &key, plan(300)).await.unwrap();
+        db.execute(
+            &format!("UPDATE jobs SET receipt_json=NULL, {historical_change} WHERE id=?1"),
+            [&job.id],
+        )
+        .unwrap();
+        let result = control.cancel_by_key(&owner, &key).await.unwrap();
+        assert!(result.job.unwrap().receipt.is_none());
+        let still_missing: bool = db
+            .query_row(
+                "SELECT receipt_json IS NULL FROM jobs WHERE id=?1",
+                [&job.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(still_missing);
+    }
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn key_cancellation_http_auth_validation_and_sealed_response_contract() {
+    let temp = TempDir::new().unwrap();
+    let provider = Arc::new(FakeProvider::new(vec![offer()]));
+    let control = control_plane(&temp, Arc::clone(&provider)).await.unwrap();
+    let app = test_router(control);
+    for token in [None, Some("wrong-token-long-enough")] {
+        let mut request = Request::delete("/v1/jobs/by-key/http-key");
+        if let Some(token) = token {
+            request = request.header("authorization", format!("Bearer {token}"));
+        }
+        let response = app
+            .clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+    let invalid = app
+        .clone()
+        .oneshot(
+            Request::delete("/v1/jobs/by-key/invalid%20key")
+                .header("authorization", format!("Bearer {TEST_TOKEN}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete("/v1/jobs/by-key/http-key")
+                    .header("authorization", format!("Bearer {TEST_TOKEN}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+            serde_json::json!({"idempotency_key":"http-key","job":null,"cancellation_recorded":true})
+        );
+    }
+    let response = app
+        .oneshot(
+            Request::post("/v1/jobs")
+                .header("authorization", format!("Bearer {TEST_TOKEN}"))
+                .header("content-type", "application/json")
+                .header("idempotency-key", "http-key")
+                .body(Body::from(serde_json::to_vec(&plan(300)).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"]["code"],
+        "idempotency_key_cancelled"
+    );
+    assert_eq!(provider.allocations.load(Ordering::SeqCst), 0);
 }

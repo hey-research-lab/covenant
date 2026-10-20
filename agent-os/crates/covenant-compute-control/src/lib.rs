@@ -20,7 +20,7 @@ pub use provider::{
     ProviderPoll,
 };
 pub use server::{serve, ServerConfig, StartupError};
-pub use service::{ControlPlane, PlanRejection, RecoveryReport, ServiceError};
+pub use service::{CancellationByKey, ControlPlane, PlanRejection, RecoveryReport, ServiceError};
 pub use store::{SqliteStore, StoreError};
 pub use vast::{VastBackend, VastBackendConfigError};
 pub use web::router;

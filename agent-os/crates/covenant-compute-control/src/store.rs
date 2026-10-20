@@ -226,6 +226,15 @@ impl SqliteStore {
 
                     CREATE INDEX IF NOT EXISTS jobs_owner_created
                     ON jobs(owner, created_at_ms DESC);
+
+                    -- A cancellation may arrive before launch preparation. Keep
+                    -- that key sealed even when there is no job or spend account.
+                    CREATE TABLE IF NOT EXISTS cancelled_launch_keys (
+                        owner TEXT NOT NULL,
+                        idempotency_key TEXT NOT NULL,
+                        cancelled_at_ms INTEGER NOT NULL,
+                        PRIMARY KEY (owner, idempotency_key)
+                    );
                     "#,
                 )?;
                 for (column, definition) in [
@@ -257,6 +266,7 @@ impl SqliteStore {
         let idempotency_key = idempotency_key.to_owned();
         let plan = plan.clone();
         self.run(move |connection| {
+            reject_cancelled_key(connection, &owner, &idempotency_key)?;
             let fingerprint = plan_fingerprint(&plan)?;
             let existing = connection
                 .query_row(
@@ -290,6 +300,9 @@ impl SqliteStore {
         self.run(move |connection| {
             let transaction =
                 connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            // Recheck under the same write transaction as reservation creation:
+            // offer validation can have awaited while cancellation sealed the key.
+            reject_cancelled_key(&transaction, &owner, &idempotency_key)?;
             let fingerprint = plan_fingerprint(&plan)?;
 
             let replay = transaction
@@ -519,7 +532,55 @@ impl SqliteStore {
                     params![id, sql_u64(now_ms)?],
                 )?;
             }
-            let job = load_job(&transaction, &id)?;
+            let job = repair_rejected_receipt(&transaction, load_job(&transaction, &id)?)?;
+            transaction.commit()?;
+            Ok(job)
+        })
+        .await
+    }
+
+    /// Atomically prevents any future submission under this owner/key and marks
+    /// an existing job for cancellation. None is durable evidence of no booking:
+    /// a delayed submit cannot create one after this transaction commits.
+    pub async fn request_cancel_by_key(
+        &self,
+        owner: &str,
+        idempotency_key: &str,
+        now_ms: u64,
+    ) -> Result<Option<StoredJob>, StoreError> {
+        let owner = owner.to_owned();
+        let idempotency_key = idempotency_key.to_owned();
+        self.run(move |connection| {
+            let transaction =
+                connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            transaction.execute(
+                "INSERT OR IGNORE INTO cancelled_launch_keys
+                 (owner, idempotency_key, cancelled_at_ms) VALUES (?1, ?2, ?3)",
+                params![owner, idempotency_key, sql_u64(now_ms)?],
+            )?;
+            let id: Option<String> = transaction
+                .query_row(
+                    "SELECT id FROM jobs WHERE owner = ?1 AND idempotency_key = ?2",
+                    params![owner, idempotency_key],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            let job = if let Some(id) = id {
+                let current = load_job(&transaction, &id)?;
+                if !current.is_terminal() && !current.is_cancel_requested() {
+                    transaction.execute(
+                        "UPDATE jobs SET state = 'cancel_requested', updated_at_ms = ?2
+                         WHERE id = ?1",
+                        params![id, sql_u64(now_ms)?],
+                    )?;
+                }
+                Some(repair_rejected_receipt(
+                    &transaction,
+                    load_job(&transaction, &id)?,
+                )?)
+            } else {
+                None
+            };
             transaction.commit()?;
             Ok(job)
         })
@@ -616,6 +677,7 @@ impl SqliteStore {
                 connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let current = load_job(&transaction, &id)?;
             if current.state == StoredState::Failed {
+                let current = repair_rejected_receipt(&transaction, current)?;
                 transaction.commit()?;
                 return Ok(current);
             }
@@ -628,11 +690,14 @@ impl SqliteStore {
                 return Err(StoreError::InvalidState);
             }
             release_reservation(&transaction, &current, 0)?;
+            let receipt_json = serde_json::to_string(&rejected_launch_receipt(&current))
+                .map_err(|_| StoreError::Serialization)?;
             transaction.execute(
                 "UPDATE jobs
-                 SET state = 'failed', committed_usdc_micros = 0, error = ?2, updated_at_ms = ?3
+                 SET state = 'failed', committed_usdc_micros = 0, error = ?2,
+                     updated_at_ms = ?3, receipt_json = ?4
                  WHERE id = ?1",
-                params![id, failure_code, sql_u64(now_ms)?],
+                params![id, failure_code, sql_u64(now_ms)?, receipt_json],
             )?;
             let job = load_job(&transaction, &id)?;
             transaction.commit()?;
@@ -657,6 +722,66 @@ impl SqliteStore {
         .await
         .map_err(|_| StoreError::Worker)?
     }
+}
+
+fn reject_cancelled_key(
+    connection: &Connection,
+    owner: &str,
+    idempotency_key: &str,
+) -> Result<(), StoreError> {
+    let cancelled: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM cancelled_launch_keys
+         WHERE owner = ?1 AND idempotency_key = ?2)",
+        params![owner, idempotency_key],
+        |row| row.get(0),
+    )?;
+    if cancelled {
+        return Err(StoreError::IdempotencyKeyCancelled);
+    }
+    Ok(())
+}
+
+/// This settles the customer's reservation, not a provider invoice. A provider
+/// rejection is already recorded as zero committed spend by fail_launch.
+fn rejected_launch_receipt(job: &StoredJob) -> ComputeReceipt {
+    ComputeReceipt {
+        id: format!("rejected-{}", job.id),
+        job_id: job.id.clone(),
+        app_id: job.plan.app.id.clone(),
+        provider: "control-plane".into(),
+        runtime_secs: 0,
+        provisioning_secs: 0,
+        provisioning_usdc_micros: 0,
+        charged_usdc_micros: 0,
+        refunded_usdc_micros: job.plan.maximum_usdc_micros,
+        commitment: format!("control-plane:launch-rejected:{}", job.id),
+        transaction: None,
+    }
+}
+
+/// Older versions settled definitive rejection at zero without a receipt.
+/// Complete only that precise accounting record; never infer a refund from an
+/// uncertain failure or overwrite a provider receipt or allocation reference.
+fn repair_rejected_receipt(
+    connection: &Connection,
+    mut job: StoredJob,
+) -> Result<StoredJob, StoreError> {
+    if job.state == StoredState::Failed
+        && job.error.as_deref() == Some("provider_rejected")
+        && job.committed_usdc_micros == Some(0)
+        && job.provider_job_id.is_none()
+        && job.ready_at_ms.is_none()
+        && job.receipt.is_none()
+    {
+        let receipt = rejected_launch_receipt(&job);
+        let json = serde_json::to_string(&receipt).map_err(|_| StoreError::Serialization)?;
+        connection.execute(
+            "UPDATE jobs SET receipt_json = ?2 WHERE id = ?1 AND receipt_json IS NULL",
+            params![job.id, json],
+        )?;
+        job.receipt = Some(receipt);
+    }
+    Ok(job)
 }
 
 /// An unreadable row must not take the whole sweep down with it: skipping it
@@ -911,6 +1036,8 @@ pub enum StoreError {
     NotFound,
     #[error("idempotency key was already used for a different launch")]
     IdempotencyConflict,
+    #[error("idempotency key was permanently cancelled")]
+    IdempotencyKeyCancelled,
     #[error("spend cap is exhausted")]
     SpendCapExceeded,
     #[error("configured spend cap is below the owner's outstanding commitments")]

@@ -41,6 +41,7 @@ import {
 } from './repository-artifacts.js';
 import { isolatedShellCommand, quoteShellArgument } from './sandbox-command.js';
 import { probeUsePodBalance, probeUsePodCatalog, type UsePodRequestConfig } from './usepod-http.js';
+import { runAccounting } from './run-accounting.js';
 
 interface CapturedFile {
   path: string;
@@ -280,6 +281,16 @@ function startRun(
     reservedMax,
     status: 'running',
     gpu: request.gpu,
+    accountingBasis: {
+      sandbox: {
+        provider: provider.id === 'e2b' ? 'e2b' : 'local',
+        attempted: false,
+        maximumUsd: maximumSandboxCostUsd(),
+        usdPerSec: config.sandboxWorstCaseUsdPerSec,
+        maximumSeconds: config.wallMs / 1_000,
+      },
+      model: { method: 'unknown' },
+    },
     events: [],
     subscribers: new Set(),
     abort: new AbortController(),
@@ -326,6 +337,8 @@ function startRun(
       }
       if (run.abort.signal.aborted) throw new Error('aborted before sandbox create');
       sandboxCreateAttempted = true;
+      run.accountingBasis!.sandbox.attempted = true;
+      persistRun(run);
       sandbox = await provider.create({
         runId: id,
         egressAllowlist: [...config.e2bEgressAllowlist],
@@ -407,6 +420,15 @@ function startRun(
         sandboxAccountingChargeUsd(sandboxCreateAttempted),
         reservedMax - (request.gpu?.max_usdc_micros ?? 0) / 1_000_000,
       );
+      const modelUsd =
+        config.backend === 'usepod'
+          ? providerAccountedCostUsd(run.providerRequestCount ?? 0, run.providerReceipts)
+          : modelCostUsd(config.model, usage);
+      if (modelUsd !== undefined && Number.isFinite(modelUsd) && modelUsd >= 0)
+        run.accountingBasis!.model = {
+          method: config.backend === 'usepod' ? 'provider_receipt' : 'usage_estimate',
+          ...(config.backend === 'usepod' ? {} : { estimatedUsd: modelUsd }),
+        };
       console.log(
         `run ${id} completed (${Math.round(seconds * 1000)}ms, ${run.files?.length ?? 0} files, ${run.events.length} events)`,
       );
@@ -423,6 +445,18 @@ function startRun(
         sandboxAccountingChargeUsd(sandboxCreateAttempted),
         reservedMax - (request.gpu?.max_usdc_micros ?? 0) / 1_000_000,
       );
+      const providerUsd = providerAccountedCostUsd(
+        run.providerRequestCount ?? 0,
+        run.providerReceipts,
+      );
+      run.accountingBasis!.model = {
+        method:
+          providerUsd === undefined
+            ? 'unknown'
+            : (run.providerRequestCount ?? 0) === 0
+              ? 'no_requests'
+              : 'provider_receipt',
+      };
       // After abort (kill or stop) skip the file snapshot: it would exec
       // inside the still-alive sandbox for up to 15s, accruing spend the
       // operator just signalled they want to stop.
@@ -507,10 +541,30 @@ function finishRun(run: Run): void {
     run.nonComputeUsd === undefined
       ? run.reservedMax // Crash recovery retains conservative total accounting.
       : run.nonComputeUsd + (run.compute ? computeChargedUsd(run.compute) : 0);
-  if (run.compute?.settled.length) {
-    // Only fixed receipt fields are included; workspace access URLs are never journaled here.
-    const suffix = `\n[gpu_workspace final receipts: ${JSON.stringify(run.compute.settled)}]`;
-    if (!run.output?.endsWith(suffix)) run.output = `${run.output ?? ''}${suffix}`;
+  if (run.compute) {
+    const accounting = runAccounting(
+      run.accountingBasis,
+      run.usage,
+      run.nonComputeUsd,
+      computeChargedUsd(run.compute),
+      run.costUsd ?? run.reservedMax ?? 0,
+    );
+    // Reserve room for the complete fixed evidence in both the status response
+    // and the bounded terminal SSE event. Only model prose may be truncated.
+    const suffix =
+      (run.compute.settled.length
+        ? `\n[gpu_workspace final receipts: ${JSON.stringify(run.compute.settled)}]`
+        : '') + `\n[run accounting: ${JSON.stringify(accounting)}]`;
+    const marker = '\n[model output truncated]\n';
+    const allowance = MAX_EVENT_TEXT - suffix.length;
+    if (allowance < marker.length) throw new Error('GPU settlement evidence exceeds output limit');
+    const previous = run.output ?? '';
+    const prose = previous.endsWith(suffix) ? previous.slice(0, -suffix.length) : previous;
+    run.output =
+      (prose.length <= allowance
+        ? prose
+        : prose.slice(0, allowance - marker.length).replace(/[\uD800-\uDBFF]$/, '') + marker) +
+      suffix;
   }
   run.updatedAt = new Date().toISOString();
   const event: GatewayEvent =

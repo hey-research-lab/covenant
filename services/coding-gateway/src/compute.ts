@@ -695,6 +695,38 @@ export class ComputeSession {
     return job;
   }
 
+  private async cancelUnknown(key: string, timeoutMs: number): Promise<void> {
+    // This endpoint seals even an absent key against a delayed launch POST.
+    // A lookup/404 alone cannot prove that an ambiguous booking is safe to release.
+    const raw = await this.api(
+      `/v1/jobs/by-key/${encodeURIComponent(key)}`,
+      { method: 'DELETE' },
+      timeoutMs,
+    );
+    const result = raw as Record<string, unknown> | null;
+    if (
+      !result ||
+      typeof result !== 'object' ||
+      Array.isArray(result) ||
+      result.idempotency_key !== key ||
+      result.cancellation_recorded !== true ||
+      !Object.hasOwn(result, 'job')
+    )
+      throw new ComputeError('control plane returned an invalid booking cancellation');
+    if (result.job !== null) {
+      // Validate the job, quote and receipt before attaching any returned ID.
+      this.observe(key, result.job);
+      return;
+    }
+    this.update((run) => {
+      const reservation = run.reservations.find((r) => r.key === key);
+      if (!run.closed || !reservation || reservation.jobId || reservation.receipt)
+        throw new ComputeError('GPU booking changed during cancellation');
+      // Retain the plan, committed maximum and consumed launch slot permanently.
+      reservation.rejected = true;
+    });
+  }
+
   async reap(timeoutMs = REAP_TIMEOUT_MS): Promise<ComputeCleanupReport> {
     // Close before waiting for an in-flight launch. It cannot start another
     // booking while cleanup waits for the first POST to reveal its job ID.
@@ -702,8 +734,18 @@ export class ComputeSession {
       run.closed = true;
     });
     return this.locked(async () => {
-      const jobs = this.inspect().pendingJobIds;
-      await Promise.allSettled(jobs.map((id) => this.cancel(id, timeoutMs)));
+      const deadline = Date.now() + timeoutMs;
+      const pending = this.inspect();
+      await Promise.allSettled([
+        ...pending.pendingJobIds.map((id) => this.cancel(id, timeoutMs)),
+        ...pending.pendingLaunchKeys.map(async (key) => {
+          await this.cancelUnknown(key, timeoutMs);
+          const reservation = this.current().reservations.find((r) => r.key === key)!;
+          const remaining = deadline - Date.now();
+          if (reservation.jobId && !reservation.receipt && remaining > 0)
+            await this.cancel(reservation.jobId, remaining);
+        }),
+      ]);
       return this.inspect();
     });
   }
@@ -714,8 +756,7 @@ export class ComputeSession {
     const runs: ComputeCleanupReport[] = [];
     for (const run of Object.values(journal.entries())) {
       const session = new ComputeSession(cfg, { runKey: run.runKey });
-      // A POST replay could create a previously unsubmitted booking. Recovery
-      // only reads/cancels known IDs; unknown keys require manual reconciliation.
+      // Never replay POST here: seal/cancel unknown keys, then settle known IDs.
       runs.push(await session.reap());
     }
     return { runs };

@@ -22,6 +22,7 @@ import type {
 import type { GpuPolicy } from './types.js';
 import type { ComputeCleanupReport } from './compute.js';
 import { parseGpuPolicy } from './gpu-policy.js';
+import { validAccountingBasis, type RunAccountingBasis } from './run-accounting.js';
 
 export interface StoredRun {
   id: string;
@@ -45,6 +46,7 @@ export interface StoredRun {
   compute?: ComputeCleanupReport;
   desiredStatus?: 'completed' | 'failed' | 'cancelled';
   nonComputeUsd?: number;
+  accountingBasis?: RunAccountingBasis;
   updatedAt: string;
 }
 
@@ -248,6 +250,7 @@ function isStoredRun(value: unknown): value is StoredRun {
     return false;
   if (run.compute !== undefined && (!run.gpu || !validCleanupReport(run.compute, run.sessionId!)))
     return false;
+  if (run.accountingBasis !== undefined && !validAccountingBasis(run.accountingBasis)) return false;
   const reservationValid =
     (run.reservationId === undefined && run.reservedMax === undefined) ||
     (typeof run.reservationId === 'string' &&

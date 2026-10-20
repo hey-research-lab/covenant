@@ -1,6 +1,6 @@
 # Compute Knowledge: brand and rollout
 
-Prepared 20 October 2026. **X drafts only; no posting or scheduling performed.** Current execution status: the [signed public 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0) passed four native installation checks and independent public archive verification. The [two-job paid pilot passed](evidence/knowledge/paid-pilot-2026-10-20/report.md), but ongoing public remote capacity is unavailable. The [live feature page](https://opencovenant.org/compute-knowledge) passed desktop, tablet and mobile QA, and the actual public HTTPS installer passed a fresh install with all four binaries, 19 Knowledge checks, 18 citations and six read-only MCP tools. Local launch posts are ready for human publication; no X post has been sent or scheduled. Homebrew remains on 0.4.1 because tap write access was denied; use the verified website installer or signed archives for Knowledge.
+Prepared 20 October 2026. **X drafts only; no posting or scheduling performed.** The [signed public 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0) passed four native installation checks and independent archive verification. The [two-job paid pilot passed](evidence/knowledge/paid-pilot-2026-10-20/report.md). A separate [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md) now establishes limited remote capacity: one operator, one job in flight, observed 0.05 USDC ask, cohosting and idle restart checks, and a zero-purchase installed-client preview. This is not a new paid job under the dedicated identity. The [live feature page](https://opencovenant.org/compute-knowledge) and HTTPS installer previously passed local-release QA. Remote page promotion and its exact links must pass before post 6 is used. Homebrew remains on 0.4.1; use the verified installer or signed archives for Knowledge.
 
 ## Positioning
 
@@ -18,7 +18,7 @@ Use **Covenant Compute Knowledge** on first mention, then **Compute Knowledge**.
 
 Publish one feature at a time, in this order. A two-to-three-day gap is a planning suggestion after each gate clears, not an automatic schedule. If a gate is late, hold the post and keep development updates factual. Use replies to answer concrete workflow questions; do not manufacture engagement or imply endorsements.
 
-Each draft below is a complete standalone X post under 280 weighted characters. Posts 1–5 are **READY local-release drafts**: public artifacts, the live page and fresh HTTPS installation have passed their gates. Post 6 remains **HOLD** until persistent public operator capacity is established; the completed paid pilot alone does not clear this gate. Post 7 is **READY** only with its small-fixture and no-savings caveats intact. Recheck links and current availability at the time of any later post. READY means prepared for a human publishing action, never automatically posted or scheduled.
+Each draft below is a complete standalone X post under 280 weighted characters. Posts 1–5 are **READY local-release drafts**: public artifacts, the live page and fresh HTTPS installation have passed their gates. Post 6 has accepted limited-capacity evidence but remains **HOLD for the public page's remote promotion and exact-link QA**. Post 7 is **READY** only with its small-fixture and no-savings caveats intact. Recheck links and current availability before each post. READY means prepared for a human publishing action, never automatically posted or scheduled.
 
 ### 1. Local announcement — READY
 
@@ -55,13 +55,21 @@ Each draft below is a complete standalone X post under 280 weighted characters. 
 
 **Gate:** local release/package and feature-page link verified; edit/delete/full-vs-cached/history tests pass. **Asset:** actual two-snapshot diff, with revision IDs retained in supporting evidence. **CTA:** compare a small local edit. **Success signal:** verified reproducible diffs, including deletions.
 
-### 6. Remote — HOLD
+### 6. Remote — HOLD for page promotion
 
-> Remote Knowledge compilation is available on Covenant Compute for pinned public GitHub revisions. Choose the compiler image; the buyer verifies the receipt and snapshot before local import. Guide and acceptance evidence: https://opencovenant.org/compute-knowledge
+> Remote Knowledge compilation now has dedicated capacity on Covenant Compute. Preview the current quote for a pinned public GitHub revision, then verify the receipt and inspect the snapshot locally. Limits and availability: https://opencovenant.org/compute-knowledge
 
 **Gate:** persistent public operator supply for the pinned compiler with a current, discoverable quote and an operational owner; real immutable compiler image; updated coordinator and operator deployment; explicitly authorized funded acceptance; independently verified receipt and imported snapshot; replay/accounting acceptance; working guide and acceptance evidence at the canonical page. Signed-envelope, public-source matching, budget and failure tests must also pass. **Asset:** actual accepted remote run; the prepared LOCAL TEST storyboard is not a substitute. **CTA:** follow the public-source guide and inspect acceptance evidence. **Success signal:** reproduced accepted jobs with receipts, not impressions.
 
-Optional factual pilot update while the availability gate remains closed: “Two paid Knowledge pilot jobs passed receipt and snapshot verification, including recovery after an interrupted client. This was a bounded pilot. Public remote capacity is still pending.” Link the sanitized acceptance report only after it is pushed and accessible; do not include a remote-buy CTA or treat the pilot quote as a standing price.
+**Evidence now accepted:** one dedicated exact-compiler operator, bounded cohosting
+with Kani, a guarded idle restart and an installed 0.5.0 source-and-quote preview.
+The two earlier paid pilot jobs remain separate from the new identity. The
+observed ask was 50,000 micro-USDC at 19:12 UTC; recheck it before publication.
+Initial admission eligibility ends 25 October 2026 at 19:17:25 UTC unless
+extended. The post must link a live page carrying the
+[buyer guide](compute-knowledge-remote.md) and
+[activation evidence](evidence/knowledge/remote-activation-2026-10-20/report.md).
+No automatic renewal, guaranteed uptime or new-identity paid execution is claimed.
 
 
 ### 7. Measured results — READY
@@ -84,11 +92,11 @@ Optional factual pilot update while the availability gate remains closed: “Two
 | Dependency tracing | Core resolver/query and fixtures | Resolved/unresolved, depth/ambiguity examples | “observed relationships”; no complete call-graph claim |
 | Updates and history | Store/cache/diff and core tests | Edit/delete parity and corruption tests | Recompile, compare saved snapshots, retain historical evidence |
 | Local viewer | `knowledge_viewer.rs`, viewer assets, browser QA | Loopback/token/auth/error/size tests and responsive QA | Local read-only viewer; not a hosted team workspace |
-| Remote candidate | `knowledge_remote.rs`, protocol/node knowledge modules; [paid pilot](evidence/knowledge/paid-pilot-2026-10-20/report.md) | Source matching, cap/budget, receipt, tamper/container failure tests; independent paid acceptance | “Paid pilot accepted; public remote availability pending” |
+| Remote compilation | `knowledge_remote.rs`, protocol/node modules; [paid pilot](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated activation](evidence/knowledge/remote-activation-2026-10-20/report.md) | Source matching, cap/budget, receipt, tamper/container tests; paid pilot; current exact-model capacity and installed preview | “Limited dedicated capacity”; current quote and admission window disclosed |
 | Container isolation | Node runner and [actual pilot containers](evidence/knowledge/paid-pilot-2026-10-20/container-isolation-and-lifecycle.json) | Exact image, network, identity, resource and lifecycle observations | Accepted container restrictions; no TEE claim |
 | Local measurements | [initial unoptimized report](evidence/knowledge/benchmark-2026-10-20/report.md), [optimized preview](evidence/knowledge/benchmark-release-2026-10-20/report.md) and raw results | Raw repeated results + reproducible commands | Only measured fixture numbers with corpus/build/load caveats |
 | Packaged/released | [Signed public 0.5.0](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0), [four native platform checks](https://github.com/open-covenant/covenant/actions/runs/39462626252) | Downloaded archive signatures, checksums, attestations and fresh install verified | **Local 0.5.0 released; live HTTPS installer and fresh installation verified** |
-| Deployed/paid accepted | [Two-job paid pilot and signed evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md) | Original receipts, same-key restart/replay, imported source, chain settlement verified | **Bounded pilot accepted; no ongoing public capacity or standing price** |
+| Deployed/paid accepted | [Two-job paid pilot](evidence/knowledge/paid-pilot-2026-10-20/report.md), [new operator lifecycle](evidence/knowledge/remote-activation-2026-10-20/lifecycle.json) | Original paid receipts/recovery/import/settlement; separate dedicated idle restart and zero-purchase preview | **Two earlier paid jobs accepted; dedicated limited capacity separately verified; no standing price or new-identity paid job claim** |
 | Token/cost savings, comparative superiority | No controlled experiment | Matched task quality and token/cost experiment | **Do not claim** |
 | Private/team remote access | No shared daemon knowledge-query authorization adapter | Threat model and project authorization acceptance | **Follow-up scope** |
 
@@ -151,4 +159,4 @@ the corpus and binary hashes for any measured comparison.
 
 ## Release checklist for the publisher
 
-Before each post, confirm its evidence gate, current release state, asset label, exact links and final character count. No draft includes an endorsement, performance comparison or promise of savings. Local availability now has the signed release, live feature page and actual HTTPS fresh-install evidence. Any future remote-availability claim still requires persistent public supply, an operational owner and current verified quotes in addition to the separate paid acceptance evidence. Keep the seven-stage sequence; do not bundle unaccepted remote claims into the local announcement.
+Before each post, confirm its evidence gate, current release state, asset label, exact links and final character count. No draft includes an endorsement, performance comparison or promise of savings. Local availability has the signed release, live feature page and actual HTTPS fresh-install evidence. Remote availability has limited dedicated-capacity acceptance; its public page, current quote, operator health and stake admission window must still be checked at posting time. Keep the seven-stage sequence and separate the earlier paid pilot from new-operator activation.

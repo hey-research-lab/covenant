@@ -1,0 +1,96 @@
+{
+  "schema": "covenant.knowledge.public-installed-preview.v1",
+  "observed_at": "2026-10-20T19:12:11.394716+00:00",
+  "result": "pass",
+  "release": "compute-v0.5.0",
+  "platform": "darwin-arm64",
+  "binary_sha256": "6cbe4f6ec099a8d15be82ca51b5687732fbef790c1f93f019f51b91962fc85b6",
+  "installation_evidence": "../public-release-0.5.0/live-website-install.json",
+  "preview": {
+    "commit": "672971d66a2ef9f85151e53283113f33d642dabd",
+    "deadline_ms": 300000,
+    "dry_run": true,
+    "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+    "price_micro_usdc": 50000,
+    "repository": "https://github.com/pallets/itsdangerous",
+    "source_bytes": 294697,
+    "source_sha256": "9ce84a3e81b11f03398a63a9e0e2ade69618354c10e6fe25946db6f45baeba42",
+    "submitted": false
+  },
+  "source_file_count": 50,
+  "existing_buyer_accounting_byte_identical": true,
+  "additional_jobs_submitted": 0,
+  "additional_usdc_charged": 0,
+  "idempotency_key_supplied": false,
+  "price_override_supplied": false,
+  "capacity_before_and_after": [
+    {
+      "phase": "before",
+      "knowledge": [
+        {
+          "kind": "batch_job",
+          "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+          "operators": 1,
+          "min_ask_micro_usdc": 50000,
+          "min_ask_unit": "per_job",
+          "max_ask_micro_usdc": 50000,
+          "max_vram_gb": 0,
+          "gpu_classes": [
+            "cpu"
+          ],
+          "tee_capable": false
+        }
+      ],
+      "kani": [
+        {
+          "kind": "agent_check",
+          "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+          "operators": 1,
+          "min_ask_micro_usdc": 19000,
+          "min_ask_unit": "per_job",
+          "max_ask_micro_usdc": 19000,
+          "max_vram_gb": 0,
+          "gpu_classes": [
+            "cpu"
+          ],
+          "tee_capable": false
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "knowledge": [
+        {
+          "kind": "batch_job",
+          "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+          "operators": 1,
+          "min_ask_micro_usdc": 50000,
+          "min_ask_unit": "per_job",
+          "max_ask_micro_usdc": 50000,
+          "max_vram_gb": 0,
+          "gpu_classes": [
+            "cpu"
+          ],
+          "tee_capable": false
+        }
+      ],
+      "kani": [
+        {
+          "kind": "agent_check",
+          "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+          "operators": 1,
+          "min_ask_micro_usdc": 19000,
+          "min_ask_unit": "per_job",
+          "max_ask_micro_usdc": 19000,
+          "max_vram_gb": 0,
+          "gpu_classes": [
+            "cpu"
+          ],
+          "tee_capable": false
+        }
+      ]
+    }
+  ],
+  "scope": "Actual installed public buyer verified the pinned public source and current exact compiler quote. No new operator paid job was executed.",
+  "privacy": "Buyer identity, home, budget/purchase records, their hashes and all private paths omitted."
+}

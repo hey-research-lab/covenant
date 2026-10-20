@@ -1,8 +1,8 @@
 # Covenant Compute Knowledge
 
-**Status, 20 October 2026: local release 0.5.0 is published.** The signed release includes the local compiler, CLI, read-only MCP server and viewer. The live website installer passed fresh-install acceptance. Two paid remote pilot jobs passed artifact, receipt and recovery checks; ongoing remote capacity remains pending. No speed, accuracy or token-savings claim follows from these release checks.
+**Status, 20 October 2026: local release 0.5.0 is published; limited remote capacity is accepted.** The signed release includes the local compiler, CLI, read-only MCP server and viewer. The live website installer passed fresh-install acceptance. One dedicated operator now offers the pinned remote compiler; its installed-client preview and controlled restart passed while Kani stayed active. Two earlier paid pilot jobs separately passed artifact, receipt and recovery checks. No speed, accuracy or token-savings claim follows from these checks.
 
-See the [public release evidence](evidence/knowledge/public-release-0.5.0/report.md), [live installer acceptance](evidence/knowledge/public-release-0.5.0/installer-promotion.md) and [paid pilot report](evidence/knowledge/paid-pilot-2026-10-20/report.md). Homebrew remains at 0.4.1; use the website installer or signed 0.5.0 release archives for Knowledge.
+See the [public release evidence](evidence/knowledge/public-release-0.5.0/report.md), [live installer acceptance](evidence/knowledge/public-release-0.5.0/installer-promotion.md), [paid pilot report](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md). Homebrew remains at 0.4.1; use the website installer or signed 0.5.0 release archives for Knowledge.
 
 Compute Knowledge turns supported repository files into saved, queryable snapshots. It is part of `covenant-compute`, with no model API key required for local compilation or queries. It does not run the source repository's build scripts, tests or programs.
 
@@ -103,11 +103,15 @@ Configure your MCP client's stdio transport to launch the absolute binary path w
 
 The MCP interface has no compile, purchase, source-edit or arbitrary shell tool. It is not a project authorization adapter for a shared daemon. Hosted/team knowledge query access and private remote repositories are follow-up work.
 
-## Remote compilation preview
+## Remote compilation
 
 See the [remote acceptance and deployment guide](compute-knowledge-remote-acceptance.md) for the exact coordinator, image, operator and funded acceptance order.
 
-The paid pilot is accepted, but its temporary compiler operator has been restored to its previous workload. This is not an always-available remote service announcement. A new purchase requires an available operator advertising the exact compiler digest and an explicitly authorized budget.
+The [public-source walkthrough](compute-knowledge-remote.md) includes the accepted
+compiler digest, a pinned example and the separate dedicated-operator activation
+record.
+
+One dedicated operator advertised the compiler at 50,000 micro-USDC per job on 20 October 2026 at 19:12 UTC, with one job in flight. A new purchase requires current exact-model capacity and an authorized budget. Initial stake admission eligibility ends 25 October 2026 at 19:17:25 UTC unless extended; this is earlier than the 27 October stake unlock. There is no automatic renewal or uptime guarantee. The two paid pilot jobs used a temporary operator; the new identity's separate activation added no paid job.
 
 The remote path submits the supported source subset from a **public GitHub repository at a full pinned commit**. Before submission, anonymous GitHub checks establish public visibility and compare every selected source file byte-for-byte with that commit. Dirty or unpublished selected source is rejected. Requests are bounded to 1–256 files and 512 KiB of source JSON; results are capped at 3 MiB.
 
@@ -120,7 +124,7 @@ covenant-compute knowledge compile ./repo \
   --remote --dry-run \
   --repository https://github.com/OWNER/REPOSITORY \
   --commit FULL_40_CHARACTER_COMMIT \
-  --compiler-image-sha256 FULL_64_CHARACTER_IMAGE_DIGEST
+  --compiler-image-sha256 d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c
 ```
 
 The dry run does not purchase execution. Read the resulting request and constraints. It still performs public-repository validation.
@@ -133,7 +137,7 @@ covenant-compute knowledge compile ./repo \
   --remote \
   --repository https://github.com/OWNER/REPOSITORY \
   --commit FULL_40_CHARACTER_COMMIT \
-  --compiler-image-sha256 FULL_64_CHARACTER_IMAGE_DIGEST \
+  --compiler-image-sha256 d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c \
   --price APPROVED_MICRO_USDC \
   --deadline-ms 300000 \
   --idempotency-key UNIQUE_APPROVED_REQUEST_KEY
@@ -146,11 +150,13 @@ Use `COVENANT_COMPUTE_COORDINATOR_URL` to select the operator's actual coordinat
 The dedicated executor accepts knowledge compilation, not arbitrary shell commands. Build from the same source revision:
 
 ```sh
-docker build -f deploy/knowledge-compiler/Dockerfile \
-  -t YOUR_REGISTRY/covenant-knowledge:YOUR_REVISION .
+python3 deploy/knowledge-compiler/build-context.py \
+  2> knowledge-build-inputs.json |
+  docker build -f deploy/knowledge-compiler/Dockerfile \
+    -t YOUR_REGISTRY/covenant-knowledge:YOUR_REVISION -
 ```
 
-An operator must inspect, publish or install the resulting image and pin its real immutable digest. No digest is supplied here because no production compiler image has been built or deployed as part of this preview.
+The compiler accepted in the paid pilot and dedicated operator activation is `covenant-knowledge@sha256:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c`. It is installed on the operator host; this is not a public registry download. An operator must install the reviewed image and pin its real immutable digest. A locally built replacement has its own digest and requires separate acceptance.
 
 ```sh
 export COVENANT_COMPUTE_NODE_EXECUTOR=knowledge
@@ -159,7 +165,7 @@ export COVENANT_COMPUTE_KNOWLEDGE_IMAGE=YOUR_REGISTRY/covenant-knowledge@sha256:
 export COVENANT_COMPUTE_NODE_CONTAINER_RUNTIME=docker
 ```
 
-The runner uses a nonroot container, read-only filesystem, no network, no host mounts and dropped capabilities. These isolation settings and signed receipts are not TEE attestation. Public or paid acceptance, image deployment, release packaging, private repository support, team authorization and production benchmarks remain separate gates.
+The runner uses a nonroot container, read-only filesystem, no network, no host mounts and dropped capabilities. These isolation settings and signed receipts are not TEE attestation. Client release, the earlier paid pilot and current limited capacity have separate evidence. Private repository support, team authorization, new compiler digests and production performance claims need additional acceptance.
 
 ## Evidence and release discipline
 

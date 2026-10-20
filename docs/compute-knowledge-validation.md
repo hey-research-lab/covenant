@@ -100,8 +100,20 @@ passed. Independent signature, artifact and source hashes, deterministic local
 import, all 1,378 citation spans, and both finalized on-chain payouts verified.
 Host evidence records exactly two executions and one paid earnings entry per
 job. Total charges were 0.10 USDC with 0.000015 SOL in network fees. The existing
-hold was preserved. The original operator service and price are restored;
-ongoing public remote availability is not claimed.
+hold was preserved. The original operator service and price were restored.
+
+The subsequent [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md)
+passed finalized 1,000,000 CVNT staking, bounded cohosting with Kani, fifteen
+live capacity observations around an idle service restart, and an installed
+public 0.5.0 source-and-quote preview. At 19:12 UTC, one operator advertised the
+exact compiler at 50,000 micro-USDC per job, with one job in flight. Kani's
+original process, configuration and journals stayed unchanged. The preview
+submitted no job and left buyer accounting byte-identical.
+
+This establishes limited capacity, not a new-identity paid execution, sustained
+peak-load performance, reboot recovery or guaranteed uptime. Initial stake
+admission eligibility ends 25 October 2026 at 19:17:25 UTC unless extended;
+locked tokens unlock two days later. No automatic renewal is scheduled.
 
 The central website graph was updated to square glass nodes. Its production
 build and desktop/mobile layout checks passed; campaign exports retain exact
@@ -133,7 +145,8 @@ brand fonts and the official mark at 1080p and 4K composition sizes.
 | Local package candidate | Version 0.5.0 Apple Silicon archive from clean commit 3d4499211 passed extracted, installed and installer checks; [exact artifact evidence](evidence/knowledge/release-candidate-0.5.0/report.md) |
 | Signed public macOS/Linux release | [compute-v0.5.0 published](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0); all four native installs and downloaded public archive provenance verified; actual live HTTPS installer passed; Homebrew promotion blocked by tap write permission |
 | Actual OCI compiler image | Exact Linux/ARM64 image passed Docker lifecycle checks and two funded production jobs on an isolated host; image has no public registry release |
-| Public operator and routing rollout | Coordinator revision 5146e46e6bae31bf6813ca85f099674e878a1ae9 deployed; temporary exact compiler operator accepted then original Kani service restored |
+| Public operator and routing rollout | Coordinator/node revision 5146e46e6bae31bf6813ca85f099674e878a1ae9; [dedicated limited capacity accepted](evidence/knowledge/remote-activation-2026-10-20/report.md), one in-flight job and observed 50,000-micro-USDC ask; Kani preserved |
+| Dedicated operator lifecycle | Finalized stake, bounded cohosting, live registration/heartbeat and guarded idle restart passed; actual installed public-client preview passed with no new job or accounting changes; initial admission cutoff 25 October 2026 at 19:17:25 UTC |
 | Installed client paid acceptance | Two funded jobs passed with the clean native 0.5.0 candidate; the freshly installed signed public Apple Silicon binary then recovered both original receipts and imported identical snapshots without new jobs or charges; [evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md) |
 | Real process restart / financial reconciliation | Actual client interruption after acknowledged submission, same-envelope recovery, identical settled receipt replay, two executions and two finalized payouts verified; no coordinator or host power-loss claim |
 | Shared authenticated daemon access | Not exposed; public proxy refuses knowledge access; project authorization adapter remains a separate gate |

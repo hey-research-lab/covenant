@@ -11,6 +11,10 @@ This is acceptance of a bounded pilot. It does not establish ongoing public
 Knowledge operator capacity or a standing price. The existing operator was
 temporarily assigned to the exact compiler; its original service is restored
 after acceptance. Local Knowledge availability is a separate release gate.
+The subsequent [dedicated operator activation](../remote-activation-2026-10-20/report.md)
+records limited live capacity, cohosting, idle restart and an installed-client
+preview separately. It does not turn these earlier receipts into jobs run by
+the new identity.
 
 ## Observed behavior
 

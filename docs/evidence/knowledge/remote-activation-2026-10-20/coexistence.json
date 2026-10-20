@@ -1,0 +1,206 @@
+{
+  "schema": "covenant.knowledge.public-coexistence-acceptance.v1",
+  "observed_at": "2026-10-20T18:48:54.262836+00:00",
+  "result": "pass",
+  "scope": "Original live Kani service remained active. Dedicated Knowledge aggregate256MiB/1CPU pressure+OOM isolation and near-source-bound compiler fixture passed; one real small Kani proof and real Knowledge compile succeeded concurrently. No synthetic12GiB Kani peak or sustained full-load guarantee.",
+  "original_kani_unchanged": true,
+  "original_journals_unchanged": true,
+  "paid_jobs_admitted": 0,
+  "knowledge_registered": false,
+  "aggregate_limit_bytes": 268435456,
+  "kani_admission_threshold_bytes": 15032385536,
+  "minimum_observed_mem_available_bytes": 15313158144,
+  "final_concurrent_kani_outcome": "proven",
+  "final_source_fixture": {
+    "files": 256,
+    "source_json_bytes": 524000,
+    "snapshot_bytes": 769919,
+    "snapshot_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+    "concurrent_compiler_executions": 1
+  },
+  "runs": [
+    {
+      "label": "knowledge-coexistence-20261020",
+      "observed_at": "2026-10-20T18:45:25.246024+00:00",
+      "completed": false,
+      "phase": "concurrent-real-kani-and-knowledge",
+      "abort": [],
+      "minimum_mem_available_bytes": 15313158144,
+      "original_protected_unchanged": true,
+      "original_journals_unchanged": true,
+      "original_service_active": true,
+      "original_capacity_unchanged": true,
+      "remaining_containers": 0,
+      "events": [
+        {
+          "name": "knowledge-coexistence-memory",
+          "exit_code": 0,
+          "stdout_bytes": 16,
+          "stdout_sha256": "46e3309800d76a7da80db2a5444397ff22648cd8ac1ac5504ab6f277542d24ca",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:45:05.167053106Z",
+          "finished_at": "2026-10-20T18:45:15.705012759Z"
+        },
+        {
+          "name": "knowledge-coexistence-oom",
+          "exit_code": 137,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "oom_killed": true,
+          "started_at": "2026-10-20T18:45:15.983298747Z",
+          "finished_at": "2026-10-20T18:45:17.144512716Z"
+        },
+        {
+          "name": "knowledge-coexistence-compiler-0",
+          "exit_code": 0,
+          "stdout_bytes": 769919,
+          "stdout_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:45:17.466364172Z",
+          "finished_at": "2026-10-20T18:45:18.970622988Z"
+        },
+        {
+          "name": "knowledge-coexistence-compiler-1",
+          "exit_code": 0,
+          "stdout_bytes": 769919,
+          "stdout_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:45:19.332073472Z",
+          "finished_at": "2026-10-20T18:45:20.795774054Z"
+        },
+        {
+          "name": "knowledge-coexistence-compiler-2",
+          "exit_code": 0,
+          "stdout_bytes": 769919,
+          "stdout_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:45:21.189438515Z",
+          "finished_at": "2026-10-20T18:45:22.585044025Z"
+        },
+        {
+          "name": "knowledge-coexistence-kani",
+          "exit_code": 1,
+          "stdout_bytes": 954,
+          "stdout_sha256": "e94782f7364b1c9dadcf84b1fa76cd720555de46e91d666133869425b55eb403",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:45:22.926660556Z",
+          "finished_at": "2026-10-20T18:45:23.385664211Z"
+        },
+        {
+          "name": "knowledge-coexistence-concurrent-0",
+          "exit_code": 0,
+          "stdout_bytes": 769919,
+          "stdout_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:45:23.219433315Z",
+          "finished_at": "2026-10-20T18:45:24.750631397Z"
+        }
+      ]
+    },
+    {
+      "label": "knowledge-coexistence-20261020-r3",
+      "observed_at": "2026-10-20T18:46:16.448653+00:00",
+      "completed": false,
+      "phase": "concurrent-real-kani-and-knowledge",
+      "abort": [],
+      "minimum_mem_available_bytes": 15574302720,
+      "original_protected_unchanged": true,
+      "original_journals_unchanged": true,
+      "original_service_active": true,
+      "original_capacity_unchanged": true,
+      "remaining_containers": 0,
+      "events": [
+        {
+          "name": "knowledge-coexistence-kani",
+          "exit_code": 1,
+          "stdout_bytes": 3093,
+          "stdout_sha256": "95e966f6749bc69f297d9d2dfe72dd2ed3a00b9d78e220eba4892988164792f6",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:46:14.138847727Z",
+          "finished_at": "2026-10-20T18:46:14.647673743Z"
+        },
+        {
+          "name": "knowledge-coexistence-concurrent-0",
+          "exit_code": 0,
+          "stdout_bytes": 769919,
+          "stdout_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:46:14.427840717Z",
+          "finished_at": "2026-10-20T18:46:15.92142922Z"
+        }
+      ]
+    },
+    {
+      "label": "knowledge-coexistence-20261020-r4",
+      "observed_at": "2026-10-20T18:47:04.635976+00:00",
+      "completed": false,
+      "phase": "concurrent-real-kani-and-knowledge",
+      "abort": [],
+      "minimum_mem_available_bytes": 15533604864,
+      "original_protected_unchanged": true,
+      "original_journals_unchanged": true,
+      "original_service_active": true,
+      "original_capacity_unchanged": true,
+      "remaining_containers": 0,
+      "events": [
+        {
+          "name": "knowledge-coexistence-kani",
+          "exit_code": 1,
+          "stdout_bytes": 12559,
+          "stdout_sha256": "1f30f60b4e69874afa3d9d93bdf78c7f479d5534794ec4fed2ff145400ee4626",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:47:01.671176457Z",
+          "finished_at": "2026-10-20T18:47:03.137152869Z"
+        },
+        {
+          "name": "knowledge-coexistence-concurrent-0",
+          "exit_code": 0,
+          "stdout_bytes": 769919,
+          "stdout_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:47:01.970656953Z",
+          "finished_at": "2026-10-20T18:47:03.987594979Z"
+        }
+      ]
+    },
+    {
+      "label": "knowledge-coexistence-20261020-r5",
+      "observed_at": "2026-10-20T18:47:53.183601+00:00",
+      "completed": true,
+      "phase": "finished",
+      "abort": [],
+      "minimum_mem_available_bytes": 15545409536,
+      "original_protected_unchanged": true,
+      "original_journals_unchanged": true,
+      "original_service_active": true,
+      "original_capacity_unchanged": true,
+      "remaining_containers": 0,
+      "events": [
+        {
+          "name": "knowledge-coexistence-kani",
+          "exit_code": 0,
+          "stdout_bytes": 12499,
+          "stdout_sha256": "143622f5467334c1af7b6781739c282f88167d7e4206d8a0e21c37fff1bfbd11",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:47:50.952287603Z",
+          "finished_at": "2026-10-20T18:47:52.297283955Z"
+        },
+        {
+          "name": "knowledge-coexistence-concurrent-0",
+          "exit_code": 0,
+          "stdout_bytes": 769919,
+          "stdout_sha256": "acf251a382e9bd62fd04a7e5d9e48861366e42eed57487c8821942c809c0e365",
+          "oom_killed": false,
+          "started_at": "2026-10-20T18:47:51.247179009Z",
+          "finished_at": "2026-10-20T18:47:52.66560731Z"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "One small real Kani proof; no synthetic12GiB peak or sustained full-load guarantee.",
+    "No paid job on the dedicated identity during these host tests.",
+    "LinuxARM64 compiler executed under established AMD64 emulation."
+  ],
+  "privacy": "Private host paths, identities, original financial journals and their hashes omitted."
+}

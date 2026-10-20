@@ -5,10 +5,15 @@ production coordinator and exact compiler completed
 [two funded acceptance jobs](evidence/knowledge/paid-pilot-2026-10-20/report.md)
 on 20 October 2026, including actual client interruption, same-envelope recovery,
 settled replay, deterministic import and finalized payout verification.
-The temporary operator has returned to its original service. **Paid pilot
-accepted; public remote availability pending.** Continuous compiler supply,
-shared daemon project authorization and private remote processing remain
-separate gates.
+The temporary operator returned to its original service. A separate
+[dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md)
+then passed finalized staking, cohosting, live capacity, a guarded idle restart
+and an installed public-client preview. **Limited public capacity accepted at
+19:12 UTC on 20 October 2026:** one operator, one job in flight, with an observed
+50,000-micro-USDC ask. This activation introduced no new paid job.
+Use the [public-source buyer guide](compute-knowledge-remote.md) and check current
+capacity before purchasing. Shared daemon project authorization and private
+remote processing are separate scope.
 
 ## Local Docker acceptance recorded
 
@@ -29,9 +34,10 @@ funded production job.
 
 See the [reproducible Docker recipe](../deploy/knowledge-compiler/README.md) and
 [build evidence](evidence/knowledge/docker-build-acceptance-2026-10-20.json).
-The exact accepted compiler image was subsequently transferred to the pilot
-host and deployed for the two funded jobs. It is not a public registry release
-or evidence of continuing operator capacity.
+The exact accepted compiler image was subsequently transferred to the host and
+deployed for the two funded pilot jobs, then reused by the dedicated operator.
+It is not a public registry release. Continuing capacity is observed separately
+in the activation record and must be checked before purchase.
 
 ## Contract and boundaries
 
@@ -53,7 +59,26 @@ or evidence of continuing operator capacity.
 
 The node receives source as JSON on stdin. It runs only the pinned compiler entrypoint in a nonroot OCI container with no network, host mounts, or writable root filesystem; capabilities are dropped. Memory, CPU, process count, time, and output are bounded. Timeout, output failure, and cancellation remove the named container. Startup removes orphan containers bearing that operator's knowledge label. Source content never becomes a shell command.
 
-The image digest identifies the requested compiler. Signed receipts bind the observed job and output. Neither constitutes TEE attestation or proof of semantic correctness. Because the buyer independently recompiles the returned snapshot, this preview makes no speedup claim.
+The image digest identifies the requested compiler. Signed receipts bind the observed job and output. Neither constitutes TEE attestation or proof of semantic correctness. Because the buyer independently recompiles the returned snapshot, this path makes no speedup claim.
+
+## Current operator and admission window
+
+The dedicated operator uses a separate identity, home, systemd unit and resource
+group while the original Kani service stays active. The checked configuration
+allows one in-flight Knowledge job, a 256 MiB/one-CPU aggregate ceiling and a
+128 MiB node-service ceiling. A real near-limit source fixture and a small real
+Kani proof passed concurrently. This is bounded cohosting evidence, not sustained
+full-load or host reboot acceptance. Both services share one failure domain.
+
+Its 1,000,000 CVNT stake unlocks on **27 October 2026 at 19:17:25 UTC**. The
+current 48-hour remaining-lock gate ends admission eligibility on **25 October
+2026 at 19:17:25 UTC** unless extended. Owner-authorized extension is supported
+by a successful unsigned live simulation; none is executed or scheduled here.
+Service health, current capacity and renewal remain operational requirements.
+
+The new identity's idle restart preserved its empty obligation journals and
+the original Kani process. It is not a replay of customer work. Paid
+interruption/recovery acceptance belongs to the two earlier pilot jobs.
 
 Use `--commit` at the repository root to prepare release acceptance evidence. The selected commit is resolved as a commit, and source bytes are read from its tree without checkout hooks or filters. Working-directory `git.dirty` metadata has a narrower meaning: admitted raw source differs from HEAD, including additions and conservatively counted missing eligible tracked files. It is not `git status` and does not inspect index state, filter transformations, exclusions, or submodule internals. Git metadata reads disable lazy fetching and all network transports.
 

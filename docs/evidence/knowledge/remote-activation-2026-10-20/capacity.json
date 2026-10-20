@@ -1,0 +1,747 @@
+{
+  "schema": "covenant.knowledge.public-capacity-observation.v1",
+  "coordinator": "https://compute-api.opencovenant.org",
+  "public_capacity_endpoint": "https://compute-api.opencovenant.org/federation/capacity",
+  "public_operator_reputation_endpoint": "https://compute-api.opencovenant.org/federation/operators/CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf/reputation",
+  "result": "pass",
+  "first_observed_at": "2026-10-20T19:10:24.092451+00:00",
+  "last_observed_at": "2026-10-20T19:11:42.214749+00:00",
+  "samples": [
+    {
+      "observed_at": "2026-10-20T19:10:24.092451+00:00",
+      "phase": "observations_before_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 7993,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:10:30.684375+00:00",
+      "phase": "observations_before_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 14173,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:10:35.974849+00:00",
+      "phase": "observations_before_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 4690,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:10:41.399162+00:00",
+      "phase": "observations_before_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 10032,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:10:46.737089+00:00",
+      "phase": "observations_before_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 85,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:10:52.648639+00:00",
+      "phase": "observations_before_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 5841,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:10:58.037614+00:00",
+      "phase": "observations_before_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 11364,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:04.539421+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 4542,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:09.856517+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 9833,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:15.228540+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 294,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:20.531092+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 5590,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:25.934651+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 10959,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:31.563650+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 954,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:36.923671+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 6656,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    },
+    {
+      "observed_at": "2026-10-20T19:11:42.214749+00:00",
+      "phase": "observations_after_restart",
+      "knowledge_operator": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "registered": true,
+        "staked": true,
+        "status": "online",
+        "seen_ms_ago": 11931,
+        "live": true,
+        "matchable": true
+      },
+      "knowledge_capacity": {
+        "kind": "batch_job",
+        "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+        "operators": 1,
+        "min_ask_micro_usdc": 50000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 50000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "kani_capacity": {
+        "kind": "agent_check",
+        "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+        "operators": 1,
+        "min_ask_micro_usdc": 19000,
+        "min_ask_unit": "per_job",
+        "max_ask_micro_usdc": 19000,
+        "max_vram_gb": 0,
+        "gpu_classes": [
+          "cpu"
+        ],
+        "tee_capable": false
+      },
+      "knowledge_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      },
+      "kani_service_state": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStatus": "0"
+      }
+    }
+  ],
+  "guaranteed_future_capacity": false
+}

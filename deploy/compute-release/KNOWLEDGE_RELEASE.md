@@ -4,6 +4,14 @@ The local Knowledge feature ships inside the existing four-command Compute
 distribution. Remote operator availability and funded acceptance are separate
 from client installation.
 
+Limited dedicated remote capacity was separately
+[accepted on 20 October 2026](../../docs/evidence/knowledge/remote-activation-2026-10-20/report.md):
+one exact-compiler operator with one job in flight, cohosting and controlled
+idle restart checks, and an installed 0.5.0 public-source preview with no new
+purchase. The two earlier paid pilot jobs remain separate evidence. Initial
+stake admission eligibility ends 25 October 2026 at 19:17:25 UTC unless extended;
+always check current capacity and price.
+
 ## Published local release
 
 On 20 October 2026, `compute-v0.5.0` was published from accepted commit

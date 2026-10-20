@@ -1,8 +1,23 @@
-# Knowledge release candidate 0.5.0
+# Knowledge release 0.5.0
 
 The local Knowledge feature ships inside the existing four-command Compute
 distribution. Remote operator availability and funded acceptance are separate
 from client installation.
+
+## Published local release
+
+On 20 October 2026, `compute-v0.5.0` was published from accepted commit
+`8cbaeb7e423eead8bf12389820857437ad693717`. All four native candidate builds and
+fresh installations passed before the tag was created. The tag pipeline then
+built, installed, attested, signed and published all four platform archives.
+Independent verification authenticated every public archive, checked its source
+and binary manifest, and confirmed its bytes match the corresponding native CI
+artifact. A fresh post-download Apple Silicon installation also passed.
+
+See the [public release verification](../../docs/evidence/knowledge/public-release-0.5.0/report.md)
+and its machine-readable record for the source, hashes, signatures, attestations,
+native job links and precise installation scope. Website and Homebrew promotion
+are separate checks; publication alone does not establish those pins are live.
 
 ## Candidate validation
 
@@ -34,8 +49,9 @@ Rebuild and reverify if any shipping source or packaged file changes.
 ## Platform and publication gates
 
 The `compute-release` workflow has four platform jobs: Apple Silicon and Intel
-macOS, plus ARM64 and x86-64 static-musl Linux. A pull request or manual
-`workflow_dispatch` builds and tests without publishing. The signing/release job
+macOS, plus ARM64 and x86-64 static-musl Linux. A pull request, the configured
+Knowledge candidate branch, or manual `workflow_dispatch` builds and tests
+without publishing. The signing/release job
 requires a **push** of a `compute-v*` tag; selecting a tag for a manual validation
 run does not publish.
 
@@ -59,13 +75,8 @@ attestation using the commands in `notes/compute-v0.5.0.md`.
 
 ## Installer promotion
 
-Read-only GitHub checks on 20 October 2026 found published `compute-v0.4.1`
-and no `compute-v0.5.0` tag or release. Both the public website installer and
-Homebrew formula were pinned to 0.4.1. These observations must be refreshed before
-publishing.
-
-Keep those public pins unchanged until the actual 0.5.0 signed artifacts exist.
-Then use `pin.sh` with a Homebrew tap checkout and the website installer:
+The signed 0.5.0 release and four archive signatures have now been independently
+verified. Use `pin.sh` with a Homebrew tap checkout and the website installer:
 
 ```sh
 deploy/compute-release/pin.sh 0.5.0 /path/to/homebrew-tap \
@@ -73,11 +84,11 @@ deploy/compute-release/pin.sh 0.5.0 /path/to/homebrew-tap \
 ```
 
 The pinning script first verifies the published checksum file with the exact
-workflow identity and OIDC issuer. It requires `cosign`; this local shell did
-not have `cosign` or `gh` installed at the time of the audit. The active GitHub
-workflow was readable as ID `387958034`; authenticated dispatch capability was
-not established. The connected GitHub tools exposed workflow reads and retries,
-but no new-workflow dispatch tool.
+workflow identity and OIDC issuer. It requires `cosign`. Verification used the
+official checksummed Cosign 2.4.1 and GitHub CLI 2.102.0 tools. Use the data-aware
+installer body from the accepted release commit as well as the authenticated
+pins: an older four-command-only website installer does not retain examples and
+guides. Review the body change independently of the five pinned values.
 
 Validate a fresh installation through the real published installer and Homebrew
 before announcing availability. The offline installer retains examples, guides,

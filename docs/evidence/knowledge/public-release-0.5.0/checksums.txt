@@ -1,0 +1,4 @@
+7bb4a1ebfbc9aa20c725fb637f5ede9585da412b56f014eed314a9d01995e586  covenant-compute-darwin-arm64.tar.gz
+0525372e349c5ad01f16cef22d5c488d5022bd435236c7642b9f1e0069fee74d  covenant-compute-darwin-x86_64.tar.gz
+26ccb6c8305f4828f56906b662c2d4d136802128672efa884379675e43470495  covenant-compute-linux-arm64.tar.gz
+ba1185a4650d953fa71fabb0a0e4b8beee619b17bd3b9d53b7c10396ccf60cf2  covenant-compute-linux-x86_64.tar.gz

@@ -1,6 +1,10 @@
 # Compute Knowledge: brand and rollout
 
-Prepared 20 October 2026. **X drafts only; no posting or scheduling performed.** The [signed public 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0) passed four native installation checks and independent archive verification. The [two-job paid pilot passed](evidence/knowledge/paid-pilot-2026-10-20/report.md). A separate [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md) now establishes limited remote capacity: one operator, one job in flight, observed 0.05 USDC ask, cohosting and idle restart checks, and a zero-purchase installed-client preview. This is not a new paid job under the dedicated identity. The [live feature page](https://opencovenant.org/compute-knowledge) and HTTPS installer previously passed local-release QA. Remote page promotion and its exact links must pass before post 6 is used. Homebrew remains on 0.4.1; use the verified installer or signed archives for Knowledge.
+Prepared 20 October 2026. **Ready-to-publish drafts; no X posting or scheduling performed.** The [signed public 0.5.1 release](evidence/knowledge/public-release-0.5.1/report.md) passed four native installations and independent archive verification. The [live feature page and served HTTPS installer](evidence/knowledge/public-release-0.5.1/installer-promotion.md) passed at 20:40 UTC from website source `d693a8dee46a09d7a363650371ed6ced91b1d576`, including standard Covenant CTAs at three viewport widths and a fresh installation.
+
+The [two-job paid pilot](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md) retain separate evidence. The bounded public-source pilot has one operator, at most one job in flight and an observed 0.05 USDC ask. [Public capacity at 20:37 UTC](evidence/knowledge/public-release-0.5.1/capacity-final.json) showed Knowledge and Kani available. No paid job under the new identity is implied. Initial admission eligibility ends **25 October 2026 at 19:17:25 UTC** unless extended; check current eligibility and quote before use or publication. Homebrew remains on 0.4.1; use the verified installer or signed archives for Knowledge.
+
+**Current campaign:** the 45-second **v5 film without subtitles**, the settled-opening thumbnail and the 251-weighted-character Desktop post. The opening voice is exactly “Introducing knowledge graphs for Covenant Compute.” It retains the same founder voice, actual interface recordings, animated headings and clean black backgrounds. The earlier films and 0.5.0 release evidence are retained as history.
 
 ## Positioning
 
@@ -12,13 +16,13 @@ Use **Covenant Compute Knowledge** on first mention, then **Compute Knowledge**.
 
 **Message:** “Codebase knowledge your agents can inspect.” Follow with a concrete workflow: compile locally, inspect cited results, compare revisions. Explain remote compilation only once its own evidence gate clears.
 
-**Visual:** source folio → linked symbols → exact-source lens, connected by thin glass planes and an ordered violet–blue–mint field on black. Archivo Expanded 600 headlines, JetBrains Mono 500 labels, official Covenant mark. No invented performance numbers, LIVE badge, token-pricing story or visual suggestion that a private repository was uploaded.
+**Visual:** source folio → linked symbols → exact-source lens, connected by thin glass planes. Preserve the approved artwork’s small, directed violet–blue–mint particle streams, Archivo Expanded 600 headlines, JetBrains Mono 500 labels and official Covenant mark. **User direction for the current film: clean black negative space; no repeating ambient tiled grid, matrix or particle-field logo assembly.** Close on the official gradient mark with a restrained reveal/light sweep. Use the Coinbase AgentKit film’s kinetic text timing, genuine interface recordings and the existing authorized founder voice. No invented performance numbers, LIVE badge, token-pricing story or visual suggestion that a private repository was uploaded.
 
 ## Publication sequence
 
 Publish one feature at a time, in this order. A two-to-three-day gap is a planning suggestion after each gate clears, not an automatic schedule. If a gate is late, hold the post and keep development updates factual. Use replies to answer concrete workflow questions; do not manufacture engagement or imply endorsements.
 
-Each draft below is a complete standalone X post under 280 weighted characters. Posts 1–5 are **READY local-release drafts**: public artifacts, the live page and fresh HTTPS installation have passed their gates. Post 6 has accepted limited-capacity evidence but remains **HOLD for the public page's remote promotion and exact-link QA**. Post 7 is **READY** only with its small-fixture and no-savings caveats intact. Recheck links and current availability before each post. READY means prepared for a human publishing action, never automatically posted or scheduled.
+Each draft below is a complete standalone X post under 280 weighted characters. Posts 1–5 are **READY local-release drafts**. Post 6 is **READY for the bounded public-source pilot** with the separate paid-pilot and dedicated-capacity evidence retained. Post 7 is **READY** only with its small-fixture and no-savings caveats intact. Recheck links and current availability before each post. READY means prepared for a human publishing action, never automatically posted or scheduled. The current v5 film has passed its own media review, signed 0.5.1 release and live website/installer gates.
 
 ### 1. Local announcement — READY
 
@@ -29,7 +33,7 @@ Each draft below is a complete standalone X post under 280 weighted characters. 
 > Get the local release:
 > https://opencovenant.org/compute-knowledge
 
-**Gate passed:** signed Compute 0.5.0, live page/source `5b86392ab80be15611cba4bec6cc24ee48b7de43`, responsive QA and actual fresh HTTPS installation. **Asset:** revised local-release artwork or the 38.72-second actual public-client demo. **CTA:** get the local release. **Success signal:** actual installs and relevant developer questions, not inferred conversions. The earlier “we’re building / implementation preview” announcement is historical and must not be published as the current launch.
+**Gate passed:** signed Compute 0.5.1, live website source `d693a8dee46a09d7a363650371ed6ced91b1d576`, responsive CTA review and actual fresh HTTPS installation. **Asset:** the current v5 film and opening thumbnail. Older 0.5.0-labeled artwork and the earlier public-client recording remain historical. **CTA:** get the local release. **Success signal:** actual installs and relevant developer questions, not inferred conversions. The earlier “we’re building / implementation preview” announcement is historical and must not be published as the current launch.
 
 ### 2. Local compile — READY
 
@@ -55,7 +59,7 @@ Each draft below is a complete standalone X post under 280 weighted characters. 
 
 **Gate:** local release/package and feature-page link verified; edit/delete/full-vs-cached/history tests pass. **Asset:** actual two-snapshot diff, with revision IDs retained in supporting evidence. **CTA:** compare a small local edit. **Success signal:** verified reproducible diffs, including deletions.
 
-### 6. Remote — HOLD for page promotion
+### 6. Remote — READY for bounded public-source pilot
 
 > Remote Knowledge compilation now has dedicated capacity on Covenant Compute. Preview the current quote for a pinned public GitHub revision, then verify the receipt and inspect the snapshot locally. Limits and availability: https://opencovenant.org/compute-knowledge
 
@@ -64,9 +68,9 @@ Each draft below is a complete standalone X post under 280 weighted characters. 
 **Evidence now accepted:** one dedicated exact-compiler operator, bounded cohosting
 with Kani, a guarded idle restart and an installed 0.5.0 source-and-quote preview.
 The two earlier paid pilot jobs remain separate from the new identity. The
-observed ask was 50,000 micro-USDC at 19:12 UTC; recheck it before publication.
+most recent promotion observation showed a 50,000-micro-USDC ask at 20:37 UTC; recheck it before publication.
 Initial admission eligibility ends 25 October 2026 at 19:17:25 UTC unless
-extended. The post must link a live page carrying the
+extended. The verified live page carries the
 [buyer guide](compute-knowledge-remote.md) and
 [activation evidence](evidence/knowledge/remote-activation-2026-10-20/report.md).
 No automatic renewal, guaranteed uptime or new-identity paid execution is claimed.
@@ -84,10 +88,11 @@ No automatic renewal, guaranteed uptime or new-identity paid execution is claime
 
 | Claim | Implementation / evidence location | Required validation | Allowed wording now |
 |---|---|---|---|
-| Part of Compute | `agent-os/crates/covenant-compute-buyer/src/knowledge_cli.rs` | Buyer build and CLI integration | “inside Covenant Compute”; implementation preview |
+| Part of Compute | `agent-os/crates/covenant-compute-buyer/src/knowledge_cli.rs` | Buyer build and CLI integration | “inside Covenant Compute”; signed local 0.5.1 release and matching live site verified |
 | Local compilation without models or purchase | `covenant-knowledge/src/source.rs`, `parser.rs`; CLI local dispatch | Local run without credentials; no paid transport | “local commands require no model key or Compute purchase” |
 | Five language/input names | `covenant-knowledge/src/parser.rs`, `examples/knowledge` | Per-language extraction + citation assertions | Rust/Python/JavaScript/TypeScript/Markdown; bounded extraction |
 | Exact source evidence | `covenant-knowledge/src/store.rs` and core tests | Saved slice, hash, range and historical snapshot tests | Saved excerpt, path and line range; no correctness guarantee |
+| Knowledge graphs | Captured files, symbols and their extracted relationships; resolver and source evidence | Supported static links and explicit unresolved relationships | “Codebase knowledge graphs” or “knowledge graphs”; feature name remains Knowledge; no complete runtime dependency or semantic-understanding claim |
 | Read-only MCP | `knowledge_cli.rs`, buyer tests | Six tools; project, argument and mutation rejection | Six read-only tools bound to one local project |
 | Dependency tracing | Core resolver/query and fixtures | Resolved/unresolved, depth/ambiguity examples | “observed relationships”; no complete call-graph claim |
 | Updates and history | Store/cache/diff and core tests | Edit/delete parity and corruption tests | Recompile, compare saved snapshots, retain historical evidence |
@@ -95,14 +100,30 @@ No automatic renewal, guaranteed uptime or new-identity paid execution is claime
 | Remote compilation | `knowledge_remote.rs`, protocol/node modules; [paid pilot](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated activation](evidence/knowledge/remote-activation-2026-10-20/report.md) | Source matching, cap/budget, receipt, tamper/container tests; paid pilot; current exact-model capacity and installed preview | “Limited dedicated capacity”; current quote and admission window disclosed |
 | Container isolation | Node runner and [actual pilot containers](evidence/knowledge/paid-pilot-2026-10-20/container-isolation-and-lifecycle.json) | Exact image, network, identity, resource and lifecycle observations | Accepted container restrictions; no TEE claim |
 | Local measurements | [initial unoptimized report](evidence/knowledge/benchmark-2026-10-20/report.md), [optimized preview](evidence/knowledge/benchmark-release-2026-10-20/report.md) and raw results | Raw repeated results + reproducible commands | Only measured fixture numbers with corpus/build/load caveats |
-| Packaged/released | [Signed public 0.5.0](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0), [four native platform checks](https://github.com/open-covenant/covenant/actions/runs/39462626252) | Downloaded archive signatures, checksums, attestations and fresh install verified | **Local 0.5.0 released; live HTTPS installer and fresh installation verified** |
+| Packaged/released | [Signed public 0.5.1](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1), [four native platform checks](https://github.com/open-covenant/covenant/actions/runs/39484253976), [live installer proof](evidence/knowledge/public-release-0.5.1/installer-promotion.md) | Downloaded archive signatures, checksums, attestations and fresh served-HTTPS install verified | **Local 0.5.1 released; live HTTPS installer and fresh installation verified** |
+| Current v5 film / viewer theme | `output/compute-knowledge-film-v5/`; reviewed viewer source and 0.5.1 candidate capture | Actual capture provenance, independent full-film review, signed public 0.5.1 verification and matching page promotion | **READY; signed public 0.5.1 and matching live page verified. No repeating ambient grid or voiceover subtitles.** |
 | Deployed/paid accepted | [Two-job paid pilot](evidence/knowledge/paid-pilot-2026-10-20/report.md), [new operator lifecycle](evidence/knowledge/remote-activation-2026-10-20/lifecycle.json) | Original paid receipts/recovery/import/settlement; separate dedicated idle restart and zero-purchase preview | **Two earlier paid jobs accepted; dedicated limited capacity separately verified; no standing price or new-identity paid job claim** |
 | Token/cost savings, comparative superiority | No controlled experiment | Matched task quality and token/cost experiment | **Do not claim** |
 | Private/team remote access | No shared daemon knowledge-query authorization adapter | Threat model and project authorization acceptance | **Follow-up scope** |
 
-## Local release announcement
+## Current v5 announcement — READY
 
-The signed public release, installed example and live page have now been verified. This is the same READY post 1 above; it has not been posted or scheduled:
+The active Desktop draft is **251 X-weighted characters**, verified as ASCII text with its sole HTTPS URL counted at 23 characters. It is prepared for copying, not posted or scheduled:
+
+> Give your agents a map of the code.
+>
+> Knowledge is built into Covenant Compute.
+> Search source. Inspect citations. Trace supported dependencies. Compare snapshots.
+>
+> Keep code local, or use the bounded public-source remote pilot.
+>
+> https://opencovenant.org/compute-knowledge
+
+Pair this draft with **v5** and the settled-opening thumbnail. The signed public 0.5.1 package and matching live page have passed independent verification. Recheck the bounded remote operator’s current eligibility and quote before publication. Do not attach an old preview or infer a new paid execution from the dedicated operator’s activation checks.
+
+## Historical 0.5.0 announcement
+
+The signed public 0.5.0 release, installed example and then-current live page were verified. This is the earlier 255-character post 1, retained as historical release copy; it was not posted or scheduled:
 
 > Knowledge is now part of Covenant Compute.
 >
@@ -111,9 +132,33 @@ The signed public release, installed example and live page have now been verifie
 > Get the local release:
 > https://opencovenant.org/compute-knowledge
 
-It is 255 X-weighted characters. Pair it with the release-labeled 1920×1080 artwork or the fresh public-client recording. Follow with the focused citations/MCP, dependencies and snapshot posts above at 48–72-hour intervals only when each proof is available. Nothing is posted or scheduled by preparing these files.
+It is 255 X-weighted characters. Its historical assets are the 0.5.0-labeled 1920×1080 artwork and the public 0.5.0 client recording. Use the current v5 draft for the revised campaign; its release and website gates have passed. Follow with the focused citations/MCP, dependencies and snapshot posts above at 48–72-hour intervals only when each proof is available. Nothing is posted or scheduled by preparing these files.
 
 ## Assets and demo
+
+### Current v5 film — READY, without subtitles
+
+Local output directory: `output/compute-knowledge-film-v5/`. The final movie is `delivery/covenant-compute-knowledge-v5.mp4`: **45.000 seconds, H.264 1920×1080 at 30fps, 1,350 decoded frames, stereo AAC**. Its SHA-256 is `c50cf72df580ff5e6c5dfdb75c9c578a38bda9b454b7403097c4cf3f8190a5e0`.
+
+- **Visual direction:** clean black backgrounds, the approved concept-linked glass illustration and kinetic text transitions. The repeating ambient grid and particle-grid closing assembly were explicitly rejected and removed. Only the hero illustration’s own small directed particle streams remain. The closing uses the official gradient SVG mark with a restrained reveal/light sweep.
+- **Voice:** the opening is exactly “Introducing knowledge graphs for Covenant Compute.” It uses the existing, explicitly authorized Inworld founder voice at natural 1.0 speed. V4 introduced this opening with one 50-character take; v5 performs no new speech generation. The complete final AAC payload and decoded PCM are byte-identical to v4. Opening speech runs from 2.34 to 4.66 seconds. The encoded mix measures −16.3 LUFS and −1.6 dBFS true peak. Quiet procedural effects are retained; no stock music is used.
+- **Subtitles:** all bottom narration captions are removed, with no subtitle stream or active sidecar file. Animated headings and actual product-interface text remain unchanged.
+- **Actual capture:** the original local invoice example, two real source snapshots, search, exact source evidence, dependency observations, diff and integrity verification. No CSS overrides or fabricated source responses were used. The actual recording is decoded frame-exactly and reframed for readability.
+- **Captured candidate source:** `4ab322752c3a3fa82931e71d10b31c5abbc62d0f`. **Final release source:** `809aa264c2c1cb965c11001052096eece5caf0cf`. The locally packaged buyer is byte-identical between these two builds: SHA-256 `6476ccd545a7b03be9a0d38eb7524403c1d3699a43052386a84b2a15106710e5`. This records the actual local candidate used for capture; it does **not** claim the footage came from a downloaded final public archive, whose build environment may yield different binary bytes.
+- **Receipt scene:** explicitly labeled **EARLIER PAID ACCEPTANCE · 20 OCT 2026**. The shown snapshot SHA-256 comes from `jobs[0].snapshot_sha256` in the [two-job acceptance record](evidence/knowledge/paid-pilot-2026-10-20/acceptance.json); the replay statement is supported by the [installed-client replay record](evidence/knowledge/paid-pilot-2026-10-20/public-installed-replay.json). It is separate from the new operator activation. No new purchase or new-identity paid execution is claimed.
+- **QA and provenance:** `evidence/film-provenance.json`, `evidence/v5-scope-check.json`, `evidence/audio-identity.json`, `out/review/technical-qc.json` and the independent `output/compute-knowledge-film-review/knowledge-v5-independent-qc.json`. Full-film and focused motion review passed; all frames decode, no long near-black gaps were found, and the subtitle-free composition preserves the main headings and real interface text. The retained v4 provider word alignment and encoded-audio comparison verify the opening take, and v5 preserves that entire audio stream; this is not independent speech transcription or a subjective listening assessment.
+- **Thumbnail:** `delivery/thumbnail.png` is the native, lossless 1920×1080 v5 renderer screenshot at 4.5 seconds, after the opening animation settles. It has no subtitles and agrees with the corresponding encoded video frame. No upscaling or image generation was used. SHA-256: `a92a77c3a5aea8a07ff730b4253504fc90a1860ef96b70ec4ec521ecc36afb33`.
+- **Active Desktop delivery:** `Covenant Compute Knowledge/Updated demo - 2026-10-20/`, containing `covenant-compute-knowledge-v5.mp4`, `thumbnail.png`, the current `x-post.txt`, `README.txt` and `SHA256SUMS`. `updated-demo-2026-10-20.zip` contains v5, and `LATEST DEMO.txt` points to it. The README records READY status, the verified release/site/installer, current-quote checks and the initial operator admission cutoff. No X post has been published or scheduled.
+
+V4 is preserved internally under `output/compute-knowledge-film-v4/`; it retains subtitles and is superseded by v5.
+
+V3 and its Desktop bundle are preserved internally under `output/compute-knowledge-film-v3/`, including `delivery/desktop-v3-preserved/` and `delivery/desktop-v3-preserved.zip`. It retains the earlier opening and is superseded by v5.
+
+V2 and its Desktop bundle are preserved internally under `output/compute-knowledge-film-v2/`, including `delivery/desktop-v2-preserved/` and `delivery/desktop-v2-preserved.zip`. They are superseded by v5 and must not be selected as the current announcement media. The three original root-level Desktop exports (`release-demo.mp4`, `x-post.txt`, `launch-kit.zip`) remain byte-identical.
+
+### Historical 0.5.0 and implementation-preview media
+
+These earlier exports document their own release/preview states; they are not the current v5 campaign assets.
 
 Local output directory: `output/compute-knowledge-launch/` (kept outside the commit, not automatically published).
 
@@ -132,9 +177,9 @@ Local output directory: `output/compute-knowledge-launch/` (kept outside the com
 - `remote-demo-storyboard.md`: held release capture plan to record again after real acceptance.
 - `qa/landing-checks.json`: responsive/browser checks.
 
-The current release demo uses an original small billing example, two real compiled snapshots and real query responses from the public installed 0.5.0 buyer. Its constant **COMPUTE 0.5.0 · LOCAL RELEASE · ORIGINAL EXAMPLE** label identifies the workflow. The earlier `demo/local-preview.mp4` remains historical and retains its original preview label. Chapter labels are editing overlays; source data is unmodified. Neither clip represents paid remote execution.
+The historical 0.5.0 release demo uses an original small billing example, two real compiled snapshots and real query responses from the public installed 0.5.0 buyer. Its constant **COMPUTE 0.5.0 · LOCAL RELEASE · ORIGINAL EXAMPLE** label identifies the workflow. The earlier `demo/local-preview.mp4` remains historical and retains its original preview label. Chapter labels are editing overlays; source data is unmodified. Neither clip represents paid remote execution.
 
-Suggested 38-second cut: 0–5s snapshot/coverage; 5–12s search; 12–18s exact excerpt; 18–25s relationships including unresolved entries; 25–32s actual diff; 32–38s stored-evidence verification. It is a workflow demonstration, not a performance test.
+Historical 38-second cut: 0–5s snapshot/coverage; 5–12s search; 12–18s exact excerpt; 18–25s relationships including unresolved entries; 25–32s actual diff; 32–38s stored-evidence verification. It is a workflow demonstration, not a performance test.
 
 ## Measurement plan
 
@@ -159,4 +204,4 @@ the corpus and binary hashes for any measured comparison.
 
 ## Release checklist for the publisher
 
-Before each post, confirm its evidence gate, current release state, asset label, exact links and final character count. No draft includes an endorsement, performance comparison or promise of savings. Local availability has the signed release, live feature page and actual HTTPS fresh-install evidence. Remote availability has limited dedicated-capacity acceptance; its public page, current quote, operator health and stake admission window must still be checked at posting time. Keep the seven-stage sequence and separate the earlier paid pilot from new-operator activation.
+Before each post, confirm its evidence gate, current release state, asset label, exact links and final character count. **The current v5 film, thumbnail and post are READY for a human publishing action.** Signed public 0.5.1 verification, live website deployment and fresh served-HTTPS installation are recorded separately. No draft includes an endorsement, comparative superiority or promise of savings. Remote availability has limited dedicated-capacity acceptance; check current quote, operator health and the stake admission window at posting time. Keep the seven-stage sequence and distinguish the earlier paid pilot from new-operator activation. Nothing has been published or scheduled on X.

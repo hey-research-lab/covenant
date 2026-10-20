@@ -1,0 +1,876 @@
+{
+  "schema": "covenant.compute.installer-promotion.v1",
+  "observed_at": "2026-10-20T20:40:24.155452+00:00",
+  "result": "pass",
+  "website": {
+    "url": "https://opencovenant.org/compute-knowledge",
+    "source_commit": "d693a8dee46a09d7a363650371ed6ced91b1d576",
+    "previous_main": "4889fca5f78f2af523c5d773edeb37ee994e1fab",
+    "promotion": "Normal protected main fast-forward after required branch CI and application checks passed; existing git-triggered auto-deployment.",
+    "main_promotion": {
+      "observed_at": "2026-10-20T20:36:35.266704+00:00",
+      "source": "d693a8dee46a09d7a363650371ed6ced91b1d576",
+      "main_before": "4889fca5f78f2af523c5d773edeb37ee994e1fab",
+      "command": "git push origin HEAD:refs/heads/main",
+      "result": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "To https://github.com/open-covenant/covenant.git\n   4889fca5f..d693a8dee  HEAD -> main\n",
+      "main_after": "d693a8dee46a09d7a363650371ed6ced91b1d576",
+      "finished_at": "2026-10-20T20:36:37.489207+00:00"
+    },
+    "reviewed_page_installer_byteproof": {
+      "result": "pass",
+      "source": "d693a8dee46a09d7a363650371ed6ced91b1d576",
+      "reviewed_site_commit": "ee85cf54e2456b82d2561d444d033ddb4b94d60c",
+      "files": [
+        {
+          "path": "landing/app/compute-knowledge/page.tsx",
+          "sha256": "2db2af05b544f0728e8119ec6df2fe258f059efd9ec16d36efdfddd05fb8ace6",
+          "matches_initial_reviewed_site_commit": true
+        },
+        {
+          "path": "landing/app/compute-knowledge/page.module.css",
+          "sha256": "7152a17961281c0f02d0f3637b221966a496cd5382cbbac488c0515c86eb7b12",
+          "matches_initial_reviewed_site_commit": true
+        },
+        {
+          "path": "landing/public/install/compute.sh",
+          "sha256": "74fdf1d23c38597d0ada3015f47a71a86e87cc07c43ff1e1e89a72627dffc9dc",
+          "matches_initial_reviewed_site_commit": true
+        }
+      ]
+    },
+    "initial_reviewed_site_commit": "ee85cf54e2456b82d2561d444d033ddb4b94d60c",
+    "changed_files": [
+      "landing/app/compute-knowledge/page.tsx",
+      "landing/app/compute-knowledge/page.module.css",
+      "landing/public/install/compute.sh",
+      "scripts/check-knowledge-site-baseline.py",
+      "package.json",
+      "pnpm-lock.yaml",
+      "apps/mizuki-web/app/layout.tsx",
+      "apps/mizuki-web/app/fonts/Archivo-Variable.ttf",
+      "apps/mizuki-web/app/fonts/JetBrainsMono-Variable.ttf",
+      "apps/mizuki-web/app/fonts/OFL-Archivo.txt",
+      "apps/mizuki-web/app/fonts/OFL-JetBrainsMono.txt",
+      "apps/mizuki-web/app/fonts/sources.json",
+      "apps/mizuki-web/vitest.config.ts",
+      "apps/mizuki-web/test/next-font-local-stub.ts"
+    ],
+    "ci": [
+      {
+        "id": 39492102735,
+        "path": ".github/workflows/mizuki.yml",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735",
+        "jobs": [
+          {
+            "name": "changes",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118867647165",
+            "started_at": "2026-10-20T20:27:21Z",
+            "completed_at": "2026-10-20T20:27:31Z",
+            "active_step": []
+          },
+          {
+            "name": "application",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118867752710",
+            "started_at": "2026-10-20T20:27:34Z",
+            "completed_at": "2026-10-20T20:30:43Z",
+            "active_step": []
+          },
+          {
+            "name": "escrow",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118867755324",
+            "started_at": "2026-10-20T20:27:34Z",
+            "completed_at": "2026-10-20T20:30:31Z",
+            "active_step": []
+          },
+          {
+            "name": "escrow-release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118869236918",
+            "started_at": "2026-10-20T20:30:31Z",
+            "completed_at": "2026-10-20T20:30:31Z",
+            "active_step": []
+          }
+        ]
+      },
+      {
+        "id": 39492102973,
+        "path": ".github/workflows/ci.yml",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973",
+        "jobs": [
+          {
+            "name": "changes",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868032148",
+            "started_at": "2026-10-20T20:28:14Z",
+            "completed_at": "2026-10-20T20:28:25Z",
+            "active_step": []
+          },
+          {
+            "name": "landing",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868032517",
+            "started_at": "2026-10-20T20:28:09Z",
+            "completed_at": "2026-10-20T20:29:20Z",
+            "active_step": []
+          },
+          {
+            "name": "evm",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868190266",
+            "started_at": "2026-10-20T20:28:28Z",
+            "completed_at": "2026-10-20T20:28:44Z",
+            "active_step": []
+          },
+          {
+            "name": "rust",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868190314",
+            "started_at": "2026-10-20T20:28:28Z",
+            "completed_at": "2026-10-20T20:35:50Z",
+            "active_step": []
+          },
+          {
+            "name": "timeline-release",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868190410",
+            "started_at": "2026-10-20T20:28:28Z",
+            "completed_at": "2026-10-20T20:28:51Z",
+            "active_step": []
+          }
+        ]
+      }
+    ],
+    "all_check_runs": [
+      {
+        "name": "escrow-release",
+        "status": "completed",
+        "conclusion": "skipped",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118869236918"
+      },
+      {
+        "name": "timeline-release",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868190410"
+      },
+      {
+        "name": "rust",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868190314"
+      },
+      {
+        "name": "evm",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868190266"
+      },
+      {
+        "name": "landing",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868032517"
+      },
+      {
+        "name": "changes",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102973/job/118868032148"
+      },
+      {
+        "name": "escrow",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118867755324"
+      },
+      {
+        "name": "application",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118867752710"
+      },
+      {
+        "name": "changes",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/open-covenant/covenant/actions/runs/39492102735/job/118867647165"
+      }
+    ],
+    "commit_statuses": [],
+    "deployment": {
+      "id": "dep-dbbt1lgu01pc7387vg4g",
+      "status": "live",
+      "trigger": "new_commit",
+      "createdAt": "2026-10-20T20:36:38.286557Z",
+      "finishedAt": "2026-10-20T20:39:16.257757Z",
+      "commit": "d693a8dee46a09d7a363650371ed6ced91b1d576"
+    },
+    "service": "srv-d7ud5idb910c73aov88g",
+    "service_configuration_unchanged": true,
+    "service_configuration_sha256": "670b0fb6758f435c8668f82b27a56ee5c1d49eb13750583e4340218e3cb8e651"
+  },
+  "installer": {
+    "observed_at": "2026-10-20T20:39:49.283054+00:00",
+    "url": "https://opencovenant.org/install/compute.sh",
+    "installer_sha256": "74fdf1d23c38597d0ada3015f47a71a86e87cc07c43ff1e1e89a72627dffc9dc",
+    "version": "0.5.1",
+    "platform": "darwin-arm64",
+    "release_archive_sha256": "8cf3b09bcd4ea950d59a753a98b026e010f6078ed26727fad4062620391b28b1",
+    "binary_sha256": {
+      "covenant-compute": "53dd131563dd6363d185e5bc185f185c179ed0ab27773e17fed6f9c6914cf823",
+      "covenant-compute-mcp": "0125dc569b750cc8163a679019b9a1c58640e2bed947a8af0ab2f8a8df982ff0",
+      "covenant-compute-node": "f2e9689304f4cae3efb74ebc1e6d50b113b626fde393d52f703215a9b9294411",
+      "covenant-compute-stake": "de8b1fa7054f3c574c9cb7c0a8a6bc344259303146d2828d347e7ca1ba49e565"
+    },
+    "versions": {
+      "covenant-compute": "covenant-compute 0.5.1",
+      "covenant-compute-mcp": "covenant-compute-mcp 0.5.1",
+      "covenant-compute-node": "covenant-compute-node 0.5.1",
+      "covenant-compute-stake": "covenant-compute-stake 0.5.1"
+    }
+  },
+  "installer_review": {
+    "previous_served_sha256": "18883da2515ea243ef7c95a92c1fac3a60f8c30f55d25df17c17c688efa0b0ef",
+    "changed_assignments": 5,
+    "body_outside_pin_block_unchanged": true,
+    "body_outside_pin_block_sha256": "0041ea96c59f19dd0f7e8e4cf984dfdc04ff538806dcda37b969856255939230",
+    "release_tag": "compute-v0.5.1",
+    "release_source_commit": "809aa264c2c1cb965c11001052096eece5caf0cf",
+    "release_url": "https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1",
+    "baseline_guard": "Extended only with the exact reviewed full installer SHA-256."
+  },
+  "dependency_repair": {
+    "reason": "Protected main correctly refused the initial candidate because a separate application audit detected two advisories published on unchanged baseline dependencies that day.",
+    "initial_application_run": "https://github.com/open-covenant/covenant/actions/runs/39487948036",
+    "advisories": [
+      "https://github.com/advisories/GHSA-q3jh-wrc6-jgq8",
+      "https://github.com/advisories/GHSA-8r9p-f939-6h3c"
+    ],
+    "package": "follow-redirects",
+    "before": "1.16.0",
+    "after": "1.16.1",
+    "scope": "One root override and matching lock override, integrity, Axios edge, and snapshot. No audit, workflow, or branch-protection policy changed.",
+    "package_json_sha256": "8dcf7c3461dc2b43b6c6b3ebc7e1fb0b5776212d9bac2ab2020bb4f336f08f20",
+    "lock_sha256": "a635a61c17d0ef9d45125b589dae81446fbdc210832b24f025cdceb96c8c3720",
+    "guard_requires_exact_reviewed_pair": true,
+    "both_mixed_dependency_pairs_refused": true,
+    "frozen_lock_validation_byte_stable": true,
+    "existing_scoped_audit_passed": true
+  },
+  "actual_https_install": {
+    "result": "pass",
+    "fresh_isolated_prefix": true,
+    "all_four_binary_versions_and_hashes_match_signed_public_archive": true,
+    "knowledge_checks": [
+      "packaged-licenses",
+      "original-example-files",
+      "offline-help",
+      "offline-compile",
+      "status",
+      "multi-language-search",
+      "exact-source-citations",
+      "show",
+      "snapshot-verification",
+      "incremental-cache",
+      "mcp-initialize",
+      "mcp-notifications",
+      "mcp-six-read-only-tools",
+      "mcp-all-six-reads",
+      "mcp-citations",
+      "mcp-no-mutation",
+      "mcp-project-boundary",
+      "source-unchanged",
+      "no-buyer-identity"
+    ],
+    "knowledge_check_count": 19,
+    "verified_citations": 18,
+    "mcp_read_only_tools": 6,
+    "no_user_home_or_buyer_identity_created": true,
+    "no_new_purchase_or_host_action": true
+  },
+  "font_build_repair": {
+    "failure_run": "https://github.com/open-covenant/covenant/actions/runs/39489843898",
+    "upstream_issue": "https://github.com/vercel/next.js/issues/99114",
+    "diagnosis": "An intermittent extensionless Google Fonts URL triggers the Next font loader query parser after all application tests and the dependency audit pass.",
+    "normal_rerun_request": "One request denied by GitHub for insufficient administrative permission; no retry, alternative credential, or trigger workaround.",
+    "source_fix": "Use next/font/local for the same two unmodified upstream variable fonts with adjacent OFL licenses and pinned provenance. No build command, stylesheet, audit, or workflow changes.",
+    "source_manifest": "https://github.com/open-covenant/covenant/blob/d693a8dee46a09d7a363650371ed6ced91b1d576/apps/mizuki-web/app/fonts/sources.json",
+    "upstream_commit": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+    "archivo_sha256": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053",
+    "jetbrains_sha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+    "preserved": [
+      "Archivo weight 100-900 and width 62-125",
+      "JetBrains exposed weight 300-600",
+      "Original CSS variables",
+      "normal style and swap display"
+    ],
+    "guard": "Exact eight-file hash set including the two test adapter files; an actual one-byte font mutation was refused.",
+    "local_exact_validation": {
+      "observed_at": "2026-10-20T20:31:52.915298+00:00",
+      "result": "pass",
+      "source": "d693a8dee46a09d7a363650371ed6ced91b1d576",
+      "next_version": "16.3.8",
+      "node_version": "24.20.0",
+      "frozen_lock_install": true,
+      "build_command": "pnpm --filter @mizuki/web build",
+      "standalone_smoke_command": "pnpm --filter @mizuki/web smoke",
+      "identity_test_command": "vitest run app/identity.test.tsx",
+      "identity_assertions_passed": 6,
+      "identity_assertions_unchanged": true,
+      "production_font_asset_hashes_verified": true,
+      "backend": "Loopback fixture for smoke; unavailable loopback backend and external requests blocked for visual QA; no live service, wallet, or purchase calls.",
+      "log_sha256": {
+        "mizuki-exact-build-isolated.log": "fc0c110ded4706e9e02fe55590b1c6659ad7d7d44cdfd860c586f422191a24eb",
+        "mizuki-exact-smoke.log": "6ef238a4c64cd5dcd0c845ec135c9005671e7829a3b86adba28aa3284f46d250",
+        "identity-local-test.log": "3ac519071d130a2b44508efe5ec6f276b334ebc8538cf2bf0f2eff22b84d4f6d"
+      },
+      "identity_suite_uses_same_frozen_lock_install": true
+    },
+    "local_real_font_rendering": {
+      "observed_at": "2026-10-20T20:22:22.346Z",
+      "scope": "Local browser rendering of exact pinned font files; full exact-version application build is a separate CI gate.",
+      "fonts": {
+        "faces": [
+          {
+            "family": "Archivo",
+            "status": "loaded",
+            "weight": "100 900",
+            "stretch": "62% 125%"
+          },
+          {
+            "family": "JetBrains",
+            "status": "loaded",
+            "weight": "300 600",
+            "stretch": "normal"
+          }
+        ],
+        "normal_width": 651.609375,
+        "expanded_width": 836.140625,
+        "heading": "\"wdth\" 125"
+      },
+      "responses": [
+        {
+          "font": "mono.ttf",
+          "status": 200
+        },
+        {
+          "font": "archivo.ttf",
+          "status": 200
+        }
+      ],
+      "sha256": {
+        "archivo": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053",
+        "jetbrains": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda"
+      },
+      "pass": true
+    },
+    "local_exact_built_application_font_qa": {
+      "observed_at": "2026-10-20T20:30:59.332Z",
+      "source_commit": "d693a8dee46a09d7a363650371ed6ced91b1d576",
+      "next_version": "16.3.8",
+      "build": "Unchanged production build and prepare-standalone command in an isolated frozen-lock workspace.",
+      "backend": "Loopback unavailable; no live backend or wallet calls. Non-loopback browser requests blocked.",
+      "checks": [
+        {
+          "width": 1440,
+          "http_status": 200,
+          "fonts": [
+            {
+              "family": "archivo",
+              "status": "loaded",
+              "weight": "100 900",
+              "stretch": "62% 125%"
+            },
+            {
+              "family": "archivo Fallback",
+              "status": "unloaded",
+              "weight": "normal",
+              "stretch": "normal"
+            },
+            {
+              "family": "jetbrains",
+              "status": "loaded",
+              "weight": "300 600",
+              "stretch": "normal"
+            },
+            {
+              "family": "jetbrains Fallback",
+              "status": "loaded",
+              "weight": "normal",
+              "stretch": "normal"
+            }
+          ],
+          "overflow": false,
+          "display_variable": "\"archivo\", \"archivo Fallback\"",
+          "mono_variable": "\"jetbrains\", \"jetbrains Fallback\"",
+          "font_assets": [
+            {
+              "status": 200,
+              "sha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+              "asset": "JetBrainsMono_Variable-s.p.2zi1ojajef2ra.ttf?dpl=development"
+            },
+            {
+              "status": 200,
+              "sha256": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053",
+              "asset": "Archivo_Variable-s.p.3e7bum3qpoi16.ttf?dpl=development"
+            }
+          ],
+          "errors": [],
+          "pass": true
+        },
+        {
+          "width": 390,
+          "http_status": 200,
+          "fonts": [
+            {
+              "family": "archivo",
+              "status": "loaded",
+              "weight": "100 900",
+              "stretch": "62% 125%"
+            },
+            {
+              "family": "archivo Fallback",
+              "status": "unloaded",
+              "weight": "normal",
+              "stretch": "normal"
+            },
+            {
+              "family": "jetbrains",
+              "status": "loaded",
+              "weight": "300 600",
+              "stretch": "normal"
+            },
+            {
+              "family": "jetbrains Fallback",
+              "status": "loaded",
+              "weight": "normal",
+              "stretch": "normal"
+            }
+          ],
+          "overflow": false,
+          "display_variable": "\"archivo\", \"archivo Fallback\"",
+          "mono_variable": "\"jetbrains\", \"jetbrains Fallback\"",
+          "font_assets": [
+            {
+              "status": 200,
+              "sha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+              "asset": "JetBrainsMono_Variable-s.p.2zi1ojajef2ra.ttf?dpl=development"
+            },
+            {
+              "status": 200,
+              "sha256": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053",
+              "asset": "Archivo_Variable-s.p.3e7bum3qpoi16.ttf?dpl=development"
+            }
+          ],
+          "errors": [],
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    "identity_test_adapter": "The existing Vitest font stub is also aliased for next/font/local; all six unchanged identity assertions pass in the focused Vitest 4.1.5 run. The production build uses the real font loader.",
+    "exact_production_validation": "Required application CI uses the unchanged Next 16.3.8 build and standalone smoke checks."
+  },
+  "live_browser_qa": {
+    "observed_at": "2026-10-20T20:40:14.585Z",
+    "base": "https://opencovenant.org",
+    "checks": [
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "button_styles": [
+          {
+            "text": "Explore the local workflow \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 288.828125,
+            "viewport_width": 1440,
+            "shared_class": true
+          },
+          {
+            "text": "See what is available \u2193",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 246.8125,
+            "viewport_width": 1440,
+            "shared_class": true
+          },
+          {
+            "text": "Download Compute 0.5.1 \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 251.625,
+            "viewport_width": 1440,
+            "shared_class": true
+          },
+          {
+            "text": "Preview a remote request \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 272.03125,
+            "viewport_width": 1440,
+            "shared_class": true
+          },
+          {
+            "text": "Read activation evidence \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 272.03125,
+            "viewport_width": 1440,
+            "shared_class": true
+          },
+          {
+            "text": "Follow development \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 221.625,
+            "viewport_width": 1440,
+            "shared_class": true
+          }
+        ],
+        "keyboard_focus": {
+          "button": true,
+          "visible": true,
+          "outline_width": "2px"
+        },
+        "url": "https://opencovenant.org/compute-knowledge#availability",
+        "http_status": 200,
+        "horizontal_overflow": false,
+        "errors": [],
+        "version": "0.5.1",
+        "version_visible": true,
+        "installed_example_path": true,
+        "limits_visible": true,
+        "limited_capacity": true,
+        "stake_cutoff": true,
+        "guide": "https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-knowledge-remote.md",
+        "canonical": "https://opencovenant.org/compute-knowledge",
+        "og": "https://opencovenant.org/og/compute-knowledge.png",
+        "images": true,
+        "local_anchor": "#local-preview",
+        "availability_anchor": "#availability",
+        "pass": true
+      },
+      {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "button_styles": [
+          {
+            "text": "Explore the local workflow \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 288.828125,
+            "viewport_width": 768,
+            "shared_class": true
+          },
+          {
+            "text": "See what is available \u2193",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 246.8125,
+            "viewport_width": 768,
+            "shared_class": true
+          },
+          {
+            "text": "Download Compute 0.5.1 \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 251.625,
+            "viewport_width": 768,
+            "shared_class": true
+          },
+          {
+            "text": "Preview a remote request \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 272.03125,
+            "viewport_width": 768,
+            "shared_class": true
+          },
+          {
+            "text": "Read activation evidence \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 272.03125,
+            "viewport_width": 768,
+            "shared_class": true
+          },
+          {
+            "text": "Follow development \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 221.625,
+            "viewport_width": 768,
+            "shared_class": true
+          }
+        ],
+        "keyboard_focus": {
+          "button": true,
+          "visible": true,
+          "outline_width": "2px"
+        },
+        "url": "https://opencovenant.org/compute-knowledge#availability",
+        "http_status": 200,
+        "horizontal_overflow": false,
+        "errors": [],
+        "version": "0.5.1",
+        "version_visible": true,
+        "installed_example_path": true,
+        "limits_visible": true,
+        "limited_capacity": true,
+        "stake_cutoff": true,
+        "guide": "https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-knowledge-remote.md",
+        "canonical": "https://opencovenant.org/compute-knowledge",
+        "og": "https://opencovenant.org/og/compute-knowledge.png",
+        "images": true,
+        "local_anchor": "#local-preview",
+        "availability_anchor": "#availability",
+        "pass": true
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "button_styles": [
+          {
+            "text": "Explore the local workflow \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 288.828125,
+            "viewport_width": 390,
+            "shared_class": true
+          },
+          {
+            "text": "See what is available \u2193",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 246.8125,
+            "viewport_width": 390,
+            "shared_class": true
+          },
+          {
+            "text": "Download Compute 0.5.1 \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 251.625,
+            "viewport_width": 390,
+            "shared_class": true
+          },
+          {
+            "text": "Preview a remote request \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 272.03125,
+            "viewport_width": 390,
+            "shared_class": true
+          },
+          {
+            "text": "Read activation evidence \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 272.03125,
+            "viewport_width": 390,
+            "shared_class": true
+          },
+          {
+            "text": "Follow development \u2197",
+            "border_radius": "999px",
+            "font_size": "10.5px",
+            "text_transform": "uppercase",
+            "width": 221.625,
+            "viewport_width": 390,
+            "shared_class": true
+          }
+        ],
+        "keyboard_focus": {
+          "button": true,
+          "visible": true,
+          "outline_width": "2px"
+        },
+        "url": "https://opencovenant.org/compute-knowledge#availability",
+        "http_status": 200,
+        "horizontal_overflow": false,
+        "errors": [],
+        "version": "0.5.1",
+        "version_visible": true,
+        "installed_example_path": true,
+        "limits_visible": true,
+        "limited_capacity": true,
+        "stake_cutoff": true,
+        "guide": "https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-knowledge-remote.md",
+        "canonical": "https://opencovenant.org/compute-knowledge",
+        "og": "https://opencovenant.org/og/compute-knowledge.png",
+        "images": true,
+        "local_anchor": "#local-preview",
+        "availability_anchor": "#availability",
+        "pass": true
+      }
+    ],
+    "pass": true
+  },
+  "live_link_checks": {
+    "observed_at": "2026-10-20T20:39:47.185101+00:00",
+    "result": "pass",
+    "links": [
+      {
+        "url": "https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1",
+        "http": 200,
+        "final_url": "https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1"
+      },
+      {
+        "url": "https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-knowledge-remote.md",
+        "http": 200,
+        "final_url": "https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-knowledge-remote.md"
+      },
+      {
+        "url": "https://github.com/open-covenant/covenant/blob/e5745c920e5ad17b0af16ce20478bd1cce77e0e9/docs/evidence/knowledge/remote-activation-2026-10-20/report.md",
+        "http": 200,
+        "final_url": "https://github.com/open-covenant/covenant/blob/e5745c920e5ad17b0af16ce20478bd1cce77e0e9/docs/evidence/knowledge/remote-activation-2026-10-20/report.md"
+      },
+      {
+        "url": "https://github.com/open-covenant/covenant/blob/e5745c920e5ad17b0af16ce20478bd1cce77e0e9/docs/evidence/knowledge/paid-pilot-2026-10-20/report.md",
+        "http": 200,
+        "final_url": "https://github.com/open-covenant/covenant/blob/e5745c920e5ad17b0af16ce20478bd1cce77e0e9/docs/evidence/knowledge/paid-pilot-2026-10-20/report.md"
+      },
+      {
+        "url": "https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-release-2026-10-20/report.md",
+        "http": 200,
+        "final_url": "https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-release-2026-10-20/report.md"
+      },
+      {
+        "url": "https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-2026-10-20/report.md",
+        "http": 200,
+        "final_url": "https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-2026-10-20/report.md"
+      }
+    ]
+  },
+  "public_capacity_observation": {
+    "schema": "covenant.compute.public-capacity-observation.v1",
+    "observed_at": "2026-10-20T20:37:14.282123+00:00",
+    "method": {
+      "http_method": "GET",
+      "user_agent": "covenant-knowledge-preactivation/1",
+      "authentication": "none",
+      "scope": "Public read only; no wallet signature, purchase, or host action"
+    },
+    "operator": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+    "results": {
+      "capacity": {
+        "url": "https://compute-api.opencovenant.org/federation/capacity",
+        "status": 200,
+        "response_sha256": "9d09891c7fe4c24372cb2d6400bddff04c4c62dfd6801a7546b7f9a2375574f7",
+        "body": {
+          "entries": [
+            {
+              "kind": "batch_job",
+              "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+              "operators": 1,
+              "min_ask_micro_usdc": 50000,
+              "min_ask_unit": "per_job",
+              "max_ask_micro_usdc": 50000,
+              "max_vram_gb": 0,
+              "gpu_classes": [
+                "cpu"
+              ],
+              "tee_capable": false
+            },
+            {
+              "kind": "agent_check",
+              "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+              "operators": 1,
+              "min_ask_micro_usdc": 19000,
+              "min_ask_unit": "per_job",
+              "max_ask_micro_usdc": 19000,
+              "max_vram_gb": 0,
+              "gpu_classes": [
+                "cpu"
+              ],
+              "tee_capable": false
+            }
+          ]
+        }
+      },
+      "reputation": {
+        "url": "https://compute-api.opencovenant.org/federation/operators/CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf/reputation",
+        "status": 200,
+        "response_sha256": "58127f2638ee8f6e00dc85673284673a9df2ad83db4231710c83147288ccc0c0",
+        "body": {
+          "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+          "released": 0,
+          "faults": 0,
+          "canary_passed": 0,
+          "canary_failed": 0,
+          "disputed": 0,
+          "redundancy_agreed": 0,
+          "redundancy_disagreed": 0,
+          "score_bps": 5000,
+          "min_score_bps": 0,
+          "min_bond_micro_usdc": 0,
+          "required_bond_micro_usdc": 0,
+          "committed_bond_micro_usdc": 0,
+          "stake_required": 1000000000000,
+          "staked": true,
+          "registered": true,
+          "status": "online",
+          "seen_ms_ago": 2132,
+          "live": true,
+          "matchable": true
+        }
+      }
+    },
+    "result": "pass"
+  },
+  "scope": "Website and installer promotion. Public capacity is a point-in-time observation, not a price or uptime promise. This verification submits no paid job; earlier paid pilot evidence remains separate.",
+  "input_evidence_sha256": {
+    "ci": "096a3edf96b7849a6fb68c5e03acf8b67777d6d0ceb3d0803bec230b03be8c3a",
+    "deployment": "0607d83526de0776c05f27ce024625a1b2400d760926041d15fb6d30c727c8f2",
+    "main_promotion": "b53fd840f847313c1ad7d5bc44f946575a05a884a26c76c4ba07eca09a5c2218",
+    "reviewed_page_installer_byteproof": "ebf5726d9faad21ce7c97fa170c04eb81b1bc06d696762c3ce66a1dae301b620",
+    "exact_local_font_build": "292fae31141fd802c3c327e4b30d5e35110a9b6e2f0e15ba21dd1739b4086896",
+    "actual_https_install": "09236b4f76336b828fb3f12c01da4c5fd3477a065cef9f772c721be4a4610313",
+    "live_browser_qa": "1a966b1a298e0c7405e0a7b1e5ec906edf272750ea9c90de720aa05d733c7369",
+    "live_links": "3e32e8c619a77929ab3c07ae111dba021570b76a80c6de3c1996044324268ee2",
+    "capacity": "86a87e60313ac9db6d0725f21eec6d36b41e6c529451108fbf1d810e8469fd30"
+  }
+}

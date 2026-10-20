@@ -1,0 +1,76 @@
+{
+  "schema": "covenant.compute.public-capacity-observation.v1",
+  "observed_at": "2026-10-20T20:02:38.149281+00:00",
+  "method": {
+    "http_method": "GET",
+    "user_agent": "covenant-knowledge-preactivation/1",
+    "authentication": "none",
+    "scope": "Public read only; no wallet signature, purchase, or host action"
+  },
+  "operator": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+  "results": {
+    "capacity": {
+      "url": "https://compute-api.opencovenant.org/federation/capacity",
+      "status": 200,
+      "response_sha256": "9d09891c7fe4c24372cb2d6400bddff04c4c62dfd6801a7546b7f9a2375574f7",
+      "body": {
+        "entries": [
+          {
+            "kind": "batch_job",
+            "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+            "operators": 1,
+            "min_ask_micro_usdc": 50000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 50000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+            "operators": 1,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          }
+        ]
+      }
+    },
+    "reputation": {
+      "url": "https://compute-api.opencovenant.org/federation/operators/CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf/reputation",
+      "status": 200,
+      "response_sha256": "ad842c9664fbf45613d3ddee193fbcba30bb91e1ac613dee3c21d0e186aa2a26",
+      "body": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "released": 0,
+        "faults": 0,
+        "canary_passed": 0,
+        "canary_failed": 0,
+        "disputed": 0,
+        "redundancy_agreed": 0,
+        "redundancy_disagreed": 0,
+        "score_bps": 5000,
+        "min_score_bps": 0,
+        "min_bond_micro_usdc": 0,
+        "required_bond_micro_usdc": 0,
+        "committed_bond_micro_usdc": 0,
+        "stake_required": 1000000000000,
+        "staked": true,
+        "registered": true,
+        "status": "online",
+        "seen_ms_ago": 6912,
+        "live": true,
+        "matchable": true
+      }
+    }
+  },
+  "result": "pass"
+}

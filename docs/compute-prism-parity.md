@@ -55,19 +55,51 @@ added none. Containers used the pinned compiler, no network, a read-only filesys
 and bounded resources.
 The [paid pilot evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md)
 records the exact client, compiler, deployment and transaction identities.
-The original Kani service and its 19,000-micro-USDC ask were restored with no pending
-work and no remaining Knowledge capacity. This is accepted bounded remote execution;
-ongoing remote supply remains unavailable.
-The separate [signed local 0.5.0 release](evidence/knowledge/public-release-0.5.0/report.md)
+After that temporary pilot, the original Kani service and its 19,000-micro-USDC
+ask were restored with no pending work. The temporary pilot alone did not
+establish ongoing Knowledge supply.
+
+A separate [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md)
+subsequently established limited public capacity on the existing host: one
+operator, at most one compilation in flight and an observed 50,000-micro-USDC ask.
+The exact compiler remained pinned. A finalized 1,000,000 CVNT stake, bounded
+cohosting tests, a guarded idle restart and a freshly installed public-client
+source-and-quote preview passed. Kani and existing financial records were
+preserved. No additional paid job under the new operator identity is claimed.
+The initial admission cutoff is **25 October 2026 at 19:17:25 UTC**, unless the
+stake is extended; operator health and current capacity remain separate
+conditions. No redundant host, peak-load guarantee or automatic renewal is
+implied.
+
+The earlier [signed local 0.5.0 release](evidence/knowledge/public-release-0.5.0/report.md)
 passed all four native builds/installations and independent public archive
 verification. The freshly installed public Apple Silicon binary recovered both
 settled pilot receipts and re-imported identical snapshots without new jobs or
-charges. The [public feature page](https://opencovenant.org/compute-knowledge)
-and data-aware installer are deployed from
+charges. Its [public feature page](https://opencovenant.org/compute-knowledge)
+and data-aware installer were deployed from
 `5b86392ab80be15611cba4bec6cc24ee48b7de43`; a fresh install through the actual
-HTTPS installer passed. Homebrew remains at 0.4.1 after the tap refused the
-normal update; use the verified website installer or signed archives for
-Knowledge. X copy and assets are prepared separately; no posting is claimed.
+HTTPS installer passed.
+
+The subsequent [signed 0.5.1 release](evidence/knowledge/public-release-0.5.1/report.md)
+restores Covenant's visual identity in the embedded viewer and updates packaged
+installation guides. All four native installations and independent public
+archive signature, checksum and provenance checks passed for clean source
+`809aa264c2c1cb965c11001052096eece5caf0cf`. The downloaded Apple Silicon archive
+and prepared installer both passed a fresh installation, 19 offline Knowledge
+checks, 18 exact citations and six read-only MCP tools. The prepared installer
+used the real public HTTPS archive. The separate
+[website and installer promotion](evidence/knowledge/public-release-0.5.1/installer-promotion.md)
+then passed at 20:40 UTC: exact website source
+`d693a8dee46a09d7a363650371ed6ced91b1d576`, required CI, normal protected main
+promotion and existing Render auto-deployment. The actual served HTTPS installer
+passed fresh installation and the same Knowledge checks. Standard Covenant CTAs,
+mobile/desktop layout and the six public evidence/guide links passed live review.
+This client and website patch leaves the deployed compiler, coordinator and
+operators unchanged and adds no paid job.
+
+Homebrew remains at 0.4.1 after the tap refused the normal update; use verified
+website installer pins or signed archives for Knowledge. X copy and the revised
+45-second film are prepared separately; no posting or scheduling is claimed.
 
 | # | Earliest upstream change | Local implementation | Local validation | Production evidence |
 |---|---|---|---|---|

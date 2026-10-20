@@ -106,7 +106,7 @@ The subsequent [dedicated operator activation](evidence/knowledge/remote-activat
 passed finalized 1,000,000 CVNT staking, bounded cohosting with Kani, fifteen
 live capacity observations around an idle service restart, and an installed
 public 0.5.0 source-and-quote preview. At 19:12 UTC, one operator advertised the
-exact compiler at 50,000 micro-USDC per job, with one job in flight. Kani's
+exact compiler at 50,000 micro-USDC per job, with at most one job in flight. Kani's
 original process, configuration and journals stayed unchanged. The preview
 submitted no job and left buyer accounting byte-identical.
 
@@ -118,6 +118,47 @@ locked tokens unlock two days later. No automatic renewal is scheduled.
 The central website graph was updated to square glass nodes. Its production
 build and desktop/mobile layout checks passed; campaign exports retain exact
 brand fonts and the official mark at 1080p and 4K composition sizes.
+
+## 0.5.1 patch release verification
+
+The subsequent [signed public 0.5.1 patch release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1)
+was built from `809aa264c2c1cb965c11001052096eece5caf0cf`. Its
+[four-platform code candidate](https://github.com/open-covenant/covenant/actions/runs/39482506021)
+passed before the tag was created. The final source adds only two installation
+guide corrections to that candidate; all four locally built executables remained
+byte-identical. The [tagged release workflow](https://github.com/open-covenant/covenant/actions/runs/39484253976)
+then rebuilt and freshly installed all four native macOS/Linux targets before
+signing and publishing the 15 expected assets.
+
+Independent downloads of all four public archives passed exact tag/workflow
+Cosign identity, signed checksum, source/ref attestation restricted to hosted
+runners, clean build metadata and all four binary-hash checks. Each archive was
+byte-identical to the corresponding tag-run artifact that passed its native
+fresh-install checks. The public Apple Silicon archive also passed a fresh
+offline installation, reinstall and conflicting-data rejection, plus 19
+Knowledge checks, 18 exact citations and all six read-only MCP tools. The
+[0.5.1 verification record](evidence/knowledge/public-release-0.5.1/report.md)
+retains the exact source, archive and binary hashes. Public CI executable hashes
+are recorded separately from the local build environment.
+
+The separately prepared 0.5.1 website installer changes only its version and four
+archive pins; bytes outside that block match the live 0.5.0 baseline. Its SHA-256
+is `74fdf1d23c38597d0ada3015f47a71a86e87cc07c43ff1e1e89a72627dffc9dc`.
+That reviewed body downloaded the actual public release over HTTPS, installed
+all four matching binaries into an isolated prefix, and passed the same 19
+Knowledge checks without HOME or wallet state. The website-transport subtest
+inside `check-install.py` is separately identified as a local stub.
+
+The separate [live 0.5.1 website promotion](evidence/knowledge/public-release-0.5.1/installer-promotion.md)
+passed at 20:40 UTC. All required branch and application checks passed before
+normal protected main promotion of `d693a8dee46a09d7a363650371ed6ced91b1d576`.
+Render automatically deployed that exact source with unchanged service
+configuration. The actual served HTTPS installer matched the reviewed hash and
+passed a fresh installation with all four public binary hashes, 19 Knowledge
+checks, 18 citations and six MCP tools. Live CTA, focus, layout and link checks
+passed at desktop, tablet and mobile widths. Homebrew has not been promoted.
+This viewer and guide patch did not replace the compiler image, coordinator or
+deployed operators, or add a paid job.
 
 ## Interface and measurement evidence
 
@@ -142,16 +183,17 @@ brand fonts and the official mark at 1080p and 4K composition sizes.
 | Gate | Status |
 |---|---|
 | Local compiler and interfaces | Implemented; relevant suites and responsive viewer checks passed |
-| Local package candidate | Version 0.5.0 Apple Silicon archive from clean commit 3d4499211 passed extracted, installed and installer checks; [exact artifact evidence](evidence/knowledge/release-candidate-0.5.0/report.md) |
-| Signed public macOS/Linux release | [compute-v0.5.0 published](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0); all four native installs and downloaded public archive provenance verified; actual live HTTPS installer passed; Homebrew promotion blocked by tap write permission |
+| Local package candidate | Final 0.5.1 Apple Silicon package from clean commit 809aa264c passed fresh installation and its literal packaged-guide command; executables matched the accepted code candidate. [Historical 0.5.0 candidate evidence](evidence/knowledge/release-candidate-0.5.0/report.md) remains separate |
+| Signed public macOS/Linux release | [compute-v0.5.1 published](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1); all four native builds/installs, public archive signatures, source attestations and CI-artifact equality verified; fresh public Apple Silicon archive installation passed; [evidence](evidence/knowledge/public-release-0.5.1/report.md) |
+| Website installer promotion | [Live 0.5.1 promotion passed](evidence/knowledge/public-release-0.5.1/installer-promotion.md): actual served HTTPS body matched the reviewed hash and passed fresh public-archive installation, all four binary hashes and 19 Knowledge checks. Only five installer pin assignments changed. Historical 0.5.0 evidence is preserved; Homebrew remains 0.4.1 |
 | Actual OCI compiler image | Exact Linux/ARM64 image passed Docker lifecycle checks and two funded production jobs on an isolated host; image has no public registry release |
-| Public operator and routing rollout | Coordinator/node revision 5146e46e6bae31bf6813ca85f099674e878a1ae9; [dedicated limited capacity accepted](evidence/knowledge/remote-activation-2026-10-20/report.md), one in-flight job and observed 50,000-micro-USDC ask; Kani preserved |
+| Public operator and routing rollout | Coordinator/node revision 5146e46e6bae31bf6813ca85f099674e878a1ae9; [dedicated limited capacity accepted](evidence/knowledge/remote-activation-2026-10-20/report.md), at most one in-flight job and observed 50,000-micro-USDC ask; Kani preserved |
 | Dedicated operator lifecycle | Finalized stake, bounded cohosting, live registration/heartbeat and guarded idle restart passed; actual installed public-client preview passed with no new job or accounting changes; initial admission cutoff 25 October 2026 at 19:17:25 UTC |
 | Installed client paid acceptance | Two funded jobs passed with the clean native 0.5.0 candidate; the freshly installed signed public Apple Silicon binary then recovered both original receipts and imported identical snapshots without new jobs or charges; [evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md) |
 | Real process restart / financial reconciliation | Actual client interruption after acknowledged submission, same-envelope recovery, identical settled receipt replay, two executions and two finalized payouts verified; no coordinator or host power-loss claim |
 | Shared authenticated daemon access | Not exposed; public proxy refuses knowledge access; project authorization adapter remains a separate gate |
 | Private remote repositories | Refused by the public-source pilot; operator-access policy remains undefined |
-| Feature page and campaign | [Public feature page](https://opencovenant.org/compute-knowledge) and verified installer deployed from 5b86392ab80be15611cba4bec6cc24ee48b7de43; revised artwork and actual public-client demo prepared; no X posting or scheduling |
+| Feature page and campaign | [Public feature page](https://opencovenant.org/compute-knowledge) and 0.5.1 installer deployed from d693a8dee46a09d7a363650371ed6ced91b1d576; standard CTA styles, three-viewport live review and six release/guide/evidence links passed. Revised artwork and demo prepared; no X posting or scheduling |
 
 Follow the [remote acceptance guide](compute-knowledge-remote-acceptance.md) for
 the coordinator → compiler operator → client order and the evidence that must

@@ -1,0 +1,268 @@
+{
+  "schema": "covenant.compute.public-release-acceptance.v1",
+  "result": "pass",
+  "observed_at": "2026-10-20T19:55:21.386161+00:00",
+  "version": "0.5.1",
+  "tag": "compute-v0.5.1",
+  "source_revision": "809aa264c2c1cb965c11001052096eece5caf0cf",
+  "release_url": "https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1",
+  "workflow_url": "https://github.com/open-covenant/covenant/actions/runs/39484253976",
+  "release_assets": 15,
+  "platform_count": 4,
+  "all_four_native_build_and_fresh_install_jobs": "success",
+  "signed_checksums_sha256": "b1324fd787ec73475bc570a02ba6074534300a03dabc41bce108d38487d99af2",
+  "archives": [
+    {
+      "platform": "darwin-arm64",
+      "target": "aarch64-apple-darwin",
+      "archive": "covenant-compute-darwin-arm64.tar.gz",
+      "sha256": "8cf3b09bcd4ea950d59a753a98b026e010f6078ed26727fad4062620391b28b1",
+      "bytes": 16474870,
+      "build": {
+        "schema": "covenant.compute.release-build.v1",
+        "version": "0.5.1",
+        "target": "aarch64-apple-darwin",
+        "source_revision": "809aa264c2c1cb965c11001052096eece5caf0cf",
+        "tracked_source_dirty": false,
+        "built_at": "2026-10-20T19:38:27.765331+00:00",
+        "binary_sha256": {
+          "covenant-compute": "53dd131563dd6363d185e5bc185f185c179ed0ab27773e17fed6f9c6914cf823",
+          "covenant-compute-mcp": "0125dc569b750cc8163a679019b9a1c58640e2bed947a8af0ab2f8a8df982ff0",
+          "covenant-compute-node": "f2e9689304f4cae3efb74ebc1e6d50b113b626fde393d52f703215a9b9294411",
+          "covenant-compute-stake": "de8b1fa7054f3c574c9cb7c0a8a6bc344259303146d2828d347e7ca1ba49e565"
+        },
+        "lockfile_sha256": {
+          "agent-os/Cargo.lock": "7a906d24bdd483f1713d4ff8088ea8e2316b2f469763b7493705529a2b92b59a",
+          "agent-os/crates/covenant-compute-lease-signer/Cargo.lock": "c110ba38ae16fee822b8043741556c3783198af187baf4d0e3a2e407c8bdceea"
+        },
+        "signature": "Signing and GitHub provenance are separate release-workflow outputs."
+      },
+      "cosign_identity_verified": "https://github.com/open-covenant/covenant/.github/workflows/compute-release.yml@refs/tags/compute-v0.5.1",
+      "attestation_source_and_ref_verified": true,
+      "matches_native_fresh_installed_ci_archive": true
+    },
+    {
+      "platform": "darwin-x86_64",
+      "target": "x86_64-apple-darwin",
+      "archive": "covenant-compute-darwin-x86_64.tar.gz",
+      "sha256": "ecd80b4bbb8bfb53093cdb9f0096f3f39bab0ffc7622b366b170ccc8f0d1c74e",
+      "bytes": 17373262,
+      "build": {
+        "schema": "covenant.compute.release-build.v1",
+        "version": "0.5.1",
+        "target": "x86_64-apple-darwin",
+        "source_revision": "809aa264c2c1cb965c11001052096eece5caf0cf",
+        "tracked_source_dirty": false,
+        "built_at": "2026-10-20T19:47:52.254143+00:00",
+        "binary_sha256": {
+          "covenant-compute": "514147f38b8bf8c83be80bbec57e08bc20b9a2e88dbc04d7cc660ae16033932e",
+          "covenant-compute-mcp": "19f30aa91d48a05f06dbe1b38f7b51cb9d1cbea5d95a05c708a809d20b514d46",
+          "covenant-compute-node": "37357f55accbcfef6c9ccac6ea875ad9bbd39f0a3c5599fa75ed5a57ab7c24a3",
+          "covenant-compute-stake": "406f7a5ae550fdb5ae0128f537af8e6ccf027cf45d8c8af7ecbc99bd4538e8a6"
+        },
+        "lockfile_sha256": {
+          "agent-os/Cargo.lock": "7a906d24bdd483f1713d4ff8088ea8e2316b2f469763b7493705529a2b92b59a",
+          "agent-os/crates/covenant-compute-lease-signer/Cargo.lock": "c110ba38ae16fee822b8043741556c3783198af187baf4d0e3a2e407c8bdceea"
+        },
+        "signature": "Signing and GitHub provenance are separate release-workflow outputs."
+      },
+      "cosign_identity_verified": "https://github.com/open-covenant/covenant/.github/workflows/compute-release.yml@refs/tags/compute-v0.5.1",
+      "attestation_source_and_ref_verified": true,
+      "matches_native_fresh_installed_ci_archive": true
+    },
+    {
+      "platform": "linux-x86_64",
+      "target": "x86_64-unknown-linux-musl",
+      "archive": "covenant-compute-linux-x86_64.tar.gz",
+      "sha256": "4873355a9db5dbc18cb8a3e6a71fcddb8e3d77e779b3485cc3785a6e5b8ec484",
+      "bytes": 18393914,
+      "build": {
+        "schema": "covenant.compute.release-build.v1",
+        "version": "0.5.1",
+        "target": "x86_64-unknown-linux-musl",
+        "source_revision": "809aa264c2c1cb965c11001052096eece5caf0cf",
+        "tracked_source_dirty": false,
+        "built_at": "2026-10-20T19:35:45.287063+00:00",
+        "binary_sha256": {
+          "covenant-compute": "3d1adb4c82b1dd59b033e978526d4abb35fe4abaa9deb1f906906c30b43615f3",
+          "covenant-compute-mcp": "7ad3b04bca78afc2c8657153002ee60e3efae9ea4ccdbd4aa931baf45655e9df",
+          "covenant-compute-node": "f29fa46d0216370ea6423b038b8a4c8d226af24a18fa7b67ee405122230e7b0b",
+          "covenant-compute-stake": "372f8dc6c928a874440ec669454d129534e4a3c043ef8b296dafae7ac453b33c"
+        },
+        "lockfile_sha256": {
+          "agent-os/Cargo.lock": "7a906d24bdd483f1713d4ff8088ea8e2316b2f469763b7493705529a2b92b59a",
+          "agent-os/crates/covenant-compute-lease-signer/Cargo.lock": "c110ba38ae16fee822b8043741556c3783198af187baf4d0e3a2e407c8bdceea"
+        },
+        "signature": "Signing and GitHub provenance are separate release-workflow outputs."
+      },
+      "cosign_identity_verified": "https://github.com/open-covenant/covenant/.github/workflows/compute-release.yml@refs/tags/compute-v0.5.1",
+      "attestation_source_and_ref_verified": true,
+      "matches_native_fresh_installed_ci_archive": true
+    },
+    {
+      "platform": "linux-arm64",
+      "target": "aarch64-unknown-linux-musl",
+      "archive": "covenant-compute-linux-arm64.tar.gz",
+      "sha256": "f77c04008d6352df3b9c8daef9638715e6ea70fdd8540ac6f95434ba8fef2e96",
+      "bytes": 17015714,
+      "build": {
+        "schema": "covenant.compute.release-build.v1",
+        "version": "0.5.1",
+        "target": "aarch64-unknown-linux-musl",
+        "source_revision": "809aa264c2c1cb965c11001052096eece5caf0cf",
+        "tracked_source_dirty": false,
+        "built_at": "2026-10-20T19:35:58.677536+00:00",
+        "binary_sha256": {
+          "covenant-compute": "59a546b7794e9e95853fe13ee4d49cdaa0f5b85a6134f7bc67c625fdbe4fd84e",
+          "covenant-compute-mcp": "86845e3610aa945a5094d3db1d8f3013fa2ee06573dca2e1da9d1cf7971792bb",
+          "covenant-compute-node": "67eda5d95c7188f417e9e6cc21e96c9b5604511a51055cb9cd8cae4dd8699ed6",
+          "covenant-compute-stake": "7cb05e0d7014dd58b3b2f1ae4d5ea8ebc2f221c65885ba7910dc112c816521f4"
+        },
+        "lockfile_sha256": {
+          "agent-os/Cargo.lock": "7a906d24bdd483f1713d4ff8088ea8e2316b2f469763b7493705529a2b92b59a",
+          "agent-os/crates/covenant-compute-lease-signer/Cargo.lock": "c110ba38ae16fee822b8043741556c3783198af187baf4d0e3a2e407c8bdceea"
+        },
+        "signature": "Signing and GitHub provenance are separate release-workflow outputs."
+      },
+      "cosign_identity_verified": "https://github.com/open-covenant/covenant/.github/workflows/compute-release.yml@refs/tags/compute-v0.5.1",
+      "attestation_source_and_ref_verified": true,
+      "matches_native_fresh_installed_ci_archive": true
+    }
+  ],
+  "native_public_archive_install": {
+    "result": "pass",
+    "checks": [
+      "four-packaged-binary-versions",
+      "build-manifest-binary-hashes",
+      "offline-install-with-spaces",
+      "installed-binary-hashes",
+      "installed-notices",
+      "installed-offline-knowledge-smoke",
+      "identical-reinstall",
+      "conflicting-data-reinstall-preserves-binaries",
+      "website-installer-local-transport-candidate",
+      "website-checksum-mismatch-rejected",
+      "no-wallet-or-home-state"
+    ],
+    "knowledge_smoke": {
+      "result": "pass",
+      "mode": "development-binary",
+      "buyer_version": "covenant-compute 0.5.1",
+      "binary_sha256": "53dd131563dd6363d185e5bc185f185c179ed0ab27773e17fed6f9c6914cf823",
+      "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+      "example_files": 9,
+      "verified_citations": 18,
+      "license_files": [
+        "tree-sitter-0.25.10-LICENSE.txt",
+        "tree-sitter-rust-0.24.2-LICENSE.txt",
+        "tree-sitter-javascript-0.25.0-LICENSE.txt",
+        "tree-sitter-typescript-0.23.2-LICENSE.txt",
+        "tree-sitter-python-0.25.0-LICENSE.txt",
+        "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+        "OFL-Archivo.txt",
+        "OFL-JetBrainsMono.txt"
+      ],
+      "checks": [
+        "packaged-licenses",
+        "original-example-files",
+        "offline-help",
+        "offline-compile",
+        "status",
+        "multi-language-search",
+        "exact-source-citations",
+        "show",
+        "snapshot-verification",
+        "incremental-cache",
+        "mcp-initialize",
+        "mcp-notifications",
+        "mcp-six-read-only-tools",
+        "mcp-all-six-reads",
+        "mcp-citations",
+        "mcp-no-mutation",
+        "mcp-project-boundary",
+        "source-unchanged",
+        "no-buyer-identity"
+      ],
+      "scope": "Offline local artifact checks. No source execution, purchase, release or deployment."
+    },
+    "scope": "Actual independently authenticated public archive fresh-installed locally. The check-install.py website-candidate transport subtest is stubbed; its offline installer and executable checks are real."
+  },
+  "reviewed_installer": {
+    "baseline_url": "https://opencovenant.org/install/compute.sh",
+    "baseline_version": "0.5.0",
+    "baseline_sha256": "18883da2515ea243ef7c95a92c1fac3a60f8c30f55d25df17c17c688efa0b0ef",
+    "candidate_sha256": "74fdf1d23c38597d0ada3015f47a71a86e87cc07c43ff1e1e89a72627dffc9dc",
+    "outside_pin_block_byte_identical": true,
+    "outside_pin_block_sha256": "0041ea96c59f19dd0f7e8e4cf984dfdc04ff538806dcda37b969856255939230",
+    "pin_values": {
+      "version": "0.5.1",
+      "sha256_darwin_arm64": "8cf3b09bcd4ea950d59a753a98b026e010f6078ed26727fad4062620391b28b1",
+      "sha256_darwin_x86_64": "ecd80b4bbb8bfb53093cdb9f0096f3f39bab0ffc7622b366b170ccc8f0d1c74e",
+      "sha256_linux_x86_64": "4873355a9db5dbc18cb8a3e6a71fcddb8e3d77e779b3485cc3785a6e5b8ec484",
+      "sha256_linux_arm64": "f77c04008d6352df3b9c8daef9638715e6ea70fdd8540ac6f95434ba8fef2e96"
+    },
+    "prepared_body_actual_public_https_install": "pass",
+    "installed_versions": {
+      "covenant-compute": "covenant-compute 0.5.1",
+      "covenant-compute-mcp": "covenant-compute-mcp 0.5.1",
+      "covenant-compute-node": "covenant-compute-node 0.5.1",
+      "covenant-compute-stake": "covenant-compute-stake 0.5.1"
+    },
+    "installed_binary_sha256": {
+      "covenant-compute": "53dd131563dd6363d185e5bc185f185c179ed0ab27773e17fed6f9c6914cf823",
+      "covenant-compute-mcp": "0125dc569b750cc8163a679019b9a1c58640e2bed947a8af0ab2f8a8df982ff0",
+      "covenant-compute-node": "f2e9689304f4cae3efb74ebc1e6d50b113b626fde393d52f703215a9b9294411",
+      "covenant-compute-stake": "de8b1fa7054f3c574c9cb7c0a8a6bc344259303146d2828d347e7ca1ba49e565"
+    },
+    "knowledge_smoke": {
+      "result": "pass",
+      "mode": "development-binary",
+      "buyer_version": "covenant-compute 0.5.1",
+      "binary_sha256": "53dd131563dd6363d185e5bc185f185c179ed0ab27773e17fed6f9c6914cf823",
+      "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+      "example_files": 9,
+      "verified_citations": 18,
+      "license_files": [
+        "tree-sitter-0.25.10-LICENSE.txt",
+        "tree-sitter-rust-0.24.2-LICENSE.txt",
+        "tree-sitter-javascript-0.25.0-LICENSE.txt",
+        "tree-sitter-typescript-0.23.2-LICENSE.txt",
+        "tree-sitter-python-0.25.0-LICENSE.txt",
+        "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+        "OFL-Archivo.txt",
+        "OFL-JetBrainsMono.txt"
+      ],
+      "checks": [
+        "packaged-licenses",
+        "original-example-files",
+        "offline-help",
+        "offline-compile",
+        "status",
+        "multi-language-search",
+        "exact-source-citations",
+        "show",
+        "snapshot-verification",
+        "incremental-cache",
+        "mcp-initialize",
+        "mcp-notifications",
+        "mcp-six-read-only-tools",
+        "mcp-all-six-reads",
+        "mcp-citations",
+        "mcp-no-mutation",
+        "mcp-project-boundary",
+        "source-unchanged",
+        "no-buyer-identity"
+      ],
+      "scope": "Offline local artifact checks. No source execution, purchase, release or deployment."
+    }
+  },
+  "installer_scope": "Only version and four platform archive checksums changed. The prepared reviewed body fetched the real public HTTPS release archive and installed all four binaries into an isolated prefix without HOME or wallet state. This does not assert the website already serves the new body.",
+  "website_promotion": "Pending separate exact-commit deployment and fresh served-HTTPS installer verification by site owner.",
+  "homebrew": "Not promoted or advertised as 0.5.1.",
+  "scope": "Release packaging and local install acceptance only. No production operator/coordinator replacement, stake transaction, paid job, or new receipt occurred during this patch release verification.",
+  "raw_evidence_sha256": {
+    "public_verification": "7c98b2fb8a9c88ad1df6d059245b6ecfa82be83c5db7c32d121dd7467c0850ad",
+    "pin_proof": "9114b786c0043af48727d92a61dad4e9e31c950d47e0ec2cce9dabb5db266dd4",
+    "native_archive_install": "ac36eda4d2fa73e508452c754c5064b88b2e158c08218855712d9348223bc30b"
+  }
+}

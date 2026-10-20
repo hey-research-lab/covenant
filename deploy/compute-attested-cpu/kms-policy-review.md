@@ -325,6 +325,16 @@ fresh quote and strict SSH handshake have passed with current Intel collateral.
 The acceptance report records separate isolation, expiry and cleanup results.
 
 This establishes an alternative for bounded ephemeral execution without a
-managed-KMS secret-release dependency. It does not qualify persistent secrets,
-paid settlement, native relay admission or production activation; the served
-trust ceiling remains `Open` and native ephemeral creation stays disabled.
+managed-KMS secret-release dependency. It does not qualify persistent secrets
+or change the rejected managed-KMS policy. The served trust ceiling remains
+`Open`; native creation is disabled by default and requires an explicit bounded
+operator allowance.
+
+The [subsequent native paid attempt](../../docs/compute-native-phala-acceptance.md)
+used the deployed coordinator admission and signed relay. Independent guest and
+buyer verification and native transfer passed, but provider deletion exceeded
+the 60-second successful-receipt gate. The execution failed; deletion of the
+original VM was later confirmed. This is a failed paid production qualification,
+not a KMS acceptance. Coordinator capability remains enabled, the operator is
+offline, and its one-use allowance remains consumed. A cleanup-timing repair and
+separately approved acceptance are required before production release.

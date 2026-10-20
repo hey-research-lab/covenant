@@ -8,9 +8,20 @@ it does not qualify the managed KMS or activate production rentals. The served
 trust ceiling remains `Open` for both paths. Two fresh live ephemeral leases
 passed full quote verification, strict-host-key SSH and memory/swap checks.
 Fresh instance/key/workspace isolation, real-quote binding negatives, channel
-closure at expiry and provider deletion were verified. Native production
-admission and paid lifecycle integration remain separate gates.
-See [the live acceptance record](../../docs/compute-ephemeral-phala-acceptance.md),
+closure at expiry and provider deletion were verified.
+
+The native coordinator admission and signed relay were deployed at source
+`da00ccf7541d94cfb97c2a43dd9dd96f6719f499` for one bounded paid acceptance.
+Independent guest/buyer verification and native transfer passed, but provider
+deletion was not confirmed within the 60-second successful-receipt gate. The
+execution failed; the original VM was subsequently confirmed deleted. The
+operator is offline and its one-use creation allowance remains consumed.
+Coordinator capability remains enabled, while node creation is disabled by
+default and the paid production qualification remains failed. A cleanup-timing
+repair and separately approved acceptance are required before production
+release. See the [native acceptance result](../../docs/compute-native-phala-acceptance.md).
+
+See [the isolated live acceptance record](../../docs/compute-ephemeral-phala-acceptance.md),
 [the lease integration guide](../../docs/compute-phala-lease-lifecycle.md),
 [the KMS review](kms-policy-review.md) and
 [the keyless feasibility record](../../docs/compute-keyless-phala-feasibility.md).
@@ -303,14 +314,19 @@ Start the backend's `start_recovery()` task and retain its journal through
 confirmed deletion. A planning allowance is not a provider billing cap.
 
 `PhalaAllocation` contains only job, VM/app identity, workload and expiry. It
-contains no SSH access or readiness verdict. The executable currently leaves
-`allow_ephemeral_creation=false`; its normal executor refuses ephemeral
-readiness, and the native buyer SSH path rejects `OutboundRelay` pending its
-dedicated verified integration. Enabling managed-KMS creation cannot enable
-this profile. Production activation still requires the end-to-end native
-admission/quote/pin/channel path, cancellation and teardown evidence, and a
-separate deployment decision. Do not advertise allocation or local tests as
-an accepted production lease.
+contains no SSH access or readiness verdict. The separate `phala-cpu-ephemeral`
+executor verifies the guest before publishing access; the native buyer verifies
+the saved evidence and the exact relay app/instance before opening SSH.
+`COVENANT_PHALA_ALLOW_EPHEMERAL_CREATION` defaults to disabled and must be enabled
+explicitly with the original bounded creation allowance. Enabling managed-KMS
+creation cannot enable this profile. Consuming an allowance advertises no new
+capacity; deleting its VM does not replenish it. Preserve the node journal.
+
+The [native lifecycle contract](../../docs/compute-phala-lease-lifecycle.md)
+describes admission, cancellation, relay and teardown behavior. The deployed
+candidate's first paid attempt failed the teardown-confirmation deadline, so
+successful paid production qualification remains outstanding. Neither a
+verified channel nor a later confirmed deletion changes that failed receipt.
 
 ## Managed-KMS candidate inputs
 

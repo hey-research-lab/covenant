@@ -8,7 +8,19 @@ the independently verified `phala_ephemeral_dstack061` profile, and an outbound
 SSH connection through the coordinator. Managed KMS remains disabled and the
 served trust ceiling remains **`Open`**. The earlier
 [isolated live acceptance](compute-ephemeral-phala-acceptance.md) qualifies the
-pinned guest; it does not prove this native paid integration or its deployment.
+pinned guest; its evidence remains separate from the native paid path.
+
+Coordinator admission and the signed relay were subsequently deployed at source
+`da00ccf7541d94cfb97c2a43dd9dd96f6719f499` for a single bounded native paid
+attempt. Guest/buyer verification and native transfer passed, but provider
+deletion confirmation exceeded the 60-second successful-receipt gate. The
+execution failed, and the original VM was later confirmed deleted. The
+[native acceptance report](compute-native-phala-acceptance.md) records the
+individual outcomes. Paid production qualification remains failed pending a
+cleanup-timing repair and separately approved acceptance. The coordinator
+capability remains enabled; the operator is offline with its one-use allowance
+consumed. Node creation remains disabled by default. No replacement lease or
+allowance is implied by the deployment or by later cleanup confirmation.
 
 Buyer preparation uses `lease prepare-phala-ephemeral` with the exact HTTPS
 coordinator origin as `--relay-origin`; generation is `phala-ephemeral-{job-id}-1`.

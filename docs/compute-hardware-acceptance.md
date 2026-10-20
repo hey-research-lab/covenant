@@ -5,15 +5,21 @@ pins, automatic challenge/evidence collection and a buyer path for independent
 verification, SSH probing and workspace restore. The served trust ceiling
 remains **`Open`**. Managed-KMS creation remains disabled; ephemeral creation
 requires an explicit bounded allowance and remains disabled by default.
-This implementation has not completed a paid Covenant lease acceptance or a
-production attested-rental release.
+The coordinator integration is deployed at `da00ccf7541d94cfb97c2a43dd9dd96f6719f499`.
+Its first paid native acceptance failed the 60-second deletion-confirmation
+deadline after independent admission and a real client upload passed. The
+original VM was subsequently confirmed deleted, buyer credit was fully
+restored, and the original on-chain escrow refund finalized. See the
+[native acceptance record](compute-native-phala-acceptance.md). Successful paid
+settlement and general production capacity remain unqualified.
 
 A separate [ephemeral Phala profile](compute-ephemeral-phala-acceptance.md)
 now allocates a fresh VM/disk per lease and connects outbound using an
 independently attested SSH key, without managed KMS. Its bounded live diagnostic
 is distinct from the native paid lease flow. The native integration now verifies
 operator and buyer admission, relays attested SSH, and gates successful receipts
-on confirmed teardown. Local tests do not establish live paid acceptance.
+on confirmed teardown. The failed native attempt does not establish a successful
+paid lease, even though its admission, upload and eventual deletion passed.
 
 The [lease lifecycle guide](compute-phala-lease-lifecycle.md) records the exact
 configuration and buyer commands. The [hardware contract](compute-hardware-attestation.md)
@@ -96,7 +102,11 @@ not qualify KMS policy, paid lifecycle integration or a production release.
    and provider USD exposure, exact placement, one new resource, finite
    lifetime and cleanup ownership. Exercise the integrated lease, evidence,
    buyer channel, synthetic workspace transfer, settlement and confirmed
-   provider deletion with the original identities. This live flow is untested.
+   provider deletion with the original identities. The first native attempt is
+   recorded as failed and fully refunded. Repair the bounded cleanup/result
+   deadlines, then obtain fresh authorization for one new acceptance; preserve
+   the original failed envelope and consumed allowance. The test operator is
+   stopped and no Phala production capacity is advertised.
 4. **Trust-release decision.** Keep `Open` during diagnostics. A stronger
    workspace floor must continue to reject. Any future ceiling increase is a
    separate reviewed code/release change for an accepted profile, not an

@@ -73,15 +73,17 @@ for path, (anchor, addition) in shared.items():
         errors.append("Unrelated shared site change: " + path)
 
 # This installer body and its four archive pins were independently checked
-# against the signed compute-v0.5.0 release. A different installer is rejected.
+# against the signed compute-v0.5.0 and compute-v0.5.1 releases. Other installers
+# are rejected; the 0.5.1 change alters only the five release-pin assignments.
 installer = "landing/public/install/compute.sh"
 installer_hash = hashlib.sha256(read(installer)).hexdigest()
 baseline_installer_hash = hashlib.sha256(git("show", base + ":" + installer)).hexdigest()
 if installer_hash not in (
     baseline_installer_hash,
     "18883da2515ea243ef7c95a92c1fac3a60f8c30f55d25df17c17c688efa0b0ef",
+    "74fdf1d23c38597d0ada3015f47a71a86e87cc07c43ff1e1e89a72627dffc9dc",
 ):
-    errors.append("Installer differs from baseline or verified Compute 0.5.0")
+    errors.append("Installer differs from baseline or verified Compute 0.5.0/0.5.1")
 
 # Production's workspace lock omitted landing's direct sharp dependency, which
 # already resolves to 0.35.5 through the existing root override and snapshot.

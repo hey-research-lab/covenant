@@ -17,6 +17,8 @@ export const metadata: Metadata = pageMetadata(
   { title, description },
 );
 
+const documentLink = "underline decoration-line-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-fg-soft";
+
 const steps = [
   { number: "01", title: "Compile locally.", body: "Extract symbols, document headings and references into a versioned snapshot. Local commands run without a model key or a Compute purchase.", tag: "Rust · Python · JS / TS · Markdown" },
   { number: "02", title: "Follow the source.", body: "Search names and source text, then inspect the file, line range and exact excerpt behind a result. Read the same evidence through the local viewer or MCP.", tag: "Citations · search · read-only MCP" },
@@ -33,13 +35,13 @@ export default function ComputeKnowledgePage() {
             <Image src="/compute-knowledge/field-square-perspective.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 1240px" />
           </div>
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}><span className={styles.dot} />Local release · Compute 0.5.0</p>
+            <p className={styles.eyebrow}><span className={styles.dot} />Local release · Compute 0.5.1</p>
             <p className={styles.product}>Covenant Compute / Knowledge</p>
             <h1 id="knowledge-title" className={display.className}>Codebase knowledge<br /><span>your agents<br />can inspect.</span></h1>
             <p className={styles.lead}>A code knowledge layer inside Covenant Compute. Give agents and developers a searchable view of a repository, with evidence they can inspect.</p>
             <div className={styles.actions}>
-              <a className={styles.primary} href="#local-preview">Explore the local workflow <span aria-hidden="true">↗</span></a>
-              <a className={styles.secondary} href="#availability">See what is available <span aria-hidden="true">↓</span></a>
+              <a className="btn btn-primary" href="#local-preview">Explore the local workflow <span aria-hidden="true">↗</span></a>
+              <a className="btn btn-secondary" href="#availability">See what is available <span aria-hidden="true">↓</span></a>
             </div>
             <p className={styles.releaseNote}>Available for macOS and Linux, on ARM64 and x86-64.</p>
           </div>
@@ -69,18 +71,18 @@ export default function ComputeKnowledgePage() {
             <p className={styles.eyebrow}>Start with a local repository</p>
             <h2 id="local-title" className={display.className}>One snapshot.<br />A shared view.</h2>
             <p className={styles.copy}>Compile once, then inspect the same saved source through the CLI, a browser viewer or a read-only MCP connection. Historical queries stay attached to the snapshot you select.</p>
-            <p className={styles.small}>Install the signed Compute 0.5.0 release, then compile the included example or your own repository. The compile command returns your project ID; the viewer prints its private loopback URL.</p>
-          <p className={styles.small}><a className={styles.secondary} href="https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0">Download Compute 0.5.0 ↗</a><br /><span>Signed release, four native builds. Guides and examples are included.</span></p>
+            <p className={styles.small}>Install the signed Compute 0.5.1 release, then compile the included example or your own repository. The compile command returns your project ID; the viewer prints its private loopback URL.</p>
+          <p className={styles.small}><a className="btn btn-secondary" href="https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1">Download Compute 0.5.1 ↗</a><br /><span>Signed release, four native builds. Guides and examples are included.</span></p>
           </div>
           <div className={styles.terminal}>
-            <div className={styles.terminalBar}><span>LOCAL WORKFLOW</span><span>COMPUTE 0.5.0</span></div>
+            <div className={styles.terminalBar}><span>LOCAL WORKFLOW</span><span>COMPUTE 0.5.1</span></div>
             <pre tabIndex={0} aria-label="Example local knowledge commands"><code>{String.raw`# Install the checksum-pinned release
 curl -fsSL https://opencovenant.org/install/compute.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 
 # Compile the included original example
 covenant-compute knowledge compile \
-  "$HOME/.local/share/covenant-compute/0.5.0/examples/knowledge"
+  "$HOME/.local/share/covenant-compute/0.5.1/examples/knowledge"
 
 # Use the project ID returned by compile
 covenant-compute knowledge query "calculate_total" \
@@ -110,26 +112,31 @@ covenant-compute knowledge mcp --project <id>`}</code></pre>
         <section id="availability" className={`${styles.section} ${styles.availability}`} aria-labelledby="availability-title">
           <div>
             <p className={styles.eyebrow}>Built into Compute</p>
-            <h2 id="availability-title" className={display.className}>Local first.<br />Remote is the next gate.</h2>
-            <p className={styles.copy}>The client includes a remote compilation path for a pinned public GitHub revision. A remote result must pass receipt and snapshot verification before local import.</p>
+            <h2 id="availability-title" className={display.className}>Local tools.<br />Remote compilation.</h2>
+            <p className={styles.copy}>Compile a pinned public GitHub revision through Covenant Compute, then inspect the verified snapshot locally. Remote input accepts 1–256 selected files and at most 512 KiB of source JSON, including filenames, text and metadata.</p>
+            <div className={`${styles.actions} mt-6`}>
+              <a className="btn btn-primary" href="https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-knowledge-remote.md">Preview a remote request <span aria-hidden="true">↗</span></a>
+              <a className="btn btn-secondary" href="https://github.com/open-covenant/covenant/blob/e5745c920e5ad17b0af16ce20478bd1cce77e0e9/docs/evidence/knowledge/remote-activation-2026-10-20/report.md">Read activation evidence <span aria-hidden="true">↗</span></a>
+            </div>
+            <p className={styles.small}>One dedicated operator offers the pinned compiler, with one job in flight at a time. Preview the current quote and capacity before buying. Initial stake admission eligibility ends 25 October 2026 at 19:17:25 UTC unless extended; continued availability depends on renewal and operator health.</p>
             <p className={styles.small}>
-              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-release-2026-10-20/report.md">Optimized preview measurements ↗</a><br />
-              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-2026-10-20/report.md">Earlier debug measurements ↗</a><br />
+              <a className={documentLink} href="https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-release-2026-10-20/report.md">Optimized preview measurements ↗</a><br />
+              <a className={documentLink} href="https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-2026-10-20/report.md">Earlier debug measurements ↗</a><br />
               Both runs used the same small fixture. Direct search returned fewer bytes in all seven matching cases. Knowledge had lower median command latency in the optimized run; direct search was faster in the debug run. The optimized run overlapped regression tests. These measurements establish neither production performance nor token savings. Build-time reports from the release source.
             </p>
-            <p className={styles.small}>Local tools are available now. The paid remote pilot has been accepted; persistent public remote capacity is not available. <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/74c432f900e57d48557abf79a52891b6f28aac0c/docs/evidence/knowledge/paid-pilot-2026-10-20/report.md">Read the bounded pilot evidence ↗</a></p>
+            <p className={styles.small}>Two earlier paid pilot jobs passed receipt, snapshot, recovery and settlement checks. The dedicated operator was validated separately through cohosting, restart and a preview without purchasing; no new paid job was part of its activation. <a className={documentLink} href="https://github.com/open-covenant/covenant/blob/e5745c920e5ad17b0af16ce20478bd1cce77e0e9/docs/evidence/knowledge/paid-pilot-2026-10-20/report.md">Read the bounded pilot evidence ↗</a></p>
           </div>
           <dl className={styles.statusList}>
-            <div><dt>Local workflow</dt><dd>Available in Compute 0.5.0</dd></div>
+            <div><dt>Local workflow</dt><dd>Available in Compute 0.5.1</dd></div>
             <div><dt>Release package</dt><dd>Signed macOS + Linux builds</dd></div>
-            <div><dt>Remote compiler</dt><dd>Paid pilot accepted · public availability pending</dd></div>
+            <div><dt>Remote compiler</dt><dd>Limited capacity · one operator</dd></div>
             <div><dt>Measured results</dt><dd>Reproducible fixture reports</dd></div>
           </dl>
         </section>
         <section className={styles.closing} aria-label="Follow the rollout">
           <p className={styles.eyebrow}>Covenant Compute / Knowledge</p>
           <h2 className={display.className}>Build context.<br />Keep the evidence.</h2>
-          <a className={styles.primary} href="https://x.com/OpenCovenant" target="_blank" rel="noopener noreferrer">Follow development <span aria-hidden="true">↗</span></a>
+          <a className="btn btn-primary" href="https://x.com/OpenCovenant" target="_blank" rel="noopener noreferrer">Follow development <span aria-hidden="true">↗</span></a>
         </section>
       </main>
       <SiteFooter />

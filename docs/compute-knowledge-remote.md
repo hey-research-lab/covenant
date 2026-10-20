@@ -5,7 +5,7 @@ operator advertised the pinned compiler at **50,000 micro-USDC / 0.05 USDC per
 job**, with one job in flight. A freshly installed public client verified the
 source and quote without purchasing. Check current capacity and price before
 buying; this observation is not a standing quote or uptime guarantee. The
-[signed local 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0)
+[original signed local 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0)
 and [two earlier paid pilot jobs](evidence/knowledge/paid-pilot-2026-10-20/report.md)
 have separate acceptance evidence. The new operator has not executed a paid job.
 See the [activation record](evidence/knowledge/remote-activation-2026-10-20/report.md).
@@ -33,8 +33,9 @@ recompilation is part of verification; no speedup or token-savings claim follows
 
 ## Preview a public example without buying
 
-Install 0.5.0 using the [verified website installer](https://opencovenant.org/install/compute.sh)
-or signed release archives. Use a new empty example directory. These commands
+Install Compute 0.5.1 using the [website installer](https://opencovenant.org/install/compute.sh)
+or its [signed release archives](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1).
+The same remote command is also supported by 0.5.0. Use a new empty example directory. These commands
 fetch the pinned public commit without checking out or running repository code:
 
 ```sh
@@ -71,7 +72,7 @@ A preview does not reserve capacity or a price. Inspect the current
 [capacity directory](https://compute-api.opencovenant.org/federation/capacity)
 for an exact `batch_job` model row with `operators > 0` and `per_job` pricing.
 The directory contains aggregate counts and asks, not operator identities.
-The activation evidence separately records the deployed identity. Compute 0.5.0
+The activation evidence separately records the deployed identity. Compute 0.5.x
 selects the exact compiler model and has no buyer flag for choosing an operator
 identity.
 

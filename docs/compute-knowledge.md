@@ -1,8 +1,8 @@
 # Covenant Compute Knowledge
 
-**Status, 20 October 2026: local release 0.5.0 is published; limited remote capacity is accepted.** The signed release includes the local compiler, CLI, read-only MCP server and viewer. The live website installer passed fresh-install acceptance. One dedicated operator now offers the pinned remote compiler; its installed-client preview and controlled restart passed while Kani stayed active. Two earlier paid pilot jobs separately passed artifact, receipt and recovery checks. No speed, accuracy or token-savings claim follows from these checks.
+**Release guide: Compute 0.5.1. Limited remote capacity was accepted on 20 October 2026.** This patch updates the viewer's Covenant typography and colors; the compiler, CLI, read-only MCP and remote protocol retain their 0.5.0 behavior. One dedicated operator offers the pinned remote compiler; its installed-client preview and controlled restart passed while Kani stayed active. Two earlier paid pilot jobs separately passed artifact, receipt and recovery checks. No speed, accuracy or token-savings claim follows from these checks.
 
-See the [public release evidence](evidence/knowledge/public-release-0.5.0/report.md), [live installer acceptance](evidence/knowledge/public-release-0.5.0/installer-promotion.md), [paid pilot report](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md). Homebrew remains at 0.4.1; use the website installer or signed 0.5.0 release archives for Knowledge.
+See the [original 0.5.0 release evidence](evidence/knowledge/public-release-0.5.0/report.md), [original installer acceptance](evidence/knowledge/public-release-0.5.0/installer-promotion.md), [0.5.1 release notes](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1), [paid pilot report](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md). Homebrew promotion is separate; use the website installer or signed release archives for this version.
 
 Compute Knowledge turns supported repository files into saved, queryable snapshots. It is part of `covenant-compute`, with no model API key required for local compilation or queries. It does not run the source repository's build scripts, tests or programs.
 
@@ -16,14 +16,14 @@ export PATH="$HOME/.local/bin:$PATH"
 
 covenant-compute --version
 covenant-compute knowledge compile \
-  "$HOME/.local/share/covenant-compute/0.5.0/examples/knowledge"
+  "$HOME/.local/share/covenant-compute/0.5.1/examples/knowledge"
 ```
 
-The installer verifies the archive against pinned SHA256 checksums. The [0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0) also provides signatures and attestations for independent verification.
+The installer verifies the archive against pinned SHA256 checksums. The [0.5.1 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1) provides signatures and attestations for independent verification. Confirm the reported version before using its versioned example path.
 
 ### Optional source build
 
-Use the `compute-v0.5.0` tag and a Rust toolchain compatible with the workspace:
+Use the `compute-v0.5.1` tag and a Rust toolchain compatible with the workspace:
 
 ```sh
 cargo build --manifest-path agent-os/Cargo.toml \

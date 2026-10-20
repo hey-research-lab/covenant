@@ -122,9 +122,10 @@ were never exposed under an earlier policy; key continuity needs explicit review
 > - For on-chain authorization, deployed app/global contract implementations,
 >   owners, upgrade authorities and OS/device/workload/TCB rules at a named
 >   finalized block, including any override or emergency path.
-> - The supported migration steps and key-continuity implications for an app
->   previously using managed prod5; state whether a new root/application identity
->   is required to avoid relying on keys released under the earlier policy.
+> - The supported migration steps and key-continuity implications for our app
+>   using managed off-chain KMS (the selected prod7 endpoint); state whether a
+>   new root/application identity is required to avoid relying on keys released
+>   under the earlier policy.
 >
 > We can then independently verify the evidence and run one separately bounded
 > lease lifecycle acceptance. A metadata flag or contract allowlist alone is
@@ -280,8 +281,9 @@ The measured wrapper explicitly requests zero swap, and actual guest swap,
 container cgroup limits, mount options and core-dump policy are checked before
 key generation and continuously while access is open. A new versioned shared
 volume prevents an update from reusing the historical disk-backed sidecar.
-Current-image live qualification remains a separate requirement; source
-presence alone does not establish a running node's controls.
+The [current-image live diagnostic](../../docs/compute-memory-diagnostic-evidence.md)
+verified those controls on the existing CVM after fresh TDX verification.
+That recorded runtime behavior remains separate from KMS qualification.
 
 The collector replay journal and underlying Docker/containerd state remain
 disk-backed. KMS compromise combined with backing-storage access can therefore

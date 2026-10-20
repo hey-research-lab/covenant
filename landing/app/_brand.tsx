@@ -125,6 +125,7 @@ export const FOOTER_COLUMNS: { title: string; links: FooterColumnLink[] }[] = [
       { label: "Guard", href: "/guard" },
       { label: "Trading", href: "/trading" },
       { label: "Compute", href: "/compute" },
+      { label: "Compute Knowledge (preview)", href: "/compute-knowledge" },
       { label: "Sandbox", href: "https://sandbox.opencovenant.org", external: true },
       { label: "Agents", href: "/agents" },
       { label: "Arena", href: "/arena" },

@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE}/about`, lastModified, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE}/blog`, lastModified, changeFrequency: "weekly", priority: 0.6 },
     { url: `${SITE}/compute`, lastModified, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${SITE}/compute-knowledge`, lastModified: "2026-10-20", changeFrequency: "monthly", priority: 0.6 },
     ...(workspaceRelease.accepted ? [{ url: `${SITE}/compute-workspaces`, lastModified, changeFrequency: "weekly" as const, priority: 0.8 }] : []),
     { url: `${SITE}/compute-langchain`, lastModified, changeFrequency: "weekly", priority: 0.8 },
     { url: `${SITE}/compute-agent-framework`, lastModified, changeFrequency: "weekly", priority: 0.8 },

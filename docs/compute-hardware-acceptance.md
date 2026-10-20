@@ -52,10 +52,12 @@ The earlier signed-in total estimate must not be replaced with this component.
 ## Remaining production gates
 
 1. **KMS and administrative policy: production qualification rejected.**
-   Authenticated metadata from managed prod5 and all 16 registered
-   Base/Ethereum KMS nodes reported `os_image_verification=false` on
-   2026-10-20. Account evidence confirms the diagnostic app uses off-chain
-   KMS. Production requires provider remediation with measured configuration
+   Authenticated metadata from managed prod5, the account-selected managed
+   prod7 endpoint, and all 16 registered Base/Ethereum KMS nodes reported
+   `os_image_verification=false` on 2026-10-20: 18 of 18 assessed endpoints.
+   Account evidence confirms the diagnostic app uses off-chain KMS; its prod5
+   compute host does not imply a prod5 KMS endpoint. Production requires
+   provider remediation with measured configuration
    and governance evidence, or a separately qualified customer-controlled
    KMS deployment. See the [KMS policy review](../deploy/compute-attested-cpu/kms-policy-review.md).
    Accepting the current managed-policy threat model can authorize only a

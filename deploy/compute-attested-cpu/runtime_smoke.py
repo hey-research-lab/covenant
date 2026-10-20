@@ -86,29 +86,44 @@ def main():
         os.chmod(guest_socket, 0o666)
         guest_thread = threading.Thread(target=guest_server.serve_forever, daemon=True)
         guest_thread.start()
-        def create_volume(suffix, public=False):
+        def create_volume(suffix, tmpfs_options=None):
             name = prefix + "-" + suffix
             options = (["--driver", "local", "--opt", "type=tmpfs", "--opt", "device=tmpfs",
-                        "--opt", "o=rw,nosuid,nodev,noexec,noswap,size=1m,mode=755"]
-                       if public else [])
+                        "--opt", "o=" + tmpfs_options]
+                       if tmpfs_options is not None else [])
             run("docker", "volume", "create", *options, name)
             volumes.append(name)
             return name
 
-        public_volume = create_volume("public", public=True)
+        public_options = "rw,nosuid,nodev,noexec,noswap,size=1m,mode=755"
+
+        def ssh_memory_mounts(suffix, workspace_noswap=True):
+            specifications = {
+                "run": "rw,nosuid,nodev,noexec,noswap,size=8m,mode=755",
+                "tmp": "rw,nosuid,nodev,noexec,noswap,size=16m,mode=1777",
+                "workspace": "rw,nosuid,nodev,noswap,size=128m,mode=700,uid=10001,gid=10001",
+            }
+            if not workspace_noswap:
+                specifications["workspace"] = specifications["workspace"].replace(",noswap", "")
+            mounts = []
+            for path, options in specifications.items():
+                volume = create_volume(suffix + "-" + path, options)
+                mounts += ["--mount", f"type=volume,src={volume},dst=/{path},volume-nocopy"]
+            return mounts
+
+        public_volume = create_volume("public", public_options)
         state_volume = create_volume("state")
+        main_memory = ssh_memory_mounts("main")
         common = [
             "--read-only", "--restart", "no", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges:true",
             "--env", "COVENANT_LEASE_POLICY_B64",
             "--ulimit", "core=0:0",
+            "--cgroupns", "private",
         ]
         ssh_runtime = [
             "--user", "0:0", "--cap-add", "CHOWN", "--cap-add", "SETUID",
             "--cap-add", "SETGID", "--cap-add", "SYS_CHROOT",
-            "--tmpfs", "/run:rw,nosuid,nodev,noexec,noswap,size=8m,mode=755",
-            "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,noswap,size=16m,mode=1777",
-            "--tmpfs", "/workspace:rw,nosuid,nodev,noswap,size=128m,mode=700,uid=10001,gid=10001",
             "--pids-limit", "128", "--memory", "768m", "--memory-swap", "768m",
         ]
         collector_runtime = [
@@ -118,13 +133,13 @@ def main():
         ]
         ssh_name = prefix + "-ssh"
         containers.append(ssh_name)
-        run("docker", "run", "-d", "--name", ssh_name, *common, *ssh_runtime,
-            "--mount", f"type=volume,src={public_volume},dst=/host-public",
+        run("docker", "run", "-d", "--name", ssh_name, *common, *ssh_runtime, *main_memory,
+            "--mount", f"type=volume,src={public_volume},dst=/host-public,volume-nocopy",
             "-p", "127.0.0.1::1022", args.image, "ssh", env=process_env)
         collector_name = prefix + "-collector"
         containers.append(collector_name)
         run("docker", "run", "-d", "--name", collector_name, *common, *collector_runtime,
-            "--mount", f"type=volume,src={public_volume},dst=/host-public,readonly",
+            "--mount", f"type=volume,src={public_volume},dst=/host-public,readonly,volume-nocopy",
             "--mount", f"type=volume,src={state_volume},dst=/state",
             "-p", "127.0.0.1::8090", args.image, "collector", env=process_env)
 
@@ -313,20 +328,20 @@ def main():
         assert ssh("id", check=False).returncode != 0
         # Negative startup profiles exercise actual mounts/cgroup controls,
         # never substitute fake /proc data or enable swap on the CI host.
-        rejected_public = create_volume("rejected-public", public=True)
-        for label, mutation in (
-            ("swap-allowed", lambda options: [
-                "1536m" if value == "768m" and options[index - 1] == "--memory-swap" else value
-                for index, value in enumerate(options)]),
-            ("swappable-workspace", lambda options: [
-                value.replace("nodev,noswap,size=128m", "nodev,size=128m")
-                if value.startswith("/workspace:") else value for value in options]),
+        rejected_public = create_volume("rejected-public", public_options)
+        for label, swap_allowed, workspace_noswap in (
+            ("swap-allowed", True, True),
+            ("swappable-workspace", False, False),
         ):
             rejected_name = prefix + "-" + label
             containers.append(rejected_name)
+            rejected_memory = ssh_memory_mounts(label, workspace_noswap)
+            rejected_runtime = list(ssh_runtime)
+            if swap_allowed:
+                rejected_runtime[rejected_runtime.index("--memory-swap") + 1] = "1536m"
             result = run("docker", "run", "--name", rejected_name, *common,
-                         *mutation(ssh_runtime),
-                         "--mount", f"type=volume,src={rejected_public},dst=/host-public",
+                         *rejected_runtime, *rejected_memory,
+                         "--mount", f"type=volume,src={rejected_public},dst=/host-public,volume-nocopy",
                          args.image, "ssh", env=process_env, check=False)
             assert result.returncode != 0, f"unsafe {label} startup was accepted"
             assert "UnsafeRuntime" in result.stderr, "failure was not the runtime guard"
@@ -337,17 +352,18 @@ def main():
                              lease_expires_at_ms=int(time.time() * 1000) + 20_000)
         expiry_env = dict(process_env, COVENANT_LEASE_POLICY_B64=base64.b64encode(
             c.canonical(expiry_policy)).decode())
-        expiry_public = create_volume("expiry-public", public=True)
+        expiry_public = create_volume("expiry-public", public_options)
         expiry_state = create_volume("expiry-state")
+        expiry_memory = ssh_memory_mounts("expiry")
         expiry_ssh = prefix + "-expiry-ssh"
         containers.append(expiry_ssh)
-        run("docker", "run", "-d", "--name", expiry_ssh, *common, *ssh_runtime,
-            "--mount", f"type=volume,src={expiry_public},dst=/host-public",
+        run("docker", "run", "-d", "--name", expiry_ssh, *common, *ssh_runtime, *expiry_memory,
+            "--mount", f"type=volume,src={expiry_public},dst=/host-public,volume-nocopy",
             "-p", "127.0.0.1::1022", args.image, "ssh", env=expiry_env)
         expiry_collector = prefix + "-expiry-collector"
         containers.append(expiry_collector)
         run("docker", "run", "-d", "--name", expiry_collector, *common, *collector_runtime,
-            "--mount", f"type=volume,src={expiry_public},dst=/host-public,readonly",
+            "--mount", f"type=volume,src={expiry_public},dst=/host-public,readonly,volume-nocopy",
             "--mount", f"type=volume,src={expiry_state},dst=/state",
             "-p", "127.0.0.1::8090", args.image, "collector", env=expiry_env)
         ssh_port = mapped_port(expiry_ssh, 1022)

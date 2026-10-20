@@ -64,10 +64,15 @@ compatibility fallback or request flag that disables checks.
 | Guest swap | `/proc/swaps` has a valid header and no configured swap devices/files |
 | Core dumps | Both soft/hard `RLIMIT_CORE` limits zero and a nonempty, non-piped guest `core_pattern` |
 
-The shared volume is named `host-public-memory-v1`, so updating an older
+Each memory filesystem uses a separate local-driver tmpfs volume whose name
+includes the job UUID. `volume.nocopy` prevents Docker copying image directory
+contents into it. This passes `noswap` to the Linux mount operation; Docker's
+service `tmpfs`/`--tmpfs` option parser rejects that flag before reaching Linux.
+The public volume prefix is `host-public-memory-v1`, so updating an older
 deployment cannot silently reuse its disk-backed `host-public` volume. Actual
-mount verification is still required. The workspace is ephemeral: a container
-restart clears its contents and generates a new private host key. The 128 MiB
+mount verification is still required. Runtime and workspace volumes are mounted
+only by the SSH role, and lose contents when that role stops and their last
+mount is released. A restart generates a new private host key. The 128 MiB
 workspace accommodates the buyer's maximum 64 MiB snapshot transfer; it does
 not promise space for multiple maximum snapshots.
 

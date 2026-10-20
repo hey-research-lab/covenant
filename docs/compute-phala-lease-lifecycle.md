@@ -122,8 +122,11 @@ it.
 This object is **not** KMS policy acceptance. It contains no CA/app/workload
 acceptance fields. Retain the separate, finite, scope-bound decision required
 by the [KMS review](../deploy/compute-attested-cpu/kms-policy-review.md).
-The KMS production assessment is **rejected**: managed prod5 and all 16
-registered Base/Ethereum nodes reported `os_image_verification=false`.
+The KMS production assessment is **rejected**: managed prod5, the diagnostic
+account's selected managed prod7 endpoint, and all 16 registered Base/Ethereum
+nodes reported `os_image_verification=false` (18 of 18 assessed endpoints).
+The two managed endpoints share a CA root; compute-host placement and KMS
+endpoint selection are distinct.
 Accepting the current managed service is limited to a finite synthetic pilot
 at `Open`, not a production-trust alternative. Production requires provider
 remediation with verified measured configuration/governance or a separately

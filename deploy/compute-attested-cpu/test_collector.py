@@ -265,6 +265,7 @@ class Tests(unittest.TestCase):
         rendered = render.render(template, "sha256:" + "ab" * 32, self.policy, NOW)
         self.assertNotIn("__IMAGE_DIGEST__", rendered)
         self.assertNotIn("__LEASE_POLICY_B64__", rendered)
+        self.assertNotIn("__JOB_ID__", rendered)
         self.assertIn("${COVENANT_COLLECTOR_TOKEN:?missing encrypted collector token}", rendered)
         with self.assertRaises(c.Rejected):
             render.render(template, "latest", self.policy, NOW)
@@ -272,6 +273,21 @@ class Tests(unittest.TestCase):
         policy["lease_expires_at_ms"] = NOW + 3_600_001
         with self.assertRaises(c.Rejected):
             render.render(template, "sha256:" + "ab" * 32, policy, NOW)
+
+    def test_noswap_local_volumes_are_isolated_per_job_without_image_copy(self):
+        template = Path(__file__).with_name("compose.template.yaml").read_text()
+        rendered = render.render(template, "sha256:" + "ab" * 32, self.policy, NOW)
+        # Docker --tmpfs rejects noswap itself; local-driver options are passed
+        # to the kernel. Mount verification remains an independent runtime gate.
+        self.assertNotIn("    tmpfs:", rendered)
+        self.assertEqual(rendered.count("      type: tmpfs"), 4)
+        self.assertEqual(rendered.count("volume: {nocopy: true}"), 5)
+        self.assertEqual(rendered.count("cgroup: private"), 2)
+        for prefix in ("ssh-run-memory", "ssh-tmp-memory", "workspace-memory",
+                       "host-public-memory-v1", "collector-state"):
+            self.assertIn(f"{prefix}-{self.policy['job_id']}", rendered)
+        self.assertEqual(rendered.count("noswap,size="), 4)
+        self.assertIn('o: "rw,nosuid,nodev,noswap,size=128m,mode=700,uid=10001,gid=10001"', rendered)
 
     def test_unix_rpc_uses_raw_report_data_and_preserves_strings(self):
         captured = []

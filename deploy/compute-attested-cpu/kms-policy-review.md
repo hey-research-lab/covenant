@@ -43,20 +43,32 @@ policy. Missing OS-image verification is never interpreted as enabled.
 
 ## Production qualification result: rejected on 2026-10-20
 
-The read-only assessment completed with **`rejected_for_production`**. Between
-18:44:11 and 18:44:15 UTC, all **17 assessed endpoints** returned authenticated
-`os_image_verification=false`: managed prod5, all eight registered Base nodes,
-and all eight registered Ethereum nodes. Each connection passed the separately
+The read-only assessment completed with **`rejected_for_production`**.
+The initial 17 endpoints were checked at 18:44:11–18:44:15 UTC, followed by the
+account-selected managed prod7 endpoint at 18:54:45–18:54:46 UTC.
+All **18 assessed endpoints** returned authenticated
+`os_image_verification=false`: managed prod5 and prod7, all eight registered
+Base nodes, and all eight registered Ethereum nodes. Each connection passed the separately
 obtained registry CA pin, direct certificate signature, exact DNS name,
 certificate validity and `kms:rpc` role checks before the metadata GET.
-The remaining managed nodes were not surveyed. Switching this application to
+The remaining 20 managed nodes were not surveyed. Switching this application to
 either hosted on-chain service therefore does not resolve the observed gate.
+
+The current CVM account record selects
+`https://kms.dstack-pha-prod7.phala.network`, despite its compute host being
+prod5. That exact endpoint was matched to registered node `kms_QEKvzKbo`
+before connection. Managed prod5 and prod7 share the separately pinned PHALA
+CA root; root identity does not identify which endpoint the account selected.
+The repository helper above remains fixed to prod5; the additional endpoint
+survey used a separate bounded collector with the same authentication checks.
 
 The private `qualification-result.json` records every endpoint, observation
 time, body/certificate hash, authentication result and qualification limit.
 Its SHA-256 is
-`d8c904a7f3290281be5feff918b22ffdc6ea602bfc5830c6b90355f50fe667f1`.
+`832e114001bb764266dbb7fbdf050e6dc5b8b1b61ab5cbc8e62f7d6e0b915b9f`.
+It supersedes but preserves the original 17-endpoint report.
 The source lists were the official [KMS registry](https://cloud-api.phala.com/api/v1/kms),
+[managed nodes](https://cloud-api.phala.com/api/v1/kms/phala/nodes),
 [Base nodes](https://cloud-api.phala.com/api/v1/kms/base/nodes) and
 [Ethereum nodes](https://cloud-api.phala.com/api/v1/kms/eth/nodes), using Cloud
 API version `2026-06-23`. Registry/Cloud inspection statements are not independent
@@ -92,8 +104,10 @@ were never exposed under an earlier policy; key continuity needs explicit review
 
 > We are qualifying Covenant's attested CPU lease path on Phala dstack 0.6.1.
 > On 2026-10-20 at 18:44 UTC, managed prod5 and all 16 registered Base/Ethereum
-> KMS nodes returned `os_image_verification=false` through authenticated
-> CA-pinned connections. Our production gate requires this check to be enabled.
+> KMS nodes returned `os_image_verification=false`; our account-selected managed
+> prod7 endpoint returned the same at 18:54 UTC. All 18 connections were
+> authenticated against separately pinned CA roots. Our production gate
+> requires this check to be enabled.
 >
 > Please provide a supported KMS endpoint with `image.verify=true`, its exact
 > CA/root identity, and the following verification material:

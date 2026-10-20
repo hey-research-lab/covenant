@@ -3048,6 +3048,7 @@ async fn main() -> anyhow::Result<()> {
                 wrapper_template: covenant_compute_protocol::phala::reviewed_phala_wrapper(),
                 image_digest: required("COVENANT_PHALA_GUEST_IMAGE_DIGEST")?,
                 allow_managed_kms_creation: creation,
+                allow_ephemeral_creation: false,
                 creation_allowance: match std::env::var("COVENANT_PHALA_CREATION_ALLOWANCE_FILE") {
                     Ok(path) => {
                         let bytes = std::fs::read(path).context("read reviewed Phala creation allowance")?;

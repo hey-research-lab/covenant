@@ -291,6 +291,7 @@ impl HardwareService {
             .cloned()
             .ok_or_else(|| rejected("host key missing"))?;
         Ok(HardwareScope {
+            profile: Default::default(),
             job_id,
             operator_pubkey_b58: job.operator_pubkey_b58,
             buyer_pubkey_b58: job.envelope.payload.buyer.pubkey_base58(),

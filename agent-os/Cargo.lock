@@ -1411,6 +1411,7 @@ dependencies = [
 name = "covenant-compute-attestation"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "base64 0.22.1",
  "bs58",
  "chrono",
@@ -1423,12 +1424,14 @@ dependencies = [
  "p384",
  "rand 0.8.6",
  "rcgen",
+ "reqwest 0.13.5",
  "rsa",
  "serde",
  "serde_jcs",
  "serde_json",
  "sha2 0.10.9",
  "thiserror 2.0.18",
+ "tokio",
  "uuid",
  "x509-parser 0.18.1",
 ]

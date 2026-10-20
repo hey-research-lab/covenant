@@ -19,7 +19,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use covenant_compute_protocol::phala::{
-    parse_phala_lease_spec, render_phala_manifest, PhalaLeaseSpec, PHALA_GATEWAY,
+    parse_phala_ephemeral_lease_spec, parse_phala_lease_spec, render_phala_ephemeral_manifest,
+    render_phala_manifest, PhalaEphemeralLeaseSpec, PhalaLeaseSpec, PHALA_GATEWAY,
 };
 use covenant_compute_protocol::ssh::{SshAccess, SshTransport};
 use covenant_compute_protocol::{JobEnvelopePayload, LeaseAccess};
@@ -69,6 +70,8 @@ pub struct PhalaConfig {
     pub wrapper_template: Value,
     pub image_digest: String,
     pub allow_managed_kms_creation: bool,
+    /// Allocation-only enablement; never authorizes metadata-only readiness.
+    pub allow_ephemeral_creation: bool,
     pub creation_allowance: Option<CreationAllowance>,
     pub ready_timeout: Duration,
     pub poll_interval: Duration,
@@ -128,12 +131,70 @@ pub struct LeasePlan {
     pub issued_at_ms: u64,
     pub payload_sha256: String,
     pub buyer_pubkey_b58: String,
-    pub spec: PhalaLeaseSpec,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spec: Option<PhalaLeaseSpec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ephemeral_spec: Option<PhalaEphemeralLeaseSpec>,
     pub name: String,
     pub manifest: String,
     pub allowance: CreationAllowance,
     // Owner-only journal; never include this plan in logs or receipts.
     pub collector_token: String,
+}
+
+impl LeasePlan {
+    fn validate_spec(&self) -> Result<(), ExecutorError> {
+        let (id, operator) = match (&self.spec, &self.ephemeral_spec) {
+            (Some(spec), None) => {
+                spec.validate().map_err(|error| failed(error.to_string()))?;
+                if !lower_hex(&self.collector_token, 64) {
+                    return Err(failed("managed Phala plan requires a collector secret"));
+                }
+                (spec.job_id, &spec.operator_pubkey_b58)
+            }
+            (None, Some(spec)) => {
+                spec.validate().map_err(|error| failed(error.to_string()))?;
+                if !self.collector_token.is_empty() {
+                    return Err(failed("ephemeral Phala plan forbids collector secrets"));
+                }
+                (spec.job_id, &spec.operator_pubkey_b58)
+            }
+            _ => return Err(failed("Phala plan requires exactly one explicit profile")),
+        };
+        if id != self.job_id || operator != &self.allowance.operator_pubkey_b58 {
+            return Err(failed("Phala plan profile identity mismatch"));
+        }
+        Ok(())
+    }
+
+    fn is_ephemeral(&self) -> bool {
+        self.ephemeral_spec.is_some()
+    }
+    fn expires_at_ms(&self) -> u64 {
+        self.ephemeral_spec
+            .as_ref()
+            .map(|spec| spec.lease_expires_at_ms)
+            .or_else(|| self.spec.as_ref().map(|spec| spec.lease_expires_at_ms))
+            .unwrap_or(0)
+    }
+    fn workload_sha256(&self) -> &str {
+        self.ephemeral_spec
+            .as_ref()
+            .map(|spec| spec.workload_sha256.as_str())
+            .or_else(|| self.spec.as_ref().map(|spec| spec.workload_sha256.as_str()))
+            .unwrap_or("")
+    }
+    fn generation(&self) -> &str {
+        self.ephemeral_spec
+            .as_ref()
+            .map(|spec| spec.lease_generation.as_str())
+            .or_else(|| {
+                self.spec
+                    .as_ref()
+                    .map(|spec| spec.lease_generation.as_str())
+            })
+            .unwrap_or("")
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -147,6 +208,11 @@ pub struct Provision {
     pub hourly_micro_usd: u64,
     pub teepod_id: u64,
     pub kms_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
+    // Owner-only provision recovery token; never log or include in receipts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provision_token: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -205,6 +271,8 @@ struct Row {
     close_requested: bool,
     last_observed_ms: u64,
     delete_attempts: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    observed_instance_id: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -295,27 +363,20 @@ impl Journal {
         }
         let mut review_ids = std::collections::BTreeSet::new();
         for (id, row) in &self.snapshot.rows {
-            row.plan
-                .spec
-                .validate()
-                .map_err(|e| failed(e.to_string()))?;
+            row.plan.validate_spec()?;
             row.plan.allowance.validate(operator)?;
             if !review_ids.insert(&row.plan.allowance.review_id) {
                 return Err(failed("Phala journal reuses a single-resource allowance"));
             }
             if *id != row.plan.job_id
-                || *id != row.plan.spec.job_id
-                || row.plan.spec.operator_pubkey_b58 != operator
-                || hash(row.plan.manifest.as_bytes()) != row.plan.spec.workload_sha256
+                || hash(row.plan.manifest.as_bytes()) != row.plan.workload_sha256()
                 || row.plan.name != format!("covenant-{}", id.simple())
-                || !lower_hex(&row.plan.collector_token, 64)
                 || !lower_hex(&row.plan.payload_sha256, 64)
-                || row.plan.issued_at_ms >= row.plan.spec.lease_expires_at_ms
-                || row.plan.spec.lease_expires_at_ms > row.plan.allowance.valid_until_ms
+                || row.plan.issued_at_ms >= row.plan.expires_at_ms()
+                || row.plan.expires_at_ms() > row.plan.allowance.valid_until_ms
                 || row
                     .plan
-                    .spec
-                    .lease_expires_at_ms
+                    .expires_at_ms()
                     .saturating_sub(row.plan.issued_at_ms)
                     > row.plan.allowance.max_runtime_secs * 1000
                 || row.vm_uuid.is_some_and(|v| v.is_nil())
@@ -325,6 +386,11 @@ impl Journal {
                 ) && row.provision.is_none())
                 || (matches!(row.phase, Phase::Created | Phase::Ready) && row.vm_uuid.is_none())
                 || (row.phase == Phase::Ready && row.access.is_none())
+                || (row.plan.is_ephemeral() && (row.phase == Phase::Ready || row.access.is_some()))
+                || row
+                    .observed_instance_id
+                    .as_ref()
+                    .is_some_and(|id| !lower_hex(id, 40))
             {
                 return Err(failed("Phala journal binding is invalid"));
             }
@@ -380,15 +446,31 @@ impl Journal {
 }
 
 fn validate_provision(plan: &LeasePlan, provision: &Provision) -> Result<(), ExecutorError> {
+    plan.validate_spec()?;
+    let invalid_profile = if plan.is_ephemeral() {
+        !provision.env_public_key.is_empty()
+            || !provision.kms_id.is_empty()
+            || !provision
+                .device_id
+                .as_deref()
+                .is_some_and(|id| lower_hex(id, 64))
+    } else {
+        !lower_hex(&provision.env_public_key, 64)
+            || provision.kms_id.is_empty()
+            || provision.device_id.is_some()
+            || provision.provision_token.is_some()
+    };
     if !lower_hex(&provision.app_id, 40)
-        || !lower_hex(&provision.env_public_key, 64)
-        || provision.compose_hash != plan.spec.workload_sha256
+        || invalid_profile
+        || provision.provision_token.as_ref().is_some_and(|token| {
+            token.is_empty() || token.len() > 65_536 || token.bytes().any(|b| b.is_ascii_control())
+        })
+        || provision.compose_hash != plan.workload_sha256()
         || provision.os_image_hash != OS_IMAGE_SHA256
         || provision.instance_type != plan.allowance.instance_type
         || provision.hourly_micro_usd == 0
         || provision.hourly_micro_usd > plan.allowance.max_hourly_micro_usd
         || provision.teepod_id == 0
-        || provision.kms_id.is_empty()
     {
         return Err(failed(
             "provider provision differs from signed workload or qualified OS",
@@ -399,7 +481,7 @@ fn validate_provision(plan: &LeasePlan, provision: &Provision) -> Result<(), Exe
 
 fn validate_machine(row: &Row, machine: &Machine) -> Result<(), ExecutorError> {
     validate_ownership(row, machine)?;
-    if machine.name != row.plan.name || machine.compose_hash != row.plan.spec.workload_sha256 {
+    if machine.name != row.plan.name || machine.compose_hash != row.plan.workload_sha256() {
         return Err(failed(
             "provider ready machine differs from signed workload",
         ));
@@ -421,6 +503,41 @@ fn validate_ownership(row: &Row, machine: &Machine) -> Result<(), ExecutorError>
         ));
     }
     Ok(())
+}
+
+fn observe_ephemeral_instance(row: &mut Row, machine: &Machine) -> Result<(), ExecutorError> {
+    if !row.plan.is_ephemeral() {
+        return Ok(());
+    }
+    if let Some(instance) = &machine.instance_id {
+        if !lower_hex(instance, 40)
+            || row
+                .observed_instance_id
+                .as_ref()
+                .is_some_and(|old| old != instance)
+        {
+            return Err(failed(
+                "ephemeral provider instance changed; destroy without restart or replacement",
+            ));
+        }
+        row.observed_instance_id = Some(instance.clone());
+    } else if row.observed_instance_id.is_some() {
+        return Err(failed(
+            "ephemeral provider instance disappeared; destroy without replacement",
+        ));
+    }
+    Ok(())
+}
+
+/// Allocation receipt only. This contains no provider or routing credential and
+/// deliberately has no SSH endpoint, key, hardware verdict or readiness flag.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PhalaAllocation {
+    pub job_id: Uuid,
+    pub vm_uuid: Uuid,
+    pub app_id: String,
+    pub workload_sha256: String,
+    pub expires_at_ms: u64,
 }
 
 /// Local recovery obligations, without provider credentials or guest secrets.
@@ -512,19 +629,40 @@ impl PhalaSessionBackend {
     }
 
     fn plan(&self, job: &JobEnvelopePayload) -> Result<LeasePlan, ExecutorError> {
-        let spec = parse_phala_lease_spec(&job.input)
-            .map_err(|e| failed(e.to_string()))?
-            .ok_or_else(|| failed("phala-cpu requires a buyer-signed per-lease workload pin"))?;
-        let manifest = render_phala_manifest(
-            job,
-            &self.config.operator_pubkey_b58,
-            &spec,
-            &self.config.wrapper_template,
-            &self.config.image_digest,
-        )
-        .map_err(|e| failed(e.to_string()))?;
+        let spec = parse_phala_lease_spec(&job.input).map_err(|e| failed(e.to_string()))?;
+        let ephemeral_spec =
+            parse_phala_ephemeral_lease_spec(&job.input).map_err(|e| failed(e.to_string()))?;
+        let (manifest, expires_at_ms) = match (&spec, &ephemeral_spec) {
+            (Some(spec), None) => (
+                render_phala_manifest(
+                    job,
+                    &self.config.operator_pubkey_b58,
+                    spec,
+                    &self.config.wrapper_template,
+                    &self.config.image_digest,
+                )
+                .map_err(|e| failed(e.to_string()))?,
+                spec.lease_expires_at_ms,
+            ),
+            (None, Some(spec)) => (
+                render_phala_ephemeral_manifest(
+                    job,
+                    &self.config.operator_pubkey_b58,
+                    spec,
+                    &self.config.wrapper_template,
+                    &self.config.image_digest,
+                )
+                .map_err(|e| failed(e.to_string()))?,
+                spec.lease_expires_at_ms,
+            ),
+            _ => {
+                return Err(failed(
+                    "Phala requires exactly one buyer-signed profile and workload",
+                ))
+            }
+        };
         let now = now_ms();
-        if now < job.issued_at_ms || now >= spec.lease_expires_at_ms {
+        if now < job.issued_at_ms || now >= expires_at_ms {
             return Err(failed("signed Phala lease is future-issued or expired"));
         }
         let payload =
@@ -541,9 +679,8 @@ impl PhalaSessionBackend {
                 failed("Phala creation requires an explicit reviewed planning allowance")
             })?;
         allowance.validate(&self.config.operator_pubkey_b58)?;
-        if spec.lease_expires_at_ms > allowance.valid_until_ms
-            || spec.lease_expires_at_ms.saturating_sub(job.issued_at_ms)
-                > allowance.max_runtime_secs * 1000
+        if expires_at_ms > allowance.valid_until_ms
+            || expires_at_ms.saturating_sub(job.issued_at_ms) > allowance.max_runtime_secs * 1000
         {
             return Err(failed(
                 "signed Phala lease exceeds the reviewed creation allowance",
@@ -558,8 +695,17 @@ impl PhalaSessionBackend {
             manifest,
             allowance,
             spec,
+            ephemeral_spec,
             collector_token: String::new(),
         })
+    }
+
+    fn creation_enabled(&self, plan: &LeasePlan) -> bool {
+        if plan.is_ephemeral() {
+            self.config.allow_ephemeral_creation
+        } else {
+            self.config.allow_managed_kms_creation
+        }
     }
 
     fn row(&self, id: Uuid) -> Result<Row, ExecutorError> {
@@ -579,6 +725,11 @@ impl PhalaSessionBackend {
     }
     fn admit(&self, job: &JobEnvelopePayload) -> Result<(), ExecutorError> {
         let plan = self.plan(job)?;
+        if plan.is_ephemeral() && self.close_requests.lock().contains(&job.job_id) {
+            return Err(failed(
+                "ephemeral allocation cancellation is already pending",
+            ));
+        }
         let journal = self.journal.lock();
         if journal.poisoned {
             return Err(failed("Phala journal requires restart and reconciliation"));
@@ -589,9 +740,9 @@ impl PhalaSessionBackend {
             }
             return Ok(());
         }
-        if !self.config.allow_managed_kms_creation {
+        if !self.creation_enabled(&plan) {
             return Err(failed(
-                "new Phala leases disabled; managed KMS policy is not qualified",
+                "new Phala resources disabled for this explicit profile",
             ));
         }
         if journal
@@ -656,8 +807,30 @@ impl PhalaSessionBackend {
                 return Err(failed("Phala journal clock moved backwards"));
             }
             row.last_observed_ms = now;
-            if now >= row.plan.spec.lease_expires_at_ms || self.close_source.is_closed(id).await {
+            if now >= row.plan.expires_at_ms() || self.close_source.is_closed(id).await {
                 row.close_requested = true;
+            }
+            if row.plan.is_ephemeral()
+                && !row.close_requested
+                && matches!(row.phase, Phase::Created | Phase::Ready)
+            {
+                // The provider may omit instance_id for none-mode. If it does
+                // expose one, a later change is terminal, never a new boot grant.
+                match self
+                    .provider
+                    .get(row.vm_uuid.expect("created row has VM"))
+                    .await
+                {
+                    Ok(Some(machine)) => {
+                        if validate_machine(&row, &machine).is_err()
+                            || observe_ephemeral_instance(&mut row, &machine).is_err()
+                        {
+                            row.close_requested = true;
+                        }
+                    }
+                    Ok(None) => row.close_requested = true,
+                    Err(_) => any_error = true,
+                }
             }
             self.save(row.clone())?;
             if row.close_requested || row.phase == Phase::DeletePending {
@@ -718,18 +891,21 @@ impl PhalaSessionBackend {
         }
     }
 
-    async fn open_inner(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
-        let _operation = self.operations.lock().await;
+    // Caller holds operations. A persisted CreateIntent is reconciled, never retried.
+    async fn allocate_inner(&self, job: &JobEnvelopePayload) -> Result<Row, ExecutorError> {
         self.admit(job)?;
         let mut row = match self.row(job.job_id) {
             Ok(row) => row,
             Err(_) => {
                 let mut plan = self.plan(job)?;
-                let mut random = [0u8; 32];
-                SystemRandom::new()
-                    .fill(&mut random)
-                    .map_err(|_| failed("generate collector secret"))?;
-                plan.collector_token = random.iter().map(|b| format!("{b:02x}")).collect();
+                if !plan.is_ephemeral() {
+                    let mut random = [0u8; 32];
+                    SystemRandom::new()
+                        .fill(&mut random)
+                        .map_err(|_| failed("generate collector secret"))?;
+                    plan.collector_token = random.iter().map(|b| format!("{b:02x}")).collect();
+                }
+                plan.validate_spec()?;
                 let mut row = Row {
                     plan,
                     phase: Phase::ProvisionIntent,
@@ -739,6 +915,7 @@ impl PhalaSessionBackend {
                     close_requested: false,
                     last_observed_ms: now_ms(),
                     delete_attempts: 0,
+                    observed_instance_id: None,
                 };
                 self.save(row.clone())?;
                 let provision = self.provider.provision(&row.plan).await?;
@@ -759,11 +936,11 @@ impl PhalaSessionBackend {
             return Err(failed("Phala lease cannot restart this provider operation"));
         }
         if row.phase == Phase::Provisioned {
-            if !self.config.allow_managed_kms_creation
+            if !self.creation_enabled(&row.plan)
                 || self.config.creation_allowance.as_ref() != Some(&row.plan.allowance)
                 || now_ms() < row.plan.issued_at_ms
                 || now_ms() < row.last_observed_ms
-                || now_ms() >= row.plan.spec.lease_expires_at_ms
+                || now_ms() >= row.plan.expires_at_ms()
                 || self.close_source.is_closed(job.job_id).await
             {
                 return Err(failed("Phala create disabled, expired or buyer-closed"));
@@ -781,11 +958,82 @@ impl PhalaSessionBackend {
             row.phase = Phase::Created;
             self.save(row.clone())?;
         }
+        Ok(row)
+    }
+
+    /// Allocate only one new single-boot VM. Returned provider observations are
+    /// not attestation or SSH access. A later verifier must bind an exact quote
+    /// before any native ephemeral readiness API can be added.
+    pub async fn allocate_ephemeral(
+        &self,
+        job: &JobEnvelopePayload,
+    ) -> Result<PhalaAllocation, ExecutorError> {
+        let _operation = self.operations.lock().await;
+        let plan = self.plan(job)?;
+        if !plan.is_ephemeral() {
+            return Err(failed(
+                "ephemeral allocation requires the explicit single-boot profile",
+            ));
+        }
+        let mut cleanup = AllocationOnDrop {
+            backend: self,
+            job_id: job.job_id,
+            armed: true,
+        };
+        let result = async {
+            let mut row = self.allocate_inner(job).await?;
+            let machine = if let Some(id) = row.vm_uuid {
+                self.provider.get(id).await?
+            } else {
+                self.provider
+                    .find(&row.provision.as_ref().unwrap().app_id)
+                    .await?
+            }
+            .ok_or_else(|| {
+                failed("ephemeral resource is not visible; reconcile without recreating")
+            })?;
+            validate_machine(&row, &machine)?;
+            observe_ephemeral_instance(&mut row, &machine)?;
+            let closed = self.close_source.is_closed(job.job_id).await;
+            let observed_at_ms = now_ms();
+            if observed_at_ms < row.last_observed_ms
+                || observed_at_ms >= row.plan.expires_at_ms()
+                || closed
+            {
+                return Err(failed("ephemeral allocation expired or was buyer-closed"));
+            }
+            row.vm_uuid = Some(machine.vm_uuid);
+            row.phase = Phase::Created;
+            row.last_observed_ms = observed_at_ms;
+            self.save(row.clone())?;
+            Ok(PhalaAllocation {
+                job_id: job.job_id,
+                vm_uuid: machine.vm_uuid,
+                app_id: machine.app_id,
+                workload_sha256: row.plan.workload_sha256().into(),
+                expires_at_ms: row.plan.expires_at_ms(),
+            })
+        }
+        .await;
+        if result.is_ok() {
+            cleanup.armed = false;
+        }
+        result
+    }
+
+    async fn open_inner(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
+        let _operation = self.operations.lock().await;
+        if self.plan(job)?.is_ephemeral() {
+            return Err(failed(
+                "native ephemeral readiness requires independently verified relay attestation",
+            ));
+        }
+        let mut row = self.allocate_inner(job).await?;
         let started = tokio::time::Instant::now();
         loop {
             let now = now_ms();
             if now < row.last_observed_ms
-                || now >= row.plan.spec.lease_expires_at_ms
+                || now >= row.plan.expires_at_ms()
                 || started.elapsed() >= self.config.ready_timeout
                 || self.close_source.is_closed(job.job_id).await
             {
@@ -812,7 +1060,7 @@ impl PhalaSessionBackend {
                                 "Phala SSH key or instance changed after readiness",
                             ));
                         }
-                        if now_ms() >= row.plan.spec.lease_expires_at_ms {
+                        if now_ms() >= row.plan.expires_at_ms() {
                             return Err(failed("Phala signed lease expired during readiness"));
                         }
                         row.phase = Phase::Ready;
@@ -852,7 +1100,7 @@ fn validate_access(row: &Row, machine: &Machine, access: &SshAccess) -> Result<(
         || access.port != 443
         || access.username != "covenant"
         || access.transport != Some(SshTransport::Tls)
-        || access.lease_generation != row.plan.spec.lease_generation
+        || access.lease_generation != row.plan.generation()
         || access.observed_host_keys.len() != 1
         || access.observed_host_keys[0].algorithm != "ssh-ed25519"
     {
@@ -913,6 +1161,19 @@ impl PhalaExecutor {
         }
     }
 }
+struct AllocationOnDrop<'a> {
+    backend: &'a PhalaSessionBackend,
+    job_id: Uuid,
+    armed: bool,
+}
+impl Drop for AllocationOnDrop<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.backend.request_close(self.job_id);
+        }
+    }
+}
+
 struct CloseOnDrop(Arc<PhalaSessionBackend>, Uuid);
 impl Drop for CloseOnDrop {
     fn drop(&mut self) {
@@ -922,6 +1183,14 @@ impl Drop for CloseOnDrop {
 #[async_trait]
 impl JobExecutor for PhalaExecutor {
     fn admit(&self, job: &JobEnvelopePayload, _remaining: Duration) -> Result<(), String> {
+        if self
+            .backend
+            .plan(job)
+            .map_err(|e| e.to_string())?
+            .is_ephemeral()
+        {
+            return Err("ephemeral allocation is not yet a native verified lease executor".into());
+        }
         self.backend.admit(job).map_err(|e| e.to_string())
     }
     async fn execute(
@@ -941,6 +1210,13 @@ impl JobExecutor for PhalaExecutor {
         self.lease.execute_streaming(job, deadline, sink).await
     }
     async fn health(&self) -> Result<(), ExecutorError> {
+        if self.backend.config.allow_ephemeral_creation
+            || self.backend.config.wrapper_template["key_provider"] == "none"
+        {
+            return Err(failed(
+                "ephemeral allocation is not yet a native verified lease executor",
+            ));
+        }
         if !self.backend.config.allow_managed_kms_creation {
             return Err(failed("Phala new leases disabled; recovery remains active"));
         }

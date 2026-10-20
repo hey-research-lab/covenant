@@ -88,6 +88,7 @@ pub fn scope_for_phala_lease(
         return Err(invalid("invalid Phala instance endpoint"));
     }
     Ok(HardwareScope {
+        profile: Default::default(),
         job_id: job.job_id,
         operator_pubkey_b58: spec.operator_pubkey_b58,
         buyer_pubkey_b58: expected_buyer.into(),
@@ -410,6 +411,7 @@ mod tests {
         key.extend_from_slice(&32u32.to_be_bytes());
         key.extend_from_slice(&[0x9e; 32]);
         HardwareScope {
+            profile: Default::default(),
             job_id: Uuid::new_v4(),
             operator_pubkey_b58: operator.agent_id().pubkey_base58(),
             buyer_pubkey_b58: buyer.agent_id().pubkey_base58(),

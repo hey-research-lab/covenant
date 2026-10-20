@@ -171,6 +171,7 @@ impl SshClient {
         let result = tokio::time::timeout(duration, async {
             let (host, port, _relay) = match access.transport {
                 None => (access.host.clone(), access.port, None),
+                Some(SshTransport::OutboundRelay) => return Err(invalid("outbound relay requires the dedicated verified relay client")),
                 Some(SshTransport::Tls) => {
                     // The certificate is validated BEFORE OpenSSH is started.
                     let tls = connect_tls(access, self.tls.clone()).await?;

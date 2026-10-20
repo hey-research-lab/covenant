@@ -67,6 +67,12 @@ pub(crate) enum TdxRuntimeProfile {
     Dstack061 { os_image_hash: [u8; 32] },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DstackKeyProvider {
+    ManagedKms,
+    EphemeralNone,
+}
+
 impl TdxMeasurementSet {
     #[cfg(any(test, feature = "test-vectors"))]
     pub(crate) fn new(identities: Vec<TdxLaunchIdentity>) -> Self {
@@ -244,6 +250,20 @@ pub(crate) fn verify_tdx_event_log(
     events: &[TdxEvent],
     profile: TdxRuntimeProfile,
 ) -> Result<TdxRuntimeBindings, VerificationError> {
+    verify_tdx_event_log_for_key_provider(report, events, profile, DstackKeyProvider::ManagedKms)
+}
+
+pub(crate) fn verify_tdx_event_log_for_key_provider(
+    report: &TdReport,
+    events: &[TdxEvent],
+    profile: TdxRuntimeProfile,
+    key_provider: DstackKeyProvider,
+) -> Result<TdxRuntimeBindings, VerificationError> {
+    if key_provider == DstackKeyProvider::EphemeralNone
+        && !matches!(profile, TdxRuntimeProfile::Dstack061 { .. })
+    {
+        return Err(VerificationError::TdxUnknownLaunchMeasurement);
+    }
     let mut folds = [[0u8; 48]; 4];
     for event in events {
         // dstack runtime events exclusively extend RTMR3. Treating an RTMR3
@@ -273,7 +293,7 @@ pub(crate) fn verify_tdx_event_log(
     }
 
     if let TdxRuntimeProfile::Dstack061 { os_image_hash } = profile {
-        return verify_dstack061_bindings(events, &os_image_hash);
+        return verify_dstack061_bindings(events, &os_image_hash, key_provider);
     }
 
     let mut bindings: Vec<(&str, &[u8])> = Vec::new();
@@ -315,11 +335,12 @@ pub(crate) fn verify_tdx_event_log(
 
 /// Boot identities stop at system-ready; later events are app-controlled.
 /// Keep replaying the entire log, but never let a later event supply a missing
-/// boot identity or replace one. This profile deliberately accepts only the
-/// KMS-backed production boot used by this deployment.
+/// boot identity or replace one. Key-provider admission is explicit; the
+/// existing public verification path continues to require the managed KMS.
 fn verify_dstack061_bindings(
     events: &[TdxEvent],
     expected_os_image_hash: &[u8; 32],
+    key_provider: DstackKeyProvider,
 ) -> Result<TdxRuntimeBindings, VerificationError> {
     const REQUIRED: [&str; 5] = [
         "compose-hash",
@@ -341,7 +362,10 @@ fn verify_dstack061_bindings(
             ready = true;
         } else if event.name == "mr-kms" {
             return Err(VerificationError::TdxEventLogIncomplete);
-        } else if REQUIRED.contains(&event.name.as_str()) {
+        } else if REQUIRED.contains(&event.name.as_str())
+            || (key_provider == DstackKeyProvider::EphemeralNone
+                && matches!(event.name.as_str(), "storage-encrypted" | "storage-fs"))
+        {
             if ready || bindings.iter().any(|(name, _)| *name == event.name) {
                 return Err(VerificationError::TdxEventLogIncomplete);
             }
@@ -367,6 +391,11 @@ fn verify_dstack061_bindings(
     if get("os-image-hash")? != expected_os_image_hash {
         return Err(VerificationError::TdxEventLogIncomplete);
     }
+    if key_provider == DstackKeyProvider::EphemeralNone
+        && (get("storage-encrypted")? != b"1" || get("storage-fs")? != b"ext4")
+    {
+        return Err(VerificationError::TdxEventLogIncomplete);
+    }
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
     struct KeyProvider {
@@ -375,11 +404,16 @@ fn verify_dstack061_bindings(
     }
     let provider: KeyProvider = serde_json::from_slice(get("key-provider")?)
         .map_err(|_| VerificationError::TdxEventLogIncomplete)?;
-    if provider.name != "kms"
-        || provider.id.is_empty()
-        || provider.id.len() > 1024
-        || hex::decode(&provider.id).is_err()
-    {
+    let allowed = match key_provider {
+        DstackKeyProvider::ManagedKms => {
+            provider.name == "kms"
+                && !provider.id.is_empty()
+                && provider.id.len() <= 1024
+                && hex::decode(&provider.id).is_ok()
+        }
+        DstackKeyProvider::EphemeralNone => provider.name == "none" && provider.id.is_empty(),
+    };
+    if !allowed {
         return Err(VerificationError::TdxEventLogIncomplete);
     }
     Ok(TdxRuntimeBindings {

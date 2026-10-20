@@ -26,9 +26,26 @@ pub enum BindingError {
     Encoding(#[from] serde_json::Error),
 }
 type Result<T> = std::result::Result<T, BindingError>;
+/// Selected by trusted lease admission, never inferred from provider evidence.
+/// The default preserves the existing managed-KMS and SNP verification paths.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HardwareProfile {
+    #[default]
+    Standard,
+    PhalaEphemeralDstack061,
+}
+impl HardwareProfile {
+    fn is_standard(&self) -> bool {
+        *self == Self::Standard
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct HardwareScope {
+    /// Signed into the report binding. Omission preserves legacy wire bytes.
+    #[serde(default, skip_serializing_if = "HardwareProfile::is_standard")]
+    pub profile: HardwareProfile,
     pub job_id: Uuid,
     pub operator_pubkey_b58: String,
     pub buyer_pubkey_b58: String,
@@ -129,6 +146,18 @@ impl HardwareChallenge {
         {
             return Err(invalid("invalid endpoint generation"));
         }
+        if self.scope.profile == HardwareProfile::PhalaEphemeralDstack061
+            && (self.scope.transport
+                != Some(covenant_compute_protocol::ssh::SshTransport::OutboundRelay)
+                || self.scope.port != 443
+                || self.scope.username != "covenant"
+                || self.scope.lease_generation
+                    != format!("phala-ephemeral-{}-1", self.scope.job_id))
+        {
+            return Err(invalid(
+                "ephemeral profile requires its exact outbound relay lease scope",
+            ));
+        }
         Ok(())
     }
     /// The entire binding enters the hardware report, including the UUID and
@@ -212,7 +241,7 @@ impl HardwareVerdict {
             || now < self.verified_at_ms
             || now >= self.expires_at_ms
             || now >= scope.lease_expires_at_ms
-            || self.reference_sha256 != reference_digest()
+            || self.reference_sha256 != reference_digest_for_profile(scope.profile)
             || self.served_class > self.evidence_class
             || self.served_class > SERVED_TRUST_CEILING
             || self.served_class < floor
@@ -242,8 +271,27 @@ pub fn reference_digest() -> String {
     }
     hex::encode(h.finalize())
 }
+pub fn reference_digest_for_profile(profile: HardwareProfile) -> String {
+    if profile.is_standard() {
+        return reference_digest();
+    }
+    let mut h = Sha256::new();
+    h.update(b"covenant.compute.hardware.profile.phala-ephemeral-dstack061.v1\0");
+    h.update(reference_digest());
+    h.update(b"dstack_0_6_1;key-provider=none;id=empty;storage-encrypted=1;storage-fs=ext4;tdx-only;gpu=none");
+    hex::encode(h.finalize())
+}
 pub fn verify_evidence(evidence: &HardwareEvidence, now: u64) -> Result<HardwareVerdict> {
     verify_with_policy(evidence, now, &Policy::default())
+}
+/// Explicit profile admission. The caller must derive the expected profile and
+/// workload from the authenticated lease, not copy them from incoming evidence.
+pub fn verify_evidence_for_profile(
+    evidence: &HardwareEvidence,
+    now: u64,
+    expected_profile: HardwareProfile,
+) -> Result<HardwareVerdict> {
+    verify_with_policy_at(evidence, now, now, &Policy::default(), expected_profile)
 }
 /// Buyer-side re-verification: the coordinator's asserted class is not trusted.
 pub fn verify_saved_verdict(
@@ -254,6 +302,22 @@ pub fn verify_saved_verdict(
 ) -> Result<HardwareVerdict> {
     verify_saved_with_policy(evidence, verdict, expected, now, &Policy::default())
 }
+pub fn verify_saved_verdict_for_profile(
+    evidence: &HardwareEvidence,
+    verdict: &HardwareVerdict,
+    expected: &HardwareScope,
+    now: u64,
+    expected_profile: HardwareProfile,
+) -> Result<HardwareVerdict> {
+    verify_saved_with_profile(
+        evidence,
+        verdict,
+        expected,
+        now,
+        &Policy::default(),
+        expected_profile,
+    )
+}
 fn verify_saved_with_policy(
     evidence: &HardwareEvidence,
     verdict: &HardwareVerdict,
@@ -261,7 +325,25 @@ fn verify_saved_with_policy(
     now: u64,
     policy: &Policy,
 ) -> Result<HardwareVerdict> {
+    verify_saved_with_profile(
+        evidence,
+        verdict,
+        expected,
+        now,
+        policy,
+        HardwareProfile::Standard,
+    )
+}
+fn verify_saved_with_profile(
+    evidence: &HardwareEvidence,
+    verdict: &HardwareVerdict,
+    expected: &HardwareScope,
+    now: u64,
+    policy: &Policy,
+    expected_profile: HardwareProfile,
+) -> Result<HardwareVerdict> {
     if &evidence.challenge.scope != expected
+        || expected.profile != expected_profile
         || now < verdict.verified_at_ms
         || now >= verdict.expires_at_ms
         || now >= expected.lease_expires_at_ms
@@ -270,7 +352,13 @@ fn verify_saved_with_policy(
             "saved hardware evidence does not bind the current lease".into(),
         ));
     }
-    let computed = verify_with_policy(evidence, verdict.verified_at_ms, policy)?;
+    let computed = verify_with_policy_at(
+        evidence,
+        verdict.verified_at_ms,
+        verdict.verified_at_ms,
+        policy,
+        expected_profile,
+    )?;
     if &computed != verdict {
         return Err(BindingError::Invalid(
             "coordinator hardware verdict differs from local verification".into(),
@@ -279,7 +367,13 @@ fn verify_saved_with_policy(
     // The challenge was consumed while fresh. Its short replay window must not
     // invalidate a saved verdict, but vendor certificates and collateral must
     // still be valid at the time the verdict is used.
-    verify_with_policy_at(evidence, now, verdict.verified_at_ms, policy)?;
+    verify_with_policy_at(
+        evidence,
+        now,
+        verdict.verified_at_ms,
+        policy,
+        expected_profile,
+    )?;
     Ok(computed)
 }
 fn verify_with_policy(
@@ -287,15 +381,24 @@ fn verify_with_policy(
     now: u64,
     policy: &Policy,
 ) -> Result<HardwareVerdict> {
-    verify_with_policy_at(evidence, now, now, policy)
+    verify_with_policy_at(evidence, now, now, policy, HardwareProfile::Standard)
 }
 fn verify_with_policy_at(
     evidence: &HardwareEvidence,
     now: u64,
     challenge_verified_at: u64,
     policy: &Policy,
+    expected_profile: HardwareProfile,
 ) -> Result<HardwareVerdict> {
     evidence.challenge.validate(challenge_verified_at)?;
+    if evidence.challenge.scope.profile != expected_profile
+        || (expected_profile == HardwareProfile::PhalaEphemeralDstack061
+            && (!matches!(evidence.guest, GuestEvidence::Tdx { .. }) || evidence.gpu_cc.is_some()))
+    {
+        return Err(BindingError::Invalid(
+            "hardware profile differs from admitted lease".into(),
+        ));
+    }
     let bytes = serde_json::to_vec(evidence)?;
     if bytes.len() > MAX_EVIDENCE_BYTES {
         return Err(BindingError::Invalid("evidence too large".into()));
@@ -360,7 +463,13 @@ fn verify_with_policy_at(
             let quote = STANDARD
                 .decode(quote_base64)
                 .map_err(|_| BindingError::Invalid("quote base64".into()))?;
-            let v = crate::verify_tdx_lease_attestation(
+            let verifier = match expected_profile {
+                HardwareProfile::Standard => crate::verify_tdx_lease_attestation,
+                HardwareProfile::PhalaEphemeralDstack061 => {
+                    crate::verify_tdx_ephemeral_lease_attestation
+                }
+            };
+            let v = verifier(
                 0,
                 &scope.operator_pubkey_b58,
                 &quote,
@@ -415,13 +524,19 @@ fn verify_with_policy_at(
     Ok(HardwareVerdict {
         challenge: challenge.clone(),
         evidence_sha256: hex::encode(Sha256::digest(bytes)),
-        reference_sha256: reference_digest(),
+        reference_sha256: reference_digest_for_profile(expected_profile),
         guest_identity,
         gpu_identity,
         channel_key_fingerprint,
         evidence_class,
         served_class: evidence_class.min(SERVED_TRUST_CEILING),
-        verifier_version: "covenant.hardware/1".into(),
+        verifier_version: match expected_profile {
+            HardwareProfile::Standard => "covenant.hardware/1",
+            HardwareProfile::PhalaEphemeralDstack061 => {
+                "covenant.hardware/phala-ephemeral-dstack061/1"
+            }
+        }
+        .into(),
         verified_at_ms: now,
         expires_at_ms: now
             .saturating_add(VERDICT_TTL_MS)

@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """Offline transport tests. Fake evidence is explicitly not hardware acceptance."""
 import base64
+import contextlib
 import copy
+import io
+import json
 import socket
 import threading
 import time
 import unittest
 import uuid
+from unittest.mock import patch
 
 from outbound_relay import RelayState, serve_relay
-from outbound_worker import OutboundWorker
+from outbound_worker import MAX_IDENTITY_BYTES, OutboundWorker
 from relay_client import RelayClient
 from transport_protocol import (
-    MAX_BUFFER, MAX_CHUNK, HttpTransport, ProtocolError, endpoint_origin, now_ms, strict_json,
+    MAX_BUFFER, MAX_CHUNK, HttpTransport, ProtocolError, encoded, endpoint_origin, now_ms, strict_json,
 )
 
 
@@ -183,7 +187,83 @@ class Evidence:
             raise ValueError("synthetic identity changed")
 
 
+class FullInfoEvidence(Evidence):
+    """Synthetic public Info of realistic size; no real quote or trust claim."""
+    def __init__(self, tcb_bytes=36_445):
+        super().__init__()
+        self.tcb_bytes = tcb_bytes
+
+    def identity(self):
+        identity = super().identity()
+        # Structural lengths from retained Info only; no real cert/evidence.
+        tcb = {"event_log": "", "measurement": "b" * 96}
+        tcb["event_log"] = "a" * (self.tcb_bytes - len(json.dumps(tcb)))
+        identity["guest_info"]["tcb_info"] = json.dumps(tcb)
+        prefix = "SYNTHETIC PUBLIC CERTIFICATE:"
+        identity["guest_info"]["app_cert"] = prefix + "c" * (14_542 - len(prefix))
+        identity["guest_info"]["vm_config"] = json.dumps({"synthetic_padding": "v" * 5_000})
+        return identity
+
+
 class WorkerTests(unittest.TestCase):
+    def test_full_dstack_info_above_old_cap_is_preserved(self):
+        evidence = FullInfoEvidence()
+        worker = OutboundWorker("https://relay.example.com", uid(), evidence, now_ms() + 120_000)
+        expected = evidence.identity()
+        self.assertEqual(len(expected["guest_info"]["tcb_info"]), 36_445)
+        self.assertEqual(len(expected["guest_info"]["app_cert"]), 14_542)
+        self.assertGreater(len(encoded(expected)), 32 * 1024)
+        self.assertLess(len(encoded(expected)), MAX_IDENTITY_BYTES)
+        self.assertEqual(worker.identity(), expected)
+        result = worker.execute({"request_id": uid(), "kind": "identity", "payload": {}})
+        self.assertEqual(result, {"ok": True, "value": expected})
+
+    def test_oversized_identity_is_rejected_without_truncation(self):
+        evidence = FullInfoEvidence(MAX_IDENTITY_BYTES)
+        worker = OutboundWorker("https://relay.example.com", uid(), evidence, now_ms() + 120_000)
+        original = evidence.identity()
+        self.assertGreater(len(encoded(original)), MAX_IDENTITY_BYTES)
+        with self.assertRaisesRegex(ProtocolError, "identity_too_large"):
+            worker.identity()
+        self.assertEqual(evidence.identity(), original)
+
+    def test_registration_invalid_identity_fails_promptly_with_sanitized_diagnostic(self):
+        for oversized in (False, True):
+            with self.subTest(oversized=oversized):
+                evidence = FullInfoEvidence(MAX_IDENTITY_BYTES) if oversized else Evidence()
+                if not oversized:
+                    evidence.identity = lambda: (_ for _ in ()).throw(ValueError("SECRET_PROVIDER_VALUE"))
+                worker = OutboundWorker("https://relay.example.com", uid(), evidence, now_ms() + 120_000)
+                log = io.StringIO()
+                with contextlib.redirect_stderr(log), patch("outbound_worker.time.sleep") as sleep:
+                    with self.assertRaises(ProtocolError if oversized else ValueError):
+                        worker.register()
+                    sleep.assert_not_called()
+                records = [json.loads(line) for line in log.getvalue().splitlines()]
+                expected = {"event": "outbound_registration_identity_failed",
+                            "error_class": "ProtocolError" if oversized else "ValueError"}
+                if oversized:
+                    expected["error_code"] = "identity_too_large"
+                self.assertEqual(records, [expected])
+                self.assertNotIn("SECRET_PROVIDER_VALUE", log.getvalue())
+                self.assertNotIn("SYNTHETIC PUBLIC CERTIFICATE", log.getvalue())
+
+    def test_transient_registration_identity_retry_is_bounded_and_log_rate_limited(self):
+        evidence = Evidence()
+        evidence.identity = lambda: (_ for _ in ()).throw(TimeoutError("SECRET_PROVIDER_VALUE"))
+        worker = OutboundWorker("https://relay.example.com", uid(), evidence, now_ms() + 120_000)
+        elapsed = [0]
+        def advance(_):
+            elapsed[0] += 1 if elapsed[0] == 0 else 180
+        log = io.StringIO()
+        with contextlib.redirect_stderr(log), \
+                patch("outbound_worker.time.monotonic", side_effect=lambda: elapsed[0]), \
+                patch("outbound_worker.time.sleep", side_effect=advance):
+            with self.assertRaisesRegex(ProtocolError, "guest_registration_timeout"):
+                worker.register()
+        self.assertEqual([json.loads(line) for line in log.getvalue().splitlines()], [{
+            "event": "outbound_registration_identity_failed", "error_class": "TimeoutError"}])
+
     def test_failed_quote_not_reexecuted(self):
         evidence = Evidence()
         evidence.fail = True
@@ -220,7 +300,8 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(address, ("ssh", 1022))
             self.assertEqual(timeout, 5)
             return worker_sock
-        worker = OutboundWorker("https://relay.example.com", session, Evidence(), expiry,
+        evidence = FullInfoEvidence()
+        worker = OutboundWorker("https://relay.example.com", session, evidence, expiry,
                                 transport=HttpTransport(endpoint, session, allow_loopback=True),
                                 ssh_connector=connector)
         def run_worker():
@@ -247,9 +328,12 @@ class WorkerTests(unittest.TestCase):
         client = RelayClient(endpoint, session, token)
         try:
             identity = client.identity()
+            self.assertGreater(len(encoded(identity)), 32 * 1024)
+            self.assertEqual(identity, evidence.identity())
             self.assertEqual(identity["guest_info"]["instance_id"], "a" * 40)
             challenge = {"challenge_id": uid(), "expires_at_ms": now_ms() + 90_000}
             envelope = client.quote(challenge)
+            self.assertEqual(envelope["identity"], identity)
             self.assertTrue(envelope["dstack_quote"]["fake_for_transport_tests_only"])
             client.pin_instance("a" * 40)
             def proxy():

@@ -49,6 +49,7 @@ fn challenge() -> HardwareChallenge {
     let now = 1_780_315_200_000;
     HardwareChallenge::new(
         HardwareScope {
+            profile: HardwareProfile::Standard,
             job_id: Uuid::new_v4(),
             operator_pubkey_b58: LocalIdentity::generate("operator@local")
                 .agent_id()
@@ -68,6 +69,134 @@ fn challenge() -> HardwareChallenge {
         now,
     )
     .unwrap()
+}
+
+#[test]
+fn ephemeral_profile_is_report_bound_and_legacy_scope_encoding_is_unchanged() {
+    let legacy = challenge();
+    let value = serde_json::to_value(&legacy.scope).unwrap();
+    assert!(value.get("profile").is_none());
+    let mut ephemeral = legacy.clone();
+    ephemeral.scope.profile = HardwareProfile::PhalaEphemeralDstack061;
+    assert_eq!(
+        serde_json::to_value(&ephemeral.scope).unwrap()["profile"],
+        "phala_ephemeral_dstack061"
+    );
+    assert_ne!(
+        legacy.guest_report_data().unwrap(),
+        ephemeral.guest_report_data().unwrap()
+    );
+    assert_ne!(
+        reference_digest_for_profile(ephemeral.scope.profile),
+        reference_digest()
+    );
+    let mut unsupported = value;
+    unsupported["profile"] = serde_json::json!("arbitrary_key_provider");
+    assert!(serde_json::from_value::<HardwareScope>(unsupported).is_err());
+}
+
+#[test]
+fn ephemeral_admission_cannot_be_selected_by_untrusted_evidence_or_used_for_snp_or_gpu() {
+    let mut e = evidence(challenge());
+    let now = e.challenge.issued_at_ms;
+    let ephemeral = HardwareProfile::PhalaEphemeralDstack061;
+    assert!(matches!(
+        verify_evidence_for_profile(&e, now, ephemeral),
+        Err(BindingError::Invalid(_))
+    ));
+    e.challenge.scope.profile = ephemeral;
+    e.challenge.scope.host = "relay.example.com".into();
+    e.challenge.scope.port = 443;
+    e.challenge.scope.transport = Some(covenant_compute_protocol::ssh::SshTransport::OutboundRelay);
+    e.challenge.scope.username = "covenant".into();
+    e.challenge.scope.lease_generation = format!("phala-ephemeral-{}-1", e.challenge.scope.job_id);
+    assert!(matches!(
+        verify_evidence(&e, now),
+        Err(BindingError::Invalid(_))
+    ));
+    assert!(matches!(
+        verify_evidence_for_profile(&e, now, ephemeral),
+        Err(BindingError::Invalid(_))
+    ));
+    e.guest = GuestEvidence::Tdx {
+        quote_base64: String::new(),
+        collateral_json: String::new(),
+        events: vec![],
+    };
+    e.gpu_cc = Some(GpuEvidence {
+        report_base64: String::new(),
+        certificate_chain_base64: vec![],
+    });
+    assert!(matches!(
+        verify_evidence_for_profile(&e, now, ephemeral),
+        Err(BindingError::Invalid(_))
+    ));
+    // Explicit profile admission must still reach real quote verification.
+    e.gpu_cc = None;
+    assert!(matches!(
+        verify_evidence_for_profile(&e, now, ephemeral),
+        Err(BindingError::Verification(_))
+    ));
+    assert!(verify_evidence_for_profile(&e, e.challenge.expires_at_ms, ephemeral).is_err());
+}
+
+#[test]
+fn ephemeral_challenge_requires_the_signed_relay_endpoint_and_generation_shape() {
+    let mut c = challenge();
+    c.scope.profile = HardwareProfile::PhalaEphemeralDstack061;
+    c.scope.host = "relay.example.com".into();
+    c.scope.port = 443;
+    c.scope.transport = Some(covenant_compute_protocol::ssh::SshTransport::OutboundRelay);
+    c.scope.username = "covenant".into();
+    c.scope.lease_generation = format!("phala-ephemeral-{}-1", c.scope.job_id);
+    c.validate(c.issued_at_ms).unwrap();
+    let mut cases = vec![];
+    let mut changed = c.clone();
+    changed.scope.transport = None;
+    cases.push(changed);
+    let mut changed = c.clone();
+    changed.scope.transport = Some(covenant_compute_protocol::ssh::SshTransport::Tls);
+    cases.push(changed);
+    let mut changed = c.clone();
+    changed.scope.host = "127.0.0.1".into();
+    cases.push(changed);
+    let mut changed = c.clone();
+    changed.scope.port = 22;
+    cases.push(changed);
+    let mut changed = c.clone();
+    changed.scope.username = "root".into();
+    cases.push(changed);
+    let mut changed = c.clone();
+    changed.scope.lease_generation = format!("phala-{}-1", c.scope.job_id);
+    cases.push(changed);
+    for changed in cases {
+        assert!(changed.validate(c.issued_at_ms).is_err());
+    }
+}
+
+#[test]
+fn saved_standard_verdict_cannot_be_relabelled_as_ephemeral() {
+    let c = challenge();
+    let mut e = evidence(c.clone());
+    let mut verdict = verify_with_policy(&e, c.issued_at_ms, &Policy::for_tests()).unwrap();
+    e.challenge.scope.profile = HardwareProfile::PhalaEphemeralDstack061;
+    verdict.challenge.scope.profile = e.challenge.scope.profile;
+    assert!(
+        verdict
+            .require_floor(&e.challenge.scope, TrustClass::Open, c.issued_at_ms)
+            .is_err()
+    );
+    assert!(verify_saved_verdict(&e, &verdict, &e.challenge.scope, c.issued_at_ms).is_err());
+    assert!(
+        verify_saved_verdict_for_profile(
+            &e,
+            &verdict,
+            &e.challenge.scope,
+            c.issued_at_ms,
+            HardwareProfile::PhalaEphemeralDstack061
+        )
+        .is_err()
+    );
 }
 fn evidence(challenge: HardwareChallenge) -> HardwareEvidence {
     let refs: serde_json::Value =

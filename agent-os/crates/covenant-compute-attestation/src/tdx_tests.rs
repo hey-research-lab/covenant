@@ -40,6 +40,124 @@ fn boot(version: u32) -> Vec<TdxEvent> {
     ]
 }
 
+fn ephemeral_boot(version: u32) -> Vec<TdxEvent> {
+    let mut events = boot(version);
+    events[5] = runtime("key-provider", br#"{"name":"none","id":""}"#, version);
+    events.insert(6, runtime("storage-fs", b"ext4", version));
+    events.insert(7, runtime("storage-encrypted", b"1", version));
+    events
+}
+
+fn verify_ephemeral(
+    report: &TdReport,
+    events: &[TdxEvent],
+) -> Result<TdxRuntimeBindings, VerificationError> {
+    verify_tdx_event_log_for_key_provider(report, events, PROFILE, DstackKeyProvider::EphemeralNone)
+}
+
+#[test]
+fn managed_and_ephemeral_profiles_accept_only_their_own_key_provider() {
+    for version in [1, 2] {
+        let managed = boot(version);
+        let ephemeral = ephemeral_boot(version);
+        assert!(verify_tdx_event_log(&report(&managed), &managed, PROFILE).is_ok());
+        assert!(verify_ephemeral(&report(&managed), &managed).is_err());
+        assert!(verify_ephemeral(&report(&ephemeral), &ephemeral).is_ok());
+        assert!(verify_tdx_event_log(&report(&ephemeral), &ephemeral, PROFILE).is_err());
+        assert!(
+            verify_tdx_event_log_for_key_provider(
+                &report(&ephemeral),
+                &ephemeral,
+                TdxRuntimeProfile::LegacyMrKms,
+                DstackKeyProvider::EphemeralNone
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn ephemeral_profile_rejects_keyed_and_malformed_provider_identities() {
+    for payload in [
+        br#"{"name":"kms","id":"abcd"}"#.as_slice(),
+        br#"{"name":"kms","id":""}"#.as_slice(),
+        br#"{"name":"local","id":"abcd"}"#.as_slice(),
+        br#"{"name":"local","id":""}"#.as_slice(),
+        br#"{"name":"tpm","id":"abcd"}"#.as_slice(),
+        br#"{"name":"tpm","id":""}"#.as_slice(),
+        br#"{"name":"none","id":"00"}"#.as_slice(),
+        br#"{"name":"none","id":null}"#.as_slice(),
+        br#"{"name":"none"}"#.as_slice(),
+        br#"{"id":""}"#.as_slice(),
+        br#"{"name":"none","id":"","extra":false}"#.as_slice(),
+        br#"{"name":"none","name":"none","id":""}"#.as_slice(),
+    ] {
+        let mut events = ephemeral_boot(2);
+        events[5] = runtime("key-provider", payload, 2);
+        assert!(verify_ephemeral(&report(&events), &events).is_err());
+    }
+}
+
+#[test]
+fn ephemeral_profile_preserves_complete_boot_and_os_identity_checks() {
+    let original = ephemeral_boot(2);
+    for index in 1..=8 {
+        let mut missing = original.clone();
+        missing.remove(index);
+        assert!(verify_ephemeral(&report(&missing), &missing).is_err());
+        let mut duplicate = original.clone();
+        duplicate.insert(index, duplicate[index].clone());
+        assert!(verify_ephemeral(&report(&duplicate), &duplicate).is_err());
+    }
+    let mut post_ready = original.clone();
+    let provider = post_ready.remove(5);
+    post_ready.push(provider);
+    assert!(verify_ephemeral(&report(&post_ready), &post_ready).is_err());
+    let mut wrong_os = original.clone();
+    wrong_os[4] = runtime("os-image-hash", &[0x62; 32], 2);
+    assert!(verify_ephemeral(&report(&wrong_os), &wrong_os).is_err());
+    let mut legacy = original;
+    legacy.insert(5, runtime("mr-kms", &[0; 32], 2));
+    assert!(verify_ephemeral(&report(&legacy), &legacy).is_err());
+}
+
+#[test]
+fn ephemeral_profile_requires_pre_ready_encrypted_ext4_runtime_storage() {
+    for (name, value) in [
+        ("storage-encrypted", b"0".as_slice()),
+        ("storage-fs", b"zfs".as_slice()),
+    ] {
+        let mut events = ephemeral_boot(2);
+        let index = events.iter().position(|event| event.name == name).unwrap();
+        events[index] = runtime(name, value, 2);
+        assert!(verify_ephemeral(&report(&events), &events).is_err());
+    }
+    for name in ["storage-encrypted", "storage-fs"] {
+        let mut events = ephemeral_boot(2);
+        let index = events.iter().position(|event| event.name == name).unwrap();
+        let event = events.remove(index);
+        events.push(event);
+        assert!(verify_ephemeral(&report(&events), &events).is_err());
+    }
+}
+
+#[test]
+fn ephemeral_profile_replays_the_entire_log_and_rejects_relabelled_events() {
+    let original = ephemeral_boot(2);
+    let quoted = report(&original);
+    let mut reordered = original.clone();
+    reordered.swap(1, 2);
+    let mut truncated = original.clone();
+    truncated.pop();
+    let mut changed = original.clone();
+    changed[2] = runtime("compose-hash", &[0x23; 32], 2);
+    let mut hidden = original;
+    hidden[5].event_type = 0;
+    for events in [reordered, truncated, changed, hidden] {
+        assert!(verify_ephemeral(&quoted, &events).is_err());
+    }
+}
+
 fn report(events: &[TdxEvent]) -> TdReport {
     let mut folds = [[0u8; 48]; 4];
     for event in events {

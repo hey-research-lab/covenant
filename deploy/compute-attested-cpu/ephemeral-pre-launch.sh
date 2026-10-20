@@ -2,12 +2,19 @@
 # Measured, single-boot Phala CPU profile. Never source provider user_config.
 # This is defense in depth on the pinned production OS, not a repair for a
 # development image or for an already exposed root-login service.
-set -euo pipefail
+set -Eeuo pipefail
 umask 077
 
 covenant_prelaunch_fail() {
-    printf 'Covenant ephemeral pre-launch refused: %s\n' "$1" >&2
+    # dstack serial logs preserve stdout; never print credential values.
+    printf 'Covenant ephemeral pre-launch refused: %s\n' "$1"
     return 1
+}
+
+covenant_prelaunch_error() {
+    printf 'Covenant ephemeral pre-launch failed: phase=%s line=%s status=%s\n' \
+        "$COVENANT_PRELAUNCH_PHASE" "$2" "$1"
+    return "$1"
 }
 
 covenant_check_user_config() {
@@ -30,9 +37,38 @@ covenant_check_root_env() {
     done
 }
 
+covenant_check_login_unit() {
+    local unit="$1" pattern="$1" states state
+    # Templates have no runtime ActiveState. Query every loaded instance,
+    # including inactive ones; absence is allowed only for a template pattern.
+    if [[ "$unit" == *@.service ]]; then
+        pattern="${unit/@./@*.}"
+    fi
+    states="$(systemctl show --all "$pattern" --property=ActiveState --value)" || {
+        covenant_prelaunch_fail "cannot inspect host login unit $unit"
+        return 1
+    }
+    if [[ "$pattern" == "$unit" && "$states" != inactive ]]; then
+        covenant_prelaunch_fail "unexpected host login unit state $unit"
+        return 1
+    fi
+    while IFS= read -r state; do
+        [[ -z "$state" ]] && continue
+        [[ "$state" == inactive ]] || {
+            covenant_prelaunch_fail "unexpected host login instance state $unit"
+            return 1
+        }
+    done <<< "$states"
+    systemctl mask --runtime "$unit" >/dev/null || {
+        covenant_prelaunch_fail "cannot mask host login unit $unit"
+        return 1
+    }
+}
+
 covenant_prelaunch_main() {
+    COVENANT_PRELAUNCH_PHASE=root-inputs
     [[ "$(id -u)" == 0 ]] || covenant_prelaunch_fail "requires guest root"
-    local name unit path comm image state
+    local name unit path comm image
     covenant_check_root_env
     covenant_check_user_config /dstack/user_config
     unset DSTACK_GATEWAY_DOMAIN DSTACK_APP_DOMAIN DSTACK_ROOT_PASSWORD DSTACK_ROOT_PUBLIC_KEY DSTACK_AUTHORIZED_KEYS
@@ -42,6 +78,7 @@ covenant_prelaunch_main() {
     # reachable earlier, so reject these binaries and any running login daemon.
     # Disabled BusyBox login/getty applets are not independent network servers;
     # reject running login processes and activation units below instead.
+    COVENANT_PRELAUNCH_PHASE=host-login-checks
     for name in sshd dropbear telnetd inetd xinetd gdbserver; do
         if command -v "$name" >/dev/null 2>&1; then
             covenant_prelaunch_fail "unexpected host login or debug binary"
@@ -59,12 +96,9 @@ covenant_prelaunch_main() {
         dropbear.service dropbear.socket telnet.socket getty.target getty@.service \
         serial-getty@.service console-getty.service container-getty@.service \
         autovt@.service debug-shell.service systemd-logind.service; do
-        state="$(systemctl show "$unit" --property=ActiveState --value)"
-        if [[ "$state" != inactive ]]; then
-            covenant_prelaunch_fail "unexpected active host login unit"
-        fi
-        systemctl mask --runtime "$unit" >/dev/null
+        covenant_check_login_unit "$unit"
     done
+    COVENANT_PRELAUNCH_PHASE=root-credentials
     for path in /home/root/.ssh/authorized_keys /home/root/.ssh/authorized_keys2 \
         /root/.ssh/authorized_keys /root/.ssh/authorized_keys2; do
         [[ ! -s "$path" ]] || covenant_prelaunch_fail "unexpected host root authorized key"
@@ -76,6 +110,7 @@ covenant_prelaunch_main() {
     sed -i 's/^root:[^:]*:/root:!:/' /etc/shadow
     awk -F: '$1 == "root" { found = 1; if ($2 != "!") exit 1 } END { if (!found) exit 1 }' /etc/shadow
 
+    COVENANT_PRELAUNCH_PHASE=swap-and-core-policy
     [[ -r /proc/swaps ]] || covenant_prelaunch_fail "missing swap evidence"
     awk 'NR == 1 { if ($1 != "Filename") exit 1; next } { exit 1 } END { if (NR != 1) exit 1 }' /proc/swaps ||
         covenant_prelaunch_fail "guest swap is enabled or ambiguous"
@@ -87,6 +122,7 @@ covenant_prelaunch_main() {
 
     # Pull exact public content and fail closed. No provider credentials, remote
     # installer, tag resolution, opaque registry configuration or cache fallback.
+    COVENANT_PRELAUNCH_PHASE=pinned-image
     local images
     images="$(docker compose -f /dstack/docker-compose.yaml config --images)"
     [[ -n "$images" ]] || covenant_prelaunch_fail "no workload images"
@@ -101,4 +137,8 @@ covenant_prelaunch_main() {
     printf '%s\n' 'Covenant ephemeral pre-launch controls applied'
 }
 
+COVENANT_PRELAUNCH_PHASE=startup
+trap 'covenant_prelaunch_error "$?" "$LINENO"' ERR
 covenant_prelaunch_main
+trap - ERR
+unset COVENANT_PRELAUNCH_PHASE

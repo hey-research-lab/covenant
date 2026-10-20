@@ -84,6 +84,8 @@ pub fn validate_ssh_host(host: &str) -> Result<(), ProtocolError> {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SshTransport {
     Tls,
+    /// HTTPS relay carries SSH ciphertext; session is the signed job UUID.
+    OutboundRelay,
 }
 impl<'de> Deserialize<'de> for SshTransport {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -93,6 +95,7 @@ impl<'de> Deserialize<'de> for SshTransport {
         #[serde(rename_all = "snake_case")]
         enum Kind {
             Tls,
+            OutboundRelay,
         }
         struct Wire;
         impl<'de> serde::de::Visitor<'de> for Wire {
@@ -118,6 +121,7 @@ impl<'de> Deserialize<'de> for SshTransport {
                 }
                 match kind {
                     Some(Kind::Tls) => Ok(SshTransport::Tls),
+                    Some(Kind::OutboundRelay) => Ok(SshTransport::OutboundRelay),
                     None => Err(serde::de::Error::missing_field("kind")),
                 }
             }

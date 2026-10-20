@@ -27,6 +27,10 @@ x509-parser = "0.18"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
+anyhow = "1"
 covenant-compute-attestation = { path = ".", features = ["test-vectors"] }
+dcap-qvl = { path = "vendor/dcap-qvl", version = "=0.6.1", default-features = false, features = ["std", "rustcrypto", "default-x509", "report"] }
 rand = "0.8"
 rcgen = { version = "0.14", features = ["pem", "x509-parser"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "hickory-dns"] }
+tokio = { version = "1", features = ["rt", "macros", "time"] }

@@ -17,6 +17,18 @@ from transport_protocol import (
     uuid_string,
 )
 
+MAX_IDENTITY_BYTES = 256 * 1024
+
+
+def diagnostic(event, error):
+    """Log bounded classifications only, never provider values or credentials."""
+    name = type(error).__name__
+    detail = {"event": event,
+              "error_class": name if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,79}", name) else "Exception"}
+    if isinstance(error, ProtocolError) and re.fullmatch(r"[a-z_]{1,80}", error.code):
+        detail["error_code"] = error.code
+    print(json.dumps(detail, sort_keys=True), file=sys.stderr, flush=True)
+
 
 class OutboundWorker:
     def __init__(self, endpoint, session_id, evidence_provider, expires_at_ms,
@@ -58,7 +70,9 @@ class OutboundWorker:
                 and identity.get("username") == "covenant"
                 and identity.get("transport") == {"kind": "outbound_relay"},
                 "wrong_relay_scope")
-        require(len(encoded(identity)) <= 32 * 1024, "identity_too_large")
+        # Real dstack Info includes its TCB/event data and can exceed 32 KiB.
+        # Preserve it intact, below both the 512 KiB result and 768 KiB HTTP caps.
+        require(len(encoded(identity)) <= MAX_IDENTITY_BYTES, "identity_too_large")
         return identity
 
     def register(self):
@@ -66,13 +80,23 @@ class OutboundWorker:
         # before a Cloud/verified-quote instance pin; opening SSH requires it.
         # Once registered, a new identity or session is forbidden.
         registration_deadline = min(self.deadline, time.monotonic() + 180)
+        last_notice = float("-inf")
         while time.monotonic() < registration_deadline:
             self.live()
             try:
                 identity = self.identity()
-            except Exception:
+            except (OSError, http.client.HTTPException) as error:
+                if time.monotonic() - last_notice >= 10:
+                    diagnostic("outbound_registration_identity_failed", error)
+                    last_notice = time.monotonic()
                 time.sleep(0.25)
                 continue
+            except Exception as error:
+                # Guarded SSH readiness has already been awaited by the main
+                # adapter. Malformed/binding/size failures must not look like
+                # another three-minute wait for a network connection.
+                diagnostic("outbound_registration_identity_failed", error)
+                raise
             instance = identity["guest_info"]["instance_id"]
             if self.instance_id is None:
                 self.instance_id = instance
@@ -80,8 +104,11 @@ class OutboundWorker:
             arguments = {"registration_id": self.registration_id, "instance_id": instance}
             try:
                 result = reconcile(self.transport, "guest_register", arguments, registration_deadline)
-            except ProtocolError as error:
-                if error.code != "instance_not_pinned":
+            except Exception as error:
+                if time.monotonic() - last_notice >= 10:
+                    diagnostic("outbound_registration_request_failed", error)
+                    last_notice = time.monotonic()
+                if not isinstance(error, ProtocolError) or error.code != "instance_not_pinned":
                     raise
                 time.sleep(0.5)
                 continue
@@ -143,10 +170,7 @@ class OutboundWorker:
             result = {"ok": True, "value": value}
             require(len(encoded(result)) <= 512 * 1024, "operation_result_too_large", 413)
         except Exception as error:
-            detail = {"event": "outbound_operation_failed", "error_class": type(error).__name__}
-            if isinstance(error, ProtocolError) and re.fullmatch(r"[a-z_]{1,80}", error.code):
-                detail["error_code"] = error.code
-            print(json.dumps(detail, sort_keys=True), file=sys.stderr, flush=True)
+            diagnostic("outbound_operation_failed", error)
             result = {"ok": False, "error": "guest_operation_failed"}
         self.results[request_id] = (digest, result)
         return copy.deepcopy(result)

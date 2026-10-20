@@ -168,6 +168,7 @@ async fn refused_current_lease_cannot_open_a_channel_or_read_plaintext() {
     let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
     let buyer = LocalIdentity::generate("ssh-gate@buyer");
     let mut scope = HardwareScope {
+        profile: Default::default(),
         job_id: uuid::Uuid::new_v4(),
         operator_pubkey_b58: LocalIdentity::generate("ssh-gate@operator")
             .agent_id()

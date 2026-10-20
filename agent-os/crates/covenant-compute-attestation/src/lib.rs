@@ -504,6 +504,64 @@ pub fn verify_tdx_lease_attestation(
     now: DateTime<Utc>,
     policy: &Policy,
 ) -> Result<LeaseTdxGuestVerdict, VerificationError> {
+    verify_tdx_lease_with_key_provider(
+        lease_id,
+        node_id,
+        quote,
+        collateral_json,
+        events,
+        expected_report_data,
+        expected_compose_hash,
+        guest_channel_key,
+        now,
+        policy,
+        tdx::DstackKeyProvider::ManagedKms,
+    )
+}
+
+/// Reachable only through the explicitly admitted ephemeral hardware binding.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn verify_tdx_ephemeral_lease_attestation(
+    lease_id: u64,
+    node_id: &str,
+    quote: &[u8],
+    collateral_json: &str,
+    events: &[TdxEvent],
+    expected_report_data: &[u8; 64],
+    expected_compose_hash: &[u8; 32],
+    guest_channel_key: &str,
+    now: DateTime<Utc>,
+    policy: &Policy,
+) -> Result<LeaseTdxGuestVerdict, VerificationError> {
+    verify_tdx_lease_with_key_provider(
+        lease_id,
+        node_id,
+        quote,
+        collateral_json,
+        events,
+        expected_report_data,
+        expected_compose_hash,
+        guest_channel_key,
+        now,
+        policy,
+        tdx::DstackKeyProvider::EphemeralNone,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_tdx_lease_with_key_provider(
+    lease_id: u64,
+    node_id: &str,
+    quote: &[u8],
+    collateral_json: &str,
+    events: &[TdxEvent],
+    expected_report_data: &[u8; 64],
+    expected_compose_hash: &[u8; 32],
+    guest_channel_key: &str,
+    now: DateTime<Utc>,
+    policy: &Policy,
+    key_provider: tdx::DstackKeyProvider,
+) -> Result<LeaseTdxGuestVerdict, VerificationError> {
     // Established before the quote is opened: a report data the caller built
     // with a malformed key line could otherwise pass the binding check and
     // then leave the verdict with no fingerprint the renter can pin.
@@ -519,7 +577,8 @@ pub fn verify_tdx_lease_attestation(
         .tdx_measurements()
         .runtime_profile(&report)
         .ok_or(VerificationError::TdxUnknownLaunchMeasurement)?;
-    let bindings = tdx::verify_tdx_event_log(&report, events, profile)?;
+    let bindings =
+        tdx::verify_tdx_event_log_for_key_provider(&report, events, profile, key_provider)?;
     if !bool::from(bindings.compose_hash.ct_eq(expected_compose_hash)) {
         return Err(VerificationError::TdxComposeHashMismatch);
     }

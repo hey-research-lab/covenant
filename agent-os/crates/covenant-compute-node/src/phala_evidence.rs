@@ -250,6 +250,7 @@ impl PhalaEvidenceClient {
             })
             .ok_or_else(|| failed("unexpected Phala instance endpoint"))?;
         let scope = HardwareScope {
+            profile: Default::default(),
             job_id: job.job_id,
             operator_pubkey_b58: spec.operator_pubkey_b58,
             buyer_pubkey_b58: job.buyer.pubkey_base58(),

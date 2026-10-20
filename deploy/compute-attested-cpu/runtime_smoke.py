@@ -121,7 +121,7 @@ def main():
         collector_port = mapped_port(collector_name, 8090)
         base = f"http://127.0.0.1:{collector_port}"
 
-        def http(path, body=None, authorization=token):
+        def request_collector(path, body=None, authorization=token):
             headers = {"Content-Type": "application/json"}
             if authorization:
                 headers["Authorization"] = "Bearer " + authorization
@@ -138,7 +138,7 @@ def main():
         identity = None
         for _ in range(60):
             try:
-                status, value = http("/identity")
+                status, value = request_collector("/identity")
                 if status == 200:
                     identity = value["identity"]
                     break
@@ -147,8 +147,8 @@ def main():
             time.sleep(0.25)
         if identity is None:
             raise RuntimeError("SSH/collector readiness failed")
-        assert http("/identity", authorization=None)[0] == 401
-        assert http("/identity", authorization="00" * 32)[0] == 401
+        assert request_collector("/identity", authorization=None)[0] == 401
+        assert request_collector("/identity", authorization="00" * 32)[0] == 401
         known_hosts = directory / "known_hosts"
         key = identity["guest_channel_key"]
         known_hosts.write_text(f'[127.0.0.1]:{ssh_port} {key["algorithm"]} {key["key_base64"]}\n')
@@ -195,22 +195,22 @@ def main():
         challenge["scope"]["workload_sha256"] = INFO["compose_hash"]
         wrong = copy.deepcopy(challenge)
         wrong["scope"]["host"] = "unrelated.example"
-        assert http("/quote", wrong)[0] == 409
+        assert request_collector("/quote", wrong)[0] == 409
         assert guest_calls == []
-        status, evidence = http("/quote", challenge)
+        status, evidence = request_collector("/quote", challenge)
         assert status == 200 and evidence["verification_status"] == "unverified"
         assert evidence["dstack_quote"]["event_log"] == EVENTS
         assert len(guest_calls) == 1
-        assert http("/quote", challenge)[0] == 409
+        assert request_collector("/quote", challenge)[0] == 409
         run("docker", "restart", collector_name)
         for _ in range(30):
             try:
-                if http("/identity")[0] == 200:
+                if request_collector("/identity")[0] == 200:
                     break
             except (OSError, urllib.error.URLError):
                 pass
             time.sleep(0.1)
-        assert http("/quote", challenge)[0] == 409
+        assert request_collector("/quote", challenge)[0] == 409
         assert len(guest_calls) == 1
         # Replacing a host-key observation must fail the actual SSH handshake.
         wrong_public = " ".join((directory / "wrong-buyer.pub").read_text().split()[:2])
@@ -250,7 +250,7 @@ def main():
         expiry_identity = None
         for _ in range(60):
             try:
-                status, value = http("/identity")
+                status, value = request_collector("/identity")
                 if status == 200:
                     expiry_identity = value["identity"]
                     break

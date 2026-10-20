@@ -48,9 +48,25 @@ impl Store {
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
         }
         db.busy_timeout(Duration::from_secs(10))?;
-        db.execute_batch(
-            "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;",
-        )?;
+        // The first WAL transition can return SQLITE_BUSY without invoking
+        // SQLite's busy handler when several new connections initialize at once.
+        // Retry that idempotent transition before taking the migration lock.
+        for attempt in 0..8 {
+            match db.execute_batch(
+                "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;",
+            ) {
+                Ok(()) => break,
+                Err(rusqlite::Error::SqliteFailure(error, _))
+                    if matches!(
+                        error.code,
+                        rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+                    ) && attempt < 7 =>
+                {
+                    std::thread::sleep(Duration::from_millis(10 << attempt));
+                }
+                Err(error) => return Err(error).context("configure knowledge journal"),
+            }
+        }
         db.execute_batch("BEGIN IMMEDIATE;")?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         ensure!(

@@ -143,6 +143,17 @@ unexpected instance type, OS/image, workload, region, endpoint, account-key
 policy or price changes before handing over access. A generic signed-report
 upload endpoint by itself is not a functioning provider integration.
 
+The retained Phala OpenAPI contract exposes separate provision and create
+steps. The adapter must explicitly set the production image and
+`prefer_dev=false` because omission can default to development. Persist the
+provisioned `app_id` and `compose_hash` before submitting creation, then retain
+the returned CVM UUID and independently verified instance identity. The create
+schema declares no idempotency header; do not treat a repeated create as safe
+after a timeout. Reconcile by the original application identity first.
+Likewise, deletion's HTTP204 means **deletion initiated**, not confirmed
+absence. Scheduled deletion is a separate API operation and cannot be assumed
+to have been installed by creation or service expiry.
+
 Keep TLS transport identity separate from the SSH host key terminating inside
 the guest. If TLS tunneling is required, define and validate the transport
 explicitly instead of accepting arbitrary shell commands or weakening strict
@@ -212,12 +223,12 @@ cleanup before creation. Phala storage continues billing while a stopped CVM
 exists, so successful deletion is required. A timer or client-side budget
 cannot guarantee the provider's bill is capped if deletion fails.
 
-The current blockers are provider credentials/access and inventory, a reviewed
-production guest with independently derived measurements, proven collector/
-SSH key custody and transport, a durable CPU provider lifecycle adapter, an
-approved all-in cost envelope, and real lease/workspace/teardown acceptance.
-Local verifier tests and the diagnostic port resolve none of these external
-acceptance gates by themselves.
+The remaining production gates are usable management API credentials, KMS and
+administrative policy review, a durable CPU provider lifecycle adapter, an
+approved all-in lease cost envelope, and real lease/workspace/teardown
+acceptance. The subsequent live diagnostic qualifies the observed quote and
+channel within its recorded scope; it does not complete these lifecycle and
+production trust gates.
 
 Only after evidence review may a separate code/release change raise the served
 ceiling for the specifically accepted profile. Keep other operators, GPU
@@ -239,8 +250,8 @@ instance gateway served the default Phala Next.js starter. The existing CVM is
 `d5f0ef708c68c52916a7b0da313ae416eb0b980d`, instance
 `fc551bcb5f96283763f42da3578805ec7e2ecfe3` on
 `dstack-pha-prod5.phala.network`. Reuse this identity; do not create a duplicate.
-The starter is unsuitable for lease/key binding and still needs the reviewed
-Covenant service image. Running the starter is not hardware acceptance or
+The starter was unsuitable for lease/key binding and was subsequently replaced
+by the isolated Covenant service image. Running this diagnostic guest is not
 registered Covenant Compute capacity.
 
 The supplied clipboard credential was saved privately as requested,
@@ -265,8 +276,8 @@ The manifest hash matches the pinned OS hash. Independent launch replay from
 that archive and the pinned dstack source reproduced the complete expected
 MRTD/RTMR0–2 tuple; inputs, tool lockfile and recipe are retained under
 `deploy/compute-attested-cpu/measurement/`. This qualifies the launch reference,
-not the running quote: signature/current-collateral/TCB verification remains
-outstanding. The actual boot reports ext4 storage, superseding the earlier
+not by itself the running quote. Subsequent live signature/current-collateral/TCB
+verification passed as recorded below. The actual boot reports ext4 storage, superseding the earlier
 deployment form's ZFS preview.
 
 At source `6ff0d50097f81522f22f5a91416b037e5d9bc75d`, both full Rust CI
@@ -281,6 +292,51 @@ no successful Covenant update was observed. The initial collector probe on
 host port8090 reached dstack's guest agent, which reserves that port. The
 corrected candidate publishes host18090 to the unchanged collector port8090;
 the client and rendered-template regression now enforce that mapping.
-All 29 collector/client tests pass. The corrected configuration is staged
-for user credential submission on the same CVM, with the original diagnostic
-expiry of 2026-10-20 18:38 Copenhagen time. No replacement resource was created.
+All 29 collector/client tests pass. The user submitted the corrected configuration
+on the same CVM, with the original diagnostic expiry of 2026-10-20 18:38
+Copenhagen time. No replacement resource was created.
+
+## Live diagnostic result (2026-10-20)
+
+The collector on host18090 returned HTTP200. Its exact measured Compose payload
+matches the reviewed candidate. A fresh original-scope quote passed independent
+Intel signature/current-collateral verification, `UpToDate` with no advisories,
+the pinned production launch tuple, runtime event replay and full Covenant
+scope binding. All 16 live SSH/SFTP/isolation checks passed; the exercised SSH
+key equals the verified quote's key, and the tests ran within verdict validity.
+The collector rejected replay with HTTP409. Offline changes to endpoint, key
+and workload were rejected by signed report-data binding using the actual clock.
+See the [diagnostic evidence record](compute-hardware-diagnostic-evidence.md).
+
+Phala's UI still marks the update operation and latest boot phase failed, while
+the log drawer lists both containers running and the serial log reports
+`Finished app-compose.service`. Preserve that provider-status discrepancy;
+the independently observed service results do not make its operation ledger
+successful.
+
+The provider startup script imports SSH keys from separate host-supplied
+configuration, but the pinned production image has no native SSH server, and
+the live serial log reported zero imported keys. This is not demonstrated
+native SSH exposure. KMS/upgrade authorization, application-key custody and
+administrative input policy still require review. The synthetic diagnostic
+does not complete a real Covenant lease/workspace, provider lifecycle,
+settlement or teardown. The served trust ceiling remains `Open`, and the
+user-requested CVM remains retained and billed after diagnostic access expires.
+
+The final timed test observed the authenticated SSH session close 144 ms
+after the original expiry. New SSH and collector access stopped; the
+authenticated Phala runtime view confirmed both diagnostic containers
+`Exited (0)`. No service lifetime was extended. This confirms the bounded
+diagnostic shutdown, not provider deletion or stopped billing.
+
+The next KMS review must bind the observed `key_provider_id` to the actual
+authorization backend and application policy. In pinned dstack source,
+`app_id` is the key namespace; `compose_hash` is checked by policy rather than
+included in the application/environment key derivation. Record the permitted
+Compose hashes and who can change them. For the bundled Ethereum policy,
+`disableUpgrades` freezes implementation upgrades, not the owner-controlled
+Compose allowlist. Source inspection alone does not identify this account's
+live backend, owner or policy. This gate concerns stronger persistent-secret
+claims; the diagnostic SSH host key was freshly generated in container tmpfs.
+[Pinned KMS key release](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/src/main_service.rs#L387-L475),
+[application policy setters](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/auth-eth/contracts/DstackApp.sol#L136-L223).

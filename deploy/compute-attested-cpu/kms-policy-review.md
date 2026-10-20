@@ -49,7 +49,8 @@ public KMS registry's CA key matched the application's measured provider key.
 This identifies the managed KMS; it does not publish its complete workload
 allowlist, authorized account administrators, or future policy changes.
 
-Resolve that gate through one of these explicitly reviewed paths:
+Resolve the policy choice through an explicitly reviewed path. The second
+path permits only a bounded synthetic pilot, not stronger production trust:
 
 1. **Customer-controlled policy:** obtain authenticated KMS deployment/config
    provenance, current attestation and enabled OS-image verification; bind its
@@ -58,7 +59,8 @@ Resolve that gate through one of these explicitly reviewed paths:
    all mutation powers at one finalized block. Decide acceptable governance
    and refresh requirements. `disableUpgrades` blocks implementation upgrades
    only; it does not disable owner-operated Compose/device/TCB setters.
-2. **Bounded managed-policy acceptance:** an authorized Covenant operator must
+2. **Bounded managed-policy acceptance for a synthetic pilot at `Open`:**
+   an authorized Covenant operator must
    explicitly accept Phala's centralized, mutable policy and disabled KMS
    image check for the named CA pin, app, exact workload, device/lease scope
    and finite expiry. Retain authenticated account evidence of current
@@ -109,3 +111,38 @@ Run `python3 -m unittest discover -s deploy/compute-attested-cpu -p
 'test_kms_policy.py' -v` with `cryptography>=42` to exercise certificate and
 transport rejection tests. The normal dependency-free suite skips these
 optional crypto tests when that package is absent.
+
+## OS verification and the limits of on-chain app ownership
+
+The pinned dstack source explicitly warns that when `image.verify=false`,
+`os_image_hash` is caller-supplied and the `allowedOsImages` check does not
+enforce the booted OS identity. The KMS returns without verifying the image
+when this flag is false, even after a successful authorization decision.
+Selecting an on-chain app contract does not enable that independent server
+check. See the [configuration warning](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/kms.toml#L80-L86)
+and [release-path check](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/src/main_service.rs#L369-L410).
+
+Customer ownership of `DstackApp` controls its Compose/device allowlists and
+optional `UpToDate` requirement. The standard app policy does not check an
+exact OS measurement or advisory IDs. The separate `DstackKms` owner controls
+the global OS allowlist, permitted KMS measurements/devices, factory
+implementation and shared-contract upgrades. App ownership does not transfer
+control of the KMS server or root keys. A custom app policy can inspect
+additional measurement/advisory fields, but its implementation, authenticated
+inputs and enforcement require their own review.
+Sources: [app policy](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/auth-eth/contracts/DstackApp.sol#L190-L216),
+[KMS authority](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/auth-eth/contracts/DstackKms.sol#L102-L305)
+and [policy inputs](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/auth-eth/contracts/IAppAuth.sol#L36-L45).
+
+These are properties of the reviewed source, not proof that the observed
+managed KMS runs those exact bytes. Matching version metadata and the expected
+CA authenticate the reported identity; they do not establish measured code or
+configuration provenance. A different KMS authority requires fresh CA,
+configuration, governance and boot qualification; previously reviewed OS and
+container bytes may be reusable, but existing prod5 acceptance cannot simply
+be transferred to the new authority.
+
+The KMS choice remains pending and new creation remains disabled. Any later
+managed-policy acceptance must stay a finite synthetic pilot at `Open`, with
+independent Covenant evidence checks. It is insufficient for stronger
+production trust or provider-independent persistent-secret exclusivity.

@@ -27,10 +27,16 @@ RUN rm -f /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources && \
 
 COPY deploy/compute-attested-cpu/collector.py \
      deploy/compute-attested-cpu/memory_guard.py \
+     deploy/compute-attested-cpu/ephemeral_collector.py \
+     deploy/compute-attested-cpu/outbound_worker.py \
+     deploy/compute-attested-cpu/relay_client.py \
+     deploy/compute-attested-cpu/transport_protocol.py \
      deploy/compute-attested-cpu/entrypoint.py /opt/covenant/
 RUN chmod 0555 /opt/covenant/*.py && chmod 0444 /opt/covenant/packages.tsv && \
     python3 -m py_compile /opt/covenant/collector.py /opt/covenant/entrypoint.py \
-      /opt/covenant/memory_guard.py
+      /opt/covenant/memory_guard.py /opt/covenant/ephemeral_collector.py \
+      /opt/covenant/outbound_worker.py /opt/covenant/transport_protocol.py \
+      /opt/covenant/relay_client.py
 
 WORKDIR /opt/covenant
 EXPOSE 1022 8090

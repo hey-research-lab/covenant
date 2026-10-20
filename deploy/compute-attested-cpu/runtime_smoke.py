@@ -9,8 +9,11 @@ import os
 from pathlib import Path
 import secrets
 import select
+import shlex
+import socket
 import socketserver
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -21,6 +24,97 @@ import uuid
 import collector as c
 import memory_guard as memory
 from test_collector import EVENTS, INFO, POLICY
+
+
+def outbound_ssh_smoke(directory, ssh_port, identity, policy):
+    """Real SSH over relay; only the hardware evidence provider is a test double."""
+    from outbound_relay import RelayState, serve_relay
+    from outbound_worker import OutboundWorker
+    from relay_client import RelayClient
+    from transport_protocol import HttpTransport
+
+    session_id, buyer_token = str(uuid.uuid4()), secrets.token_hex(32)
+    expiry = min(policy["lease_expires_at_ms"], int(time.time() * 1000) + 90_000)
+    relay = serve_relay(RelayState(session_id, expiry, buyer_token))
+    endpoint = f"http://127.0.0.1:{relay.server_port}"
+    relay_thread = threading.Thread(target=relay.serve_forever, daemon=True)
+    relay_thread.start()
+    errors = []
+
+    class SmokeEvidence:
+        def identity(self):
+            result = copy.deepcopy(identity)
+            result.update(host="relay.example.com", port=443,
+                          transport={"kind": "outbound_relay"})
+            return result
+
+        def collect(self, challenge):
+            return {"schema_version": 1, "verification_status": "unverified",
+                    "challenge": copy.deepcopy(challenge), "identity": self.identity(),
+                    "dstack_quote": {"fake_for_transport_smoke_only": True}}
+
+        def check_stream(self, expected):
+            assert self.identity() == expected
+
+    def connector(address, timeout):
+        assert address == ("ssh", 1022)
+        return socket.create_connection(("127.0.0.1", ssh_port), timeout=timeout)
+
+    worker = OutboundWorker("https://relay.example.com", session_id, SmokeEvidence(), expiry,
+                            transport=HttpTransport(endpoint, session_id, allow_loopback=True),
+                            ssh_connector=connector)
+
+    def worker_main():
+        try:
+            worker.run()
+        except Exception as error:
+            errors.append(type(error).__name__)
+
+    worker_thread = threading.Thread(target=worker_main, daemon=True)
+    worker_thread.start()
+    try:
+        client = RelayClient(endpoint, session_id, buyer_token)
+        observed = client.identity()
+        assert observed["guest_channel_key"] == identity["guest_channel_key"]
+        challenge = {"challenge_id": str(uuid.uuid4()),
+                     "expires_at_ms": int(time.time() * 1000) + 60_000}
+        quoted = client.quote(challenge)
+        assert quoted["dstack_quote"] == {"fake_for_transport_smoke_only": True}
+        client.pin_instance(observed["guest_info"]["instance_id"])
+        token_file = directory / "relay-buyer-token"
+        token_file.write_text(buyer_token)
+        token_file.chmod(0o600)
+        relay_known_hosts = directory / "relay-known-hosts"
+        key = observed["guest_channel_key"]
+        relay_known_hosts.write_text(
+            f'[relay.example.com]:443 {key["algorithm"]} {key["key_base64"]}\n')
+        proxy = shlex.join([sys.executable, str(Path(__file__).with_name("relay_client.py")),
+                            "--endpoint", endpoint, "--session-id", session_id,
+                            "--buyer-token-file", str(token_file),
+                            "--verified-challenge-id", challenge["challenge_id"]])
+        options = ["-F", "/dev/null", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
+                   "-o", "IdentityAgent=none", "-o", "StrictHostKeyChecking=yes",
+                   "-o", f"UserKnownHostsFile={relay_known_hosts}", "-o", "GlobalKnownHostsFile=/dev/null",
+                   "-o", "HostKeyAlgorithms=ssh-ed25519", "-o", "VerifyHostKeyDNS=no",
+                   "-o", "UpdateHostKeys=no", "-o", "CheckHostIP=no", "-o", "ClearAllForwardings=yes",
+                   "-o", "ConnectionAttempts=1", "-o", "ConnectTimeout=15", "-o", "LogLevel=ERROR",
+                   "-o", "ProxyCommand=" + proxy]
+        payload = "outbound-real-ssh-synthetic\n" * 2048
+        command = "python3 -c " + shlex.quote(
+            "import os,sys; assert os.getuid()==10001; data=sys.stdin.read(); "
+            "sys.stdout.write('relay-ssh-ok\\n'+data)")
+        result = run("ssh", *options, "-i", str(directory / "buyer"), "-p", "443",
+                     "covenant@relay.example.com", command, input_text=payload)
+        assert result.stdout == "relay-ssh-ok\n" + payload
+        client.close_stream()
+        worker_thread.join(timeout=10)
+        assert not worker_thread.is_alive(), "relay worker did not terminate closed SSH stream"
+        assert not errors, f"relay worker failed: {errors}"
+        print("PASS: real strict-host-key SSH through outbound relay; hardware evidence mocked.")
+    finally:
+        relay.shutdown()
+        relay.server_close()
+        relay_thread.join(timeout=2)
 
 
 def run(*arguments, check=True, env=None, input_text=None):
@@ -193,6 +287,7 @@ def main():
                        check=check, input_text=input_text)
         assert ssh("id -u").stdout.strip() == "10001"
         assert ssh("pwd").stdout.strip() == "/workspace"
+        outbound_ssh_smoke(directory, ssh_port, identity, policy)
         # Actual kernel interfaces must meet the same policy in both roles.
         for name, role in ((ssh_name, "ssh"), (collector_name, "collector")):
             run("docker", "exec", name, "python3", "-c",

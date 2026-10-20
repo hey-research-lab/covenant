@@ -140,7 +140,9 @@ def canonical(value):
 
 
 def load_policy(value, now_ms):
-    exact_fields(value, POLICY_FIELDS)
+    ephemeral = type(value) is dict and value.get("profile") == "phala_ephemeral_dstack061"
+    fields = (POLICY_FIELDS - {"gateway_domain"}) | {"profile", "relay_endpoint", "relay_session_id"} if ephemeral else POLICY_FIELDS
+    exact_fields(value, fields)
     integer(value["schema_version"], 1, 1)
     uuid_value(value["job_id"])
     public_identity(value["operator_pubkey_b58"])
@@ -149,7 +151,27 @@ def load_policy(value, now_ms):
         r"[A-Za-z0-9_.-]{1,128}", value["lease_generation"]), "invalid generation")
     integer(value["lease_expires_at_ms"], now_ms + 1)
     integer(value["max_challenges"], 1, 128)
-    domain = value["gateway_domain"]
+    if ephemeral:
+        import ipaddress
+        from urllib.parse import urlsplit
+        endpoint = value["relay_endpoint"]
+        require(type(endpoint) is str, "invalid relay endpoint")
+        parsed = urlsplit(endpoint)
+        require(parsed.scheme == "https" and parsed.netloc == parsed.hostname
+                and not parsed.path and not parsed.query and not parsed.fragment
+                and parsed.hostname is not None and "." in parsed.hostname
+                and re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", parsed.hostname),
+                "invalid canonical relay origin")
+        try:
+            ipaddress.ip_address(parsed.hostname)
+        except ValueError:
+            pass
+        else:
+            raise Rejected("relay requires a DNS hostname")
+        require(value["relay_session_id"] == value["job_id"], "relay session differs from job")
+        require(value["lease_generation"] == "phala-ephemeral-" + value["job_id"] + "-1",
+                "invalid ephemeral generation")
+    domain = value.get("gateway_domain", "test.phala.network")
     require(type(domain) is str and len(domain) <= 180 and re.fullmatch(
         r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+phala\.network", domain),
         "invalid gateway domain")
@@ -275,10 +297,16 @@ class Collector:
         # Info is an external RPC and may block. A status checked before that
         # call cannot authorize identity after the SSH watchdog has stopped.
         self.memory_guard.check_peer(self.policy, raw_key.decode("ascii"))
-        host = f'{info["instance_id"]}-1022.{self.policy["gateway_domain"]}'
-        return {"guest_channel_key": key, "host": host, "port": 443,
-                "transport": {"kind": "tls"},
+        endpoint = self.endpoint(info)
+        return {"guest_channel_key": key, **endpoint,
                 "username": "covenant", "guest_info": info}
+
+    def endpoint(self, info):
+        return {"host": f'{info["instance_id"]}-1022.{self.policy["gateway_domain"]}',
+                "port": 443, "transport": {"kind": "tls"}}
+
+    def scope_fields(self):
+        return SCOPE_FIELDS
 
     def validate(self, challenge, identity, now_ms):
         exact_fields(challenge, CHALLENGE_FIELDS)
@@ -290,7 +318,7 @@ class Collector:
         require(issued <= now_ms < expiry <= issued + 120_000, "stale challenge")
         require(expiry <= self.policy["lease_expires_at_ms"], "challenge exceeds lease")
         scope = challenge["scope"]
-        exact_fields(scope, SCOPE_FIELDS)
+        exact_fields(scope, self.scope_fields())
         for field in (
             "job_id", "operator_pubkey_b58", "buyer_pubkey_b58",
             "lease_generation", "lease_expires_at_ms",

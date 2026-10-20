@@ -116,5 +116,9 @@ if __name__ == "__main__":
     elif sys.argv[1:] == ["collector"]:
         collector.require(os.geteuid() == 10002, "collector must run as uid10002")
         collector.main()
+    elif sys.argv[1:] == ["outbound"]:
+        collector.require(os.geteuid() == 10002, "outbound collector must run as uid10002")
+        import ephemeral_collector
+        ephemeral_collector.main()
     else:
-        raise SystemExit("expected ssh or collector role")
+        raise SystemExit("expected ssh, collector or outbound role")

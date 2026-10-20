@@ -238,8 +238,21 @@ pub trait JobExecutor: Send + Sync {
     /// `batch_job`, but only swarm orders it can afford) refuses here with
     /// a reason the coordinator records; the job is re-matched elsewhere
     /// and nobody is faulted. `remaining` is the time left until the
-    /// buyer's deadline. The default admits everything.
-    fn admit(&self, _job: &JobEnvelopePayload, _remaining: Duration) -> Result<(), String> {
+    /// buyer's deadline. The default rejects dedicated compiler contracts and
+    /// otherwise leaves generic admission to the node's capability checks.
+    fn admit(&self, job: &JobEnvelopePayload, _remaining: Duration) -> Result<(), String> {
+        if job
+            .capability_requirement
+            .model_id
+            .as_deref()
+            .is_some_and(|m| {
+                m.starts_with(covenant_compute_protocol::knowledge::KNOWLEDGE_MODEL_PREFIX)
+            })
+        {
+            return Err(
+                "knowledge compilation requires the dedicated pinned compiler executor".into(),
+            );
+        }
         Ok(())
     }
 

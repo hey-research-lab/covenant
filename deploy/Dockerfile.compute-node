@@ -21,7 +21,7 @@ RUN apt-get update \
 WORKDIR /src
 COPY agent-os/ ./agent-os/
 WORKDIR /src/agent-os
-RUN cargo build --release --bin covenant-compute-node
+RUN cargo build --locked --release --bin covenant-compute-node
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update \

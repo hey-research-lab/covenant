@@ -1,14 +1,20 @@
 # Remote Knowledge compilation
 
-**Limited public capacity accepted, 20 October 2026 at 19:12 UTC.** One dedicated
-operator advertised the pinned compiler at **50,000 micro-USDC / 0.05 USDC per
-job**, with one job in flight. A freshly installed public client verified the
-source and quote without purchasing. Check current capacity and price before
-buying; this observation is not a standing quote or uptime guarantee. The
-[original signed local 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0)
-and [two earlier paid pilot jobs](evidence/knowledge/paid-pilot-2026-10-20/report.md)
-have separate acceptance evidence. The new operator has not executed a paid job.
-See the [activation record](evidence/knowledge/remote-activation-2026-10-20/report.md).
+**Limited public-source service; dedicated paid acceptance verified.** One
+separately authorized job on the dedicated operator passed signed-receipt,
+artifact, local-import and finalized-settlement checks. An identical-key settled
+replay recovered the same job, receipt and snapshot without another job or
+charge. See the [dedicated acceptance record](evidence/knowledge/dedicated-acceptance-2026-10-21/report.md).
+The job cost **50,000 micro-USDC / 0.05 USDC**; this is a recorded charge, not a
+standing quote. The service admits one job in flight. Check current capacity,
+price and admission eligibility before buying; no uptime guarantee is implied.
+
+The [signed Compute 0.5.1 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1),
+[two earlier paid pilot jobs](evidence/knowledge/paid-pilot-2026-10-20/report.md),
+[dedicated activation](evidence/knowledge/remote-activation-2026-10-20/report.md)
+and [finalized stake extension](evidence/knowledge/stake-extension-2026-10-21/report.md)
+have separate evidence. The dedicated paid job tested normal completion and
+settled replay; interrupted-client recovery remains evidence from the earlier pilot.
 
 ## What the command does
 
@@ -119,19 +125,20 @@ arguments and buyer identity. Settled recovery fetches the original receipt and
 output without a new job, and does not require current compiler capacity.
 Never replace a key or delete accounting to make an uncertain request proceed.
 
-## Initial stake window and operating limits
+## Current stake window and operating limits
 
 The dedicated operator identity is
 `CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf`.
-Its 1,000,000 CVNT stake is finalized. Initial lock expiry is **27 October 2026,
-19:17:25 UTC**. The coordinator requires at least 48 hours remaining, so initial
-admission eligibility ends **25 October 2026, 19:17:25 UTC** unless extended.
-This admission cutoff is earlier than the tokens' unlock time.
+The [finalized extension](evidence/knowledge/stake-extension-2026-10-21/report.md)
+retains its **1,000,000 CVNT stake with zero added tokens**. Fixed lock expiry is
+**19 November 2026 at 22:10:13 UTC**. The coordinator requires at least 48 hours
+remaining, so current admission eligibility ends **17 November 2026 at
+22:10:13 UTC**. This replaces the initial October 25 admission cutoff; the
+original activation record remains a dated account of the initial stake.
 
-Continued operation requires an authorized extension before the admission
-cutoff and a healthy operator. No automatic extension or uptime guarantee is
-implied. The deployed program accepted an unsigned extension simulation; no
-extension has been executed or scheduled as part of this activation.
+Current capacity and operator health remain required. Any further extension
+requires separate owner authorization; no automatic renewal or continuous
+availability is promised. Admission eligibility ends before token unlock.
 
 The live service admits one compilation at a time under a separate operator
 identity and resource group, preserving Kani. The accepted cohosting test used

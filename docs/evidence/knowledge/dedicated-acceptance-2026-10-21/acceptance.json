@@ -1,0 +1,126 @@
+{
+  "schema": "covenant.compute.knowledge.dedicated-paid-acceptance.v1",
+  "status": "accepted",
+  "observed_at": "2026-10-20T22:39:42.469Z",
+  "calendar_label": "21 October2026 Europe/Copenhagen; transaction and observation timestamps are UTC20October",
+  "scope": "One new original public-source compile on the dedicated operator, followed by one settled-key replay. No client interruption or service restart test.",
+  "release": {
+    "tag": "compute-v0.5.1",
+    "url": "https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1",
+    "source_revision": "809aa264c2c1cb965c11001052096eece5caf0cf",
+    "executed_platform": "darwin-arm64",
+    "public_installed_buyer_sha256": "53dd131563dd6363d185e5bc185f185c179ed0ab27773e17fed6f9c6914cf823"
+  },
+  "operator": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+  "coordinator_revision": "5146e46e6bae31bf6813ca85f099674e878a1ae9",
+  "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+  "job": {
+    "original_job_id": "db3133b0-0f70-434d-a031-34b1e71ffff4",
+    "replay_job_id": "db3133b0-0f70-434d-a031-34b1e71ffff4",
+    "original_envelope_sha256": "21004d35131a55750c937679744c1a1162517b1e9bf178a6b0d13e2c2b7095b3",
+    "signed_receipt_file": "signed-receipt.json",
+    "executed_at_ms": 1792535776261,
+    "status": "ok",
+    "same_signed_receipt_on_replay": true,
+    "same_envelope_on_replay": true,
+    "same_snapshot_on_replay": true,
+    "new_original_jobs": 1,
+    "additional_replay_jobs": 0,
+    "additional_replay_charge_micro_usdc": 0
+  },
+  "artifact": {
+    "source_repository": "https://github.com/pallets/itsdangerous",
+    "source_commit": "672971d66a2ef9f85151e53283113f33d642dabd",
+    "source_sha256": "9ce84a3e81b11f03398a63a9e0e2ade69618354c10e6fe25946db6f45baeba42",
+    "normalized_source_bytes": 294697,
+    "selected_files": 50,
+    "compiler_image_sha256": "d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+    "output_sha256": "c6dfe252502e757c555c9b403eed4bfc6c1a5d56e4918db633bd7e3a0ddcbf0d",
+    "snapshot_sha256": "2cfc9a5ad3c0df4dcec7cfe37c107ba3573c103e2875f23c304c2a44bac2b03a",
+    "snapshot_id": "460181928b11eda628c6b764d82b977ec1da52ee65fc53b587a350b4721bd3d2",
+    "coverage": {
+      "excluded": 0,
+      "files": 50,
+      "languages": {
+        "markdown": 4,
+        "python": 15,
+        "text": 31
+      },
+      "objects": 1378,
+      "partial": false,
+      "relationships": 2628,
+      "resolved": 1374,
+      "unresolved": 1254
+    },
+    "source_citation_verification": {
+      "at": "2026-10-20T22:39:25.250877+00:00",
+      "query": "Signer",
+      "total_query_matches": 420,
+      "returned_citations_verified": 30,
+      "all_object_spans_verified": 1378,
+      "selected_source_files": 50,
+      "byte_ranges_utf8_valid": true,
+      "source_hashes_verified": true,
+      "revision_and_snapshot_bindings_verified": true
+    },
+    "independent_checks": {
+      "receipt_ed25519": true,
+      "signed_receipt_json_matches_fields": true,
+      "original_envelope_hash": true,
+      "output_hash": true,
+      "source_hash": true,
+      "snapshot_hash": true,
+      "exact_compiler": true,
+      "local_deterministic_recompile_before_import": true,
+      "separate_installed_knowledge_verify": {
+        "valid": true,
+        "files": 50,
+        "objects": 1378
+      }
+    },
+    "scope": "Hashes were independently verified against the fetched original artifact. Public source is identified by pinned commit; raw buyer journals and local paths are excluded."
+  },
+  "settlement": {
+    "gross_micro_usdc": 50000,
+    "operator_net_micro_usdc": 45000,
+    "marketplace_fee_micro_usdc": 5000,
+    "funding_transaction": "2kdoMUqoPpWpPLR7kydBsWT11kKangFzQXLHP9L5vX98Ypj4sXAmZknoVmg3pnsj3PHRbLnn34HMrBnAY66NtAME",
+    "funding_micro_usdc": 50000,
+    "funding_fee_lamports": 5000,
+    "payout_transaction": "57zGGeEc7r4TiQU6Q4SqhesCbtB8Jd3gH17yWJm8fq39VzBouxVZdS4Vf9fXFMtwFNi6uSJWYyFGg1vb6MUrw8Ya",
+    "payout_memo": "compute-payout:v1:db3133b0-0f70-434d-a031-34b1e71ffff4:BvXqkmH3AqbQwFZPNp28sYfQ5ixVWvYYenKWCcZmEfv3aDKXFeMNDBLaLbRYcUF7PrCzEKHfiJvJTvE6Snf8Y2K",
+    "payout_fee_lamports": 5000,
+    "total_network_fee_lamports": 10000,
+    "approved_network_fee_ceiling_lamports": 20000,
+    "new_account_rent_lamports": 0,
+    "both_transactions_finalized": true,
+    "source_destination_mint_amount_memo_verified": true,
+    "public_cli_verdict": "verified_onchain",
+    "withdrawals": 0,
+    "additional_purchases": 0
+  },
+  "preservation": {
+    "historical_budget_entries_unchanged": true,
+    "historical_purchase_keys_envelopes_receipt_ids_unchanged": true,
+    "approved_guarded_limit_change_applied": true,
+    "journal_compaction": "Normal client boot compacted duplicate rows; logical entries preserved. Budget clock watermark advanced normally.",
+    "no_host_restart_or_reconfiguration": true,
+    "kani_public_capacity_preserved": true,
+    "existing_commitments_preserved": true
+  },
+  "operator_observations": {
+    "released_before_original": 0,
+    "released_before_replay": 1,
+    "released_after_replay": 1,
+    "faults_after": 0,
+    "fresh_capacity_file": "capacity-after.json"
+  },
+  "limitations": [
+    "This is one fixture and one paid native-platform run, not a throughput or uptime guarantee.",
+    "Only normal completion and settled replay were exercised; earlier pilot restart testing is separate evidence.",
+    "Operator release counters and buyer/coordinator accounting were checked; no new host-level execution trace was collected for this run.",
+    "Receipts bind execution and output; source citations do not prove runtime semantics or correctness.",
+    "The artifact was locally recompiled before import; no speedup, private-source or confidential-compute claim follows.",
+    "Stake extension has separate authorization, transaction and fee evidence; its fee is excluded from this one-job funding+payout total."
+  ]
+}

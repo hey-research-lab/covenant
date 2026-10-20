@@ -110,10 +110,19 @@ exact compiler at 50,000 micro-USDC per job, with at most one job in flight. Kan
 original process, configuration and journals stayed unchanged. The preview
 submitted no job and left buyer accounting byte-identical.
 
-This establishes limited capacity, not a new-identity paid execution, sustained
-peak-load performance, reboot recovery or guaranteed uptime. Initial stake
-admission eligibility ends 25 October 2026 at 19:17:25 UTC unless extended;
-locked tokens unlock two days later. No automatic renewal is scheduled.
+That activation established limited capacity and an idle restart without a paid
+job. The subsequent [dedicated paid acceptance](evidence/knowledge/dedicated-acceptance-2026-10-21/report.md)
+verified exactly one new job, its signed receipt, artifact/import and finalized
+settlement. Identical-key settled replay returned the same job, envelope,
+receipt and snapshot without another job or charge. Original budget
+entries and the prior hold were preserved. This adds normal-completion and
+settled-replay evidence, not an interruption, peak-load or reboot test.
+
+The [finalized stake extension](evidence/knowledge/stake-extension-2026-10-21/report.md)
+retains 1,000,000 CVNT with zero added tokens. Admission eligibility now ends
+**17 November 2026 at 22:10:13 UTC**, with fixed token unlock on **19 November
+2026 at 22:10:13 UTC**. Current capacity and operator health remain required;
+no automatic further renewal or guaranteed uptime is implied.
 
 The central website graph was updated to square glass nodes. Its production
 build and desktop/mobile layout checks passed; campaign exports retain exact
@@ -188,12 +197,13 @@ deployed operators, or add a paid job.
 | Website installer promotion | [Live 0.5.1 promotion passed](evidence/knowledge/public-release-0.5.1/installer-promotion.md): actual served HTTPS body matched the reviewed hash and passed fresh public-archive installation, all four binary hashes and 19 Knowledge checks. Only five installer pin assignments changed. Historical 0.5.0 evidence is preserved; Homebrew remains 0.4.1 |
 | Actual OCI compiler image | Exact Linux/ARM64 image passed Docker lifecycle checks and two funded production jobs on an isolated host; image has no public registry release |
 | Public operator and routing rollout | Coordinator/node revision 5146e46e6bae31bf6813ca85f099674e878a1ae9; [dedicated limited capacity accepted](evidence/knowledge/remote-activation-2026-10-20/report.md), at most one in-flight job and observed 50,000-micro-USDC ask; Kani preserved |
-| Dedicated operator lifecycle | Finalized stake, bounded cohosting, live registration/heartbeat and guarded idle restart passed; actual installed public-client preview passed with no new job or accounting changes; initial admission cutoff 25 October 2026 at 19:17:25 UTC |
+| Dedicated operator lifecycle | Initial staking, bounded cohosting, live registration/heartbeat and guarded idle restart passed. The [finalized extension](evidence/knowledge/stake-extension-2026-10-21/report.md) retains 1,000,000 CVNT, adds zero tokens and moves admission cutoff to 17 November 2026 at 22:10:13 UTC; unlock is 19 November at the same time. Current health/capacity remain separate checks |
+| Dedicated operator paid acceptance | [One authorized job](evidence/knowledge/dedicated-acceptance-2026-10-21/report.md) passed signed receipt, artifact/import and finalized settlement; identical-key settled replay recovered the same job without another job or charge; existing entries and prior hold preserved. No new interruption/restart claim |
 | Installed client paid acceptance | Two funded jobs passed with the clean native 0.5.0 candidate; the freshly installed signed public Apple Silicon binary then recovered both original receipts and imported identical snapshots without new jobs or charges; [evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md) |
 | Real process restart / financial reconciliation | Actual client interruption after acknowledged submission, same-envelope recovery, identical settled receipt replay, two executions and two finalized payouts verified; no coordinator or host power-loss claim |
 | Shared authenticated daemon access | Not exposed; public proxy refuses knowledge access; project authorization adapter remains a separate gate |
 | Private remote repositories | Refused by the public-source pilot; operator-access policy remains undefined |
-| Feature page and campaign | [Public feature page](https://opencovenant.org/compute-knowledge) and 0.5.1 installer deployed from d693a8dee46a09d7a363650371ed6ced91b1d576; standard CTA styles, three-viewport live review and six release/guide/evidence links passed. Revised artwork and demo prepared; no X posting or scheduling |
+| Feature page and campaign | [Public feature page](https://opencovenant.org/compute-knowledge) and 0.5.1 installer deployed from d693a8dee46a09d7a363650371ed6ced91b1d576; standard CTA styles, three-viewport live review and six release/guide/evidence links passed. Revised artwork and demo prepared; user-published launch verified; no follow-up posted or scheduled by this workflow |
 
 Follow the [remote acceptance guide](compute-knowledge-remote-acceptance.md) for
 the coordinator → compiler operator → client order and the evidence that must

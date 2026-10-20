@@ -11,6 +11,13 @@ then passed finalized staking, cohosting, live capacity, a guarded idle restart
 and an installed public-client preview. **Limited public capacity accepted at
 19:12 UTC on 20 October 2026:** one operator, one job in flight, with an observed
 50,000-micro-USDC ask. This activation introduced no new paid job.
+
+A subsequent [dedicated paid acceptance](evidence/knowledge/dedicated-acceptance-2026-10-21/report.md)
+completed one authorized job on that identity. Its signed receipt, artifact,
+local import and finalized settlement verified; the identical-key settled replay
+returned the same job, envelope, receipt and snapshot without another job
+or charge. Existing buyer entries and the prior hold remained intact. This
+checks normal completion and settled replay, not interruption or restart recovery.
 Use the [public-source buyer guide](compute-knowledge-remote.md) and check current
 capacity before purchasing. Shared daemon project authorization and private
 remote processing are separate scope.
@@ -70,11 +77,12 @@ allows one in-flight Knowledge job, a 256 MiB/one-CPU aggregate ceiling and a
 Kani proof passed concurrently. This is bounded cohosting evidence, not sustained
 full-load or host reboot acceptance. Both services share one failure domain.
 
-Its 1,000,000 CVNT stake unlocks on **27 October 2026 at 19:17:25 UTC**. The
-current 48-hour remaining-lock gate ends admission eligibility on **25 October
-2026 at 19:17:25 UTC** unless extended. Owner-authorized extension is supported
-by a successful unsigned live simulation; none is executed or scheduled here.
-Service health, current capacity and renewal remain operational requirements.
+The [finalized fixed extension](evidence/knowledge/stake-extension-2026-10-21/report.md)
+keeps the stake at **1,000,000 CVNT with zero added tokens** and fixes unlock at
+**19 November 2026 at 22:10:13 UTC**. The 48-hour remaining-lock gate now ends
+admission eligibility on **17 November 2026 at 22:10:13 UTC**. These dates
+supersede the initial October stake window. Service health and current capacity
+remain operational requirements; no automatic further extension is scheduled.
 
 The new identity's idle restart preserved its empty obligation journals and
 the original Kani process. It is not a replay of customer work. Paid

@@ -65,11 +65,18 @@ operator, at most one compilation in flight and an observed 50,000-micro-USDC as
 The exact compiler remained pinned. A finalized 1,000,000 CVNT stake, bounded
 cohosting tests, a guarded idle restart and a freshly installed public-client
 source-and-quote preview passed. Kani and existing financial records were
-preserved. No additional paid job under the new operator identity is claimed.
-The initial admission cutoff is **25 October 2026 at 19:17:25 UTC**, unless the
-stake is extended; operator health and current capacity remain separate
-conditions. No redundant host, peak-load guarantee or automatic renewal is
-implied.
+preserved. That activation introduced no paid job. The subsequent
+[dedicated paid acceptance](evidence/knowledge/dedicated-acceptance-2026-10-21/report.md)
+verified one authorized job, its signed receipt, artifact/import and finalized
+settlement. Identical-key settled replay recovered the same job without another
+job or charge; original budget entries and the prior hold were preserved.
+This adds normal completion and settled replay, not interruption or restart proof.
+
+The [finalized stake extension](evidence/knowledge/stake-extension-2026-10-21/report.md)
+retains 1,000,000 CVNT with zero added tokens and fixes unlock at **19 November
+2026 at 22:10:13 UTC**. Admission eligibility now ends **17 November 2026 at
+22:10:13 UTC**. Operator health and current capacity remain separate conditions.
+No redundant host, peak-load guarantee or automatic renewal is implied.
 
 The earlier [signed local 0.5.0 release](evidence/knowledge/public-release-0.5.0/report.md)
 passed all four native builds/installations and independent public archive

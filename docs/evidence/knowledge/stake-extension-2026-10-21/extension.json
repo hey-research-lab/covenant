@@ -1,0 +1,113 @@
+{
+  "schema": "covenant.knowledge.stake-extension-acceptance.v1",
+  "observed_at": "2026-10-20T22:39:06.133Z",
+  "result": "pass",
+  "verification_method": "Independent read-only finalized Solana RPC and public coordinator GETs; no new signing, submission or host action.",
+  "transaction": {
+    "signature": "5j9KJ1TCvvfz2hZj3cVp8HJqJ18R1KMgVKsBxZKjkFRFur49PY2pdRo8bfdN9EvytcbZZ83Q4nJFerSB4oaFhqxS",
+    "explorer_url": "https://explorer.solana.com/tx/5j9KJ1TCvvfz2hZj3cVp8HJqJ18R1KMgVKsBxZKjkFRFur49PY2pdRo8bfdN9EvytcbZZ83Q4nJFerSB4oaFhqxS",
+    "chain": "Solana mainnet-beta",
+    "genesis": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+    "finality": "finalized",
+    "slot": 459398415,
+    "block_time_utc": "2026-10-20T22:37:16.000Z",
+    "fee_lamports": 25000,
+    "transaction_sha256": "d71225097adeed93ff35fb5dc135f6794e8273c9ac687335d8090efcb9acbab5",
+    "message_sha256": "b1e46db78a527693a1d7aac8a70142015192f95999b065892c0dd3658468e95c",
+    "exact_wire_matches_pre_dispatch_durable_intent": true,
+    "signature_verified": true,
+    "expected_three_instructions_verified": true,
+    "only_owner_fee_lamport_effect": true,
+    "no_rent_or_new_account": true,
+    "source_and_vault_token_amounts_unchanged": true
+  },
+  "position": {
+    "operator": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+    "owner": "JZXvQHLoiXW5ewVoGPAJ13gnhwkg2dCc94UibpTQ5xL",
+    "program": "3dTtXH7rah8YyWTsAfSg6qC3iqrJXWGEhAx57uUHXZff",
+    "mint": "2mNVZ6aEjrGwiUVCfz7XGWpiXuWzgBDoznwE579upump",
+    "token_program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "position": "DiTnr7MKbG1R2eU2vbVdt6Y5x3VbM5aTN5UjWpGy3y2M",
+    "vault": "FZB6H8C952Vj9FZUZNry7fHymok5cy2QD6GHfTQnAB6w",
+    "active": true,
+    "retained_cvnt_base_units": "1000000000000",
+    "retained_cvnt": 1000000,
+    "added_cvnt": 0,
+    "owner_operator_vault_unchanged": true,
+    "previous_lock_until_utc": "2026-10-27T19:17:25Z",
+    "previous_admission_cutoff_utc": "2026-10-25T19:17:25Z",
+    "lock_until_unix": 1795126213,
+    "lock_until_utc": "2026-11-19T22:10:13Z",
+    "lock_until_copenhagen": "2026-11-19T23:10:13+01:00",
+    "admission_cutoff_utc": "2026-11-17T22:10:13Z",
+    "admission_cutoff_copenhagen": "2026-11-17T23:10:13+01:00",
+    "coordinator_required_remaining_seconds": 172800,
+    "current_account_slot": 459398884
+  },
+  "custody": "Same program-controlled vault and slash authority; no token acquisition or transfer. Fixed lock cannot be shortened. Expiry does not automatically withdraw tokens. No automatic renewal was created.",
+  "public_capacity": {
+    "observed_at": "2026-10-20T22:39:06.134Z",
+    "method": "Unauthenticated GET with User-Agent covenant-knowledge-preactivation/1",
+    "capacity": {
+      "url": "https://compute-api.opencovenant.org/federation/capacity",
+      "http_status": 200,
+      "response_sha256": "9d09891c7fe4c24372cb2d6400bddff04c4c62dfd6801a7546b7f9a2375574f7",
+      "entries": [
+        {
+          "kind": "batch_job",
+          "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+          "operators": 1,
+          "min_ask_micro_usdc": 50000,
+          "min_ask_unit": "per_job",
+          "max_ask_micro_usdc": 50000,
+          "max_vram_gb": 0,
+          "gpu_classes": [
+            "cpu"
+          ],
+          "tee_capable": false
+        },
+        {
+          "kind": "agent_check",
+          "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+          "operators": 1,
+          "min_ask_micro_usdc": 19000,
+          "min_ask_unit": "per_job",
+          "max_ask_micro_usdc": 19000,
+          "max_vram_gb": 0,
+          "gpu_classes": [
+            "cpu"
+          ],
+          "tee_capable": false
+        }
+      ]
+    },
+    "operator": {
+      "url": "https://compute-api.opencovenant.org/federation/operators/CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf/reputation",
+      "http_status": 200,
+      "response_sha256": "769d3d8ffaaee7e22399d680dd4adbf02e822acb00381775c0a3a1c98ca735ff",
+      "body": {
+        "operator_pubkey_b58": "CfaV6nB59aDnTJccD5WXUiQejg9prMvtQrkFqQZRhWmf",
+        "released": 1,
+        "faults": 0,
+        "canary_passed": 0,
+        "canary_failed": 0,
+        "disputed": 0,
+        "redundancy_agreed": 0,
+        "redundancy_disagreed": 0,
+        "score_bps": 6666,
+        "min_score_bps": 0,
+        "min_bond_micro_usdc": 0,
+        "required_bond_micro_usdc": 0,
+        "committed_bond_micro_usdc": 0,
+        "stake_required": 1000000000000,
+        "staked": true,
+        "registered": true,
+        "status": "online",
+        "seen_ms_ago": 4237,
+        "live": true,
+        "matchable": true
+      }
+    }
+  },
+  "scope": "This extends the existing stake only. The capacity and asks are a dated observation, not an uptime or price promise. Purchases and paid acceptance are recorded separately; this record authorizes no further spending."
+}

@@ -1,0 +1,52 @@
+{
+  "source_repository": "https://github.com/pallets/itsdangerous",
+  "source_commit": "672971d66a2ef9f85151e53283113f33d642dabd",
+  "source_sha256": "9ce84a3e81b11f03398a63a9e0e2ade69618354c10e6fe25946db6f45baeba42",
+  "normalized_source_bytes": 294697,
+  "selected_files": 50,
+  "compiler_image_sha256": "d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+  "output_sha256": "c6dfe252502e757c555c9b403eed4bfc6c1a5d56e4918db633bd7e3a0ddcbf0d",
+  "snapshot_sha256": "2cfc9a5ad3c0df4dcec7cfe37c107ba3573c103e2875f23c304c2a44bac2b03a",
+  "snapshot_id": "460181928b11eda628c6b764d82b977ec1da52ee65fc53b587a350b4721bd3d2",
+  "coverage": {
+    "excluded": 0,
+    "files": 50,
+    "languages": {
+      "markdown": 4,
+      "python": 15,
+      "text": 31
+    },
+    "objects": 1378,
+    "partial": false,
+    "relationships": 2628,
+    "resolved": 1374,
+    "unresolved": 1254
+  },
+  "source_citation_verification": {
+    "at": "2026-10-20T22:39:25.250877+00:00",
+    "query": "Signer",
+    "total_query_matches": 420,
+    "returned_citations_verified": 30,
+    "all_object_spans_verified": 1378,
+    "selected_source_files": 50,
+    "byte_ranges_utf8_valid": true,
+    "source_hashes_verified": true,
+    "revision_and_snapshot_bindings_verified": true
+  },
+  "independent_checks": {
+    "receipt_ed25519": true,
+    "signed_receipt_json_matches_fields": true,
+    "original_envelope_hash": true,
+    "output_hash": true,
+    "source_hash": true,
+    "snapshot_hash": true,
+    "exact_compiler": true,
+    "local_deterministic_recompile_before_import": true,
+    "separate_installed_knowledge_verify": {
+      "valid": true,
+      "files": 50,
+      "objects": 1378
+    }
+  },
+  "scope": "Hashes were independently verified against the fetched original artifact. Public source is identified by pinned commit; raw buyer journals and local paths are excluded."
+}

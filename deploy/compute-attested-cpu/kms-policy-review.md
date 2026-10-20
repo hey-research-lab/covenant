@@ -293,3 +293,38 @@ does not qualify the KMS root or erase historical key exposure. These are
 residual trust boundaries, not evidence of an observed compromise.
 See dstack's [persistent container storage](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/os/common/rootfs/dstack-prepare.sh#L286-L303)
 and [swap setup](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/dstack-util/src/system_setup.rs#L2499-L2573).
+
+## Isolated no-KMS hosting experiment
+
+The [2026-10-20 no-KMS test](../../docs/compute-keyless-phala-feasibility.md)
+created one separate Phala CVM with an exact `key_provider:none` wrapper.
+Initial provider state and serial logs showed successful startup with temporary
+keys. Direct networking was refused for the workspace, and updating/restarting
+the guest failed to open its existing encrypted disk after key regeneration.
+No signed quote or buyer connection was verified. The test resource was deleted,
+with exact-UUID and workspace-list absence confirmed.
+
+This is evidence for exploring fresh-VM/fresh-disk workers with an independent
+connection path; it is not KMS qualification or a production-trust alternative.
+The existing managed-KMS gate and production verification remain unchanged.
+
+## Separate ephemeral profile
+
+The subsequent [outbound acceptance test](../../docs/compute-ephemeral-phala-acceptance.md)
+implements a distinct single-boot profile: fresh VM and encrypted disk per
+lease, `key_provider:none`, no sealed environment or Phala gateway, a guarded
+memory-backed workspace, and an outbound connection with a quote-bound SSH key.
+It does not change the rejected managed-KMS qualification above or assume that
+Phala changed its key-release policy.
+
+The explicit verifier authenticates the complete pinned production launch
+tuple and all runtime measurements, requires the `none`/empty provider and
+encrypted ext4 storage events, and rejects the KMS-only OS-image event. The
+pinned kernel/initrd and dm-verity root remain bound by the launch tuple. A
+fresh quote and strict SSH handshake have passed with current Intel collateral.
+The acceptance report records separate isolation, expiry and cleanup results.
+
+This establishes an alternative for bounded ephemeral execution without a
+managed-KMS secret-release dependency. It does not qualify persistent secrets,
+paid settlement, native relay admission or production activation; the served
+trust ceiling remains `Open` and native ephemeral creation stays disabled.

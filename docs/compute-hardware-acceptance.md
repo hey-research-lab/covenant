@@ -3,9 +3,15 @@
 Package 11 now includes a Phala CPU lease lifecycle, signed per-lease workload
 pins, automatic challenge/evidence collection and a buyer path for independent
 verification, SSH probing and workspace restore. The served trust ceiling
-remains **`Open`**, and new managed-KMS resource creation remains disabled.
+remains **`Open`**, and native managed-KMS and ephemeral creation remain disabled.
 This implementation has not completed a paid Covenant lease acceptance or a
 production attested-rental release.
+
+A separate [ephemeral Phala profile](compute-ephemeral-phala-acceptance.md)
+now allocates a fresh VM/disk per lease and connects outbound using an
+independently attested SSH key, without managed KMS. Its bounded live diagnostic
+is distinct from the native paid lease flow; the allocation API does not yet
+grant native relay readiness or buyer access.
 
 The [lease lifecycle guide](compute-phala-lease-lifecycle.md) records the exact
 configuration and buyer commands. The [hardware contract](compute-hardware-attestation.md)
@@ -65,13 +71,18 @@ not qualify KMS policy, paid lifecycle integration or a production release.
    prod7 endpoint, and all 16 registered Base/Ethereum KMS nodes reported
    `os_image_verification=false` on 2026-10-20: 18 of 18 assessed endpoints.
    Account evidence confirms the diagnostic app uses off-chain KMS; its prod5
-   compute host does not imply a prod5 KMS endpoint. Production requires
+   compute host does not imply a prod5 KMS endpoint. The managed model requires
    provider remediation with measured configuration
    and governance evidence, or a separately qualified customer-controlled
    KMS deployment. See the [KMS policy review](../deploy/compute-attested-cpu/kms-policy-review.md).
    Accepting the current managed-policy threat model can authorize only a
    finite synthetic pilot at `Open`; it is not an alternative production-trust
    qualification and cannot establish persistent-secret exclusivity.
+   The separate ephemeral profile avoids that key-release dependency through
+   fresh single-boot storage and an attested outbound channel. Its live proof
+   is recorded separately; production still requires complete native relay
+   admission, ownership/lifecycle integration and release review. It makes no
+   persistent-secret custody claim and does not relax managed-KMS verification.
 2. **Production release qualification.** The new digest-pinned diagnostic
    image passed real SSH/SFTP container smoke and live mounts/cgroup/swap/core
    checks on the existing CVM. Its source, registry bytes and runtime evidence

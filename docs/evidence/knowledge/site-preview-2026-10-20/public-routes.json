@@ -1,0 +1,95 @@
+{
+  "at": "2026-10-20T17:37:07.200547+00:00",
+  "source_revision": "5b86392ab80be15611cba4bec6cc24ee48b7de43",
+  "deploy_id": "dep-dbbqblbl550s739b5d70",
+  "routes": [
+    {
+      "path": "/compute-knowledge",
+      "status": 200,
+      "bytes": 88942,
+      "sha256": "af0f901dee31034c7e6ab77d6057fb8a8a9ce0a1d89152cec1bd44f6ba11d1a0",
+      "release_copy": true,
+      "pilot_boundary": true,
+      "preview_pending_absent": true
+    },
+    {
+      "path": "/compute",
+      "status": 200,
+      "bytes": 86318,
+      "sha256": "135998bbbfb9a0109b76cd2496c8918bb05f7036bb98a84398274291518d7bac"
+    },
+    {
+      "path": "/compute-langchain",
+      "status": 200,
+      "bytes": 105225,
+      "sha256": "08fcd246b3e6a240a5636a40372f30ce1e954f0cdf13093d26581a2867a474bb"
+    },
+    {
+      "path": "/compute-agent-framework",
+      "status": 200,
+      "bytes": 107908,
+      "sha256": "1b356e7bf38c320e83dd89c5d79502dee07327b0f3ed730b79ce8e3ee59c5d59"
+    },
+    {
+      "path": "/compute-inference",
+      "status": 200,
+      "bytes": 113395,
+      "sha256": "e428cc7938a589bdb85ddfac07bf1a11f97866979eb84850eb77f6b0b5cd7e61"
+    },
+    {
+      "path": "/compute-workspaces",
+      "status": 200,
+      "bytes": 103970,
+      "sha256": "60619ea2e8e8cffdfc754541d5d1c2bf233994454c544839f5eb4ecd1fda8ef2"
+    },
+    {
+      "path": "/compute-prices",
+      "status": 200,
+      "bytes": 72347,
+      "sha256": "c1ca6988d1d2b899b74158e328de9c289bf58a03eafe5cd39dfb6a08cc986913"
+    },
+    {
+      "path": "/compute-status",
+      "status": 200,
+      "bytes": 68101,
+      "sha256": "bed4cc58c0a11693fb8b9cdcb3016fcfdf992312694450af7343151ba4cc0ea3"
+    },
+    {
+      "path": "/compute-work",
+      "status": 200,
+      "bytes": 74977,
+      "sha256": "6b41887787137899c64e5aa7f0ab2bcbb8b8ab21bdb730b5f42f70aab1c05ae0"
+    },
+    {
+      "path": "/brand",
+      "status": 200,
+      "bytes": 228983,
+      "sha256": "cde17203749cb1d4d1450cd692acef317fc6618d7fbdb05b7fe9270c0e2953a2"
+    },
+    {
+      "path": "/install/compute.sh",
+      "status": 200,
+      "bytes": 5324,
+      "sha256": "18883da2515ea243ef7c95a92c1fac3a60f8c30f55d25df17c17c688efa0b0ef",
+      "verified_exact_pin": true
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200,
+      "bytes": 5313,
+      "sha256": "a11e3354bc0aab0f5164c45839290e2e42055259d3724095e972718f21c1e296"
+    },
+    {
+      "path": "/og/compute-knowledge.png",
+      "status": 200,
+      "bytes": 697919,
+      "sha256": "5d9fbf74ec03b3c9070b39b4d73b55c6ce9f7a84ed5cbaa740d20ad6b7e94964"
+    },
+    {
+      "path": "/compute-knowledge/field-square-perspective.webp",
+      "status": 200,
+      "bytes": 60964,
+      "sha256": "cb582d30c4f3e3a0f717446f3748b2e4ca19bdbdc48e90ce30fe38208cf703b6"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail closed unless a Knowledge landing candidate preserves the public site."""
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -39,6 +40,7 @@ exact = {
     "landing/app/_brand.tsx", "landing/app/sitemap.ts",
     "scripts/check-knowledge-site-baseline.py",
     "pnpm-lock.yaml",
+    "landing/public/install/compute.sh",
 }
 errors, paths = [], []
 for line in changes:
@@ -62,8 +64,24 @@ shared = {
 for path, (anchor, addition) in shared.items():
     old = git("show", base + ":" + path).decode()
     expected = old if addition.strip() in old else old.replace(anchor, anchor + addition)
-    if read(path).decode() not in (old, expected):
+    if path == "landing/app/_brand.tsx" and 'href: "/compute-knowledge"' in old:
+        expected = old
+    allowed = (old, expected)
+    if path == "landing/app/_brand.tsx":
+        allowed += (expected.replace("Compute Knowledge (preview)", "Compute Knowledge"),)
+    if read(path).decode() not in allowed:
         errors.append("Unrelated shared site change: " + path)
+
+# This installer body and its four archive pins were independently checked
+# against the signed compute-v0.5.0 release. A different installer is rejected.
+installer = "landing/public/install/compute.sh"
+installer_hash = hashlib.sha256(read(installer)).hexdigest()
+baseline_installer_hash = hashlib.sha256(git("show", base + ":" + installer)).hexdigest()
+if installer_hash not in (
+    baseline_installer_hash,
+    "18883da2515ea243ef7c95a92c1fac3a60f8c30f55d25df17c17c688efa0b0ef",
+):
+    errors.append("Installer differs from baseline or verified Compute 0.5.0")
 
 # Production's workspace lock omitted landing's direct sharp dependency, which
 # already resolves to 0.35.5 through the existing root override and snapshot.
@@ -82,7 +100,7 @@ fixed_lock = before + "\n  landing:\n" + fixed_landing + "\n  packages/config:\n
 if read("pnpm-lock.yaml").decode() not in (lock, fixed_lock):
     errors.append("Unreviewed dependency lock change")
 
-# Existing installer pins, pages and artwork are outside the allowlist.
+# Existing pages and artwork remain outside the allowlist.
 print(json.dumps({
     "baseline": base, "candidate": candidate, "pass": not errors,
     "changed_files": len(paths), "paths": paths, "errors": errors,

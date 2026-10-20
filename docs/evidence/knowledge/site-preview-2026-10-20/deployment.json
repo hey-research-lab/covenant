@@ -1,0 +1,42 @@
+{
+  "source_revision": "5b86392ab80be15611cba4bec6cc24ee48b7de43",
+  "deploy_id": "dep-dbbqblbl550s739b5d70",
+  "live_at": "2026-10-20T17:35:52.415534Z",
+  "trigger": "new_commit",
+  "service": "covenant-web",
+  "url": "https://opencovenant.org/compute-knowledge",
+  "configured_branch": "main",
+  "config_unchanged": true,
+  "environment_unchanged": true,
+  "environment_count": 20,
+  "guard": {
+    "original_baseline": "3f50e7eed7d88c88f6d97193f8e2cae19cf2e58d",
+    "passes": true,
+    "stale_feature_revision_rejected": "7ebdf36a4480c7edb9e26708ab127118d3e47f8c"
+  },
+  "local_validation": {
+    "production_build": true,
+    "metadata_tests": 64,
+    "card_pages": 85,
+    "prerendered_pages": 78
+  },
+  "public_browser_qa": {
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 1000
+      },
+      {
+        "width": 768,
+        "height": 1024
+      },
+      {
+        "width": 390,
+        "height": 844
+      }
+    ],
+    "all_pass": true
+  },
+  "x_posted": false,
+  "x_scheduled": false
+}

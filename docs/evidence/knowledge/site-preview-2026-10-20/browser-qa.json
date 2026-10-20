@@ -1,0 +1,90 @@
+{
+  "checkedAt": "2026-10-20T17:37:57.259Z",
+  "base": "https://opencovenant.org",
+  "checks": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "url": "https://opencovenant.org/compute-knowledge",
+      "httpStatus": 200,
+      "title": "Compute Knowledge — Covenant Compute",
+      "horizontalOverflow": false,
+      "errors": [],
+      "headings": [
+        "Codebase knowledgeyour agentscan inspect."
+      ],
+      "images": [
+        {
+          "src": "https://opencovenant.org/_next/image?url=%2Fcompute-knowledge%2Ffield-square-perspective.webp&w=1280&q=75",
+          "loaded": true
+        }
+      ],
+      "og": "https://opencovenant.org/og/compute-knowledge.png",
+      "canonical": "https://opencovenant.org/compute-knowledge",
+      "statusRows": "Local workflow\nAvailable in Compute 0.5.0\nRelease package\nSigned macOS + Linux builds\nRemote compiler\nPaid pilot accepted · public availability pending\nMeasured results\nReproducible fixture reports",
+      "localAnchor": "#local-preview",
+      "availabilityAnchor": "#availability",
+      "artStatus": 200,
+      "cardStatus": 200,
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "url": "https://opencovenant.org/compute-knowledge",
+      "httpStatus": 200,
+      "title": "Compute Knowledge — Covenant Compute",
+      "horizontalOverflow": false,
+      "errors": [],
+      "headings": [
+        "Codebase knowledgeyour agentscan inspect."
+      ],
+      "images": [
+        {
+          "src": "https://opencovenant.org/_next/image?url=%2Fcompute-knowledge%2Ffield-square-perspective.webp&w=1280&q=75",
+          "loaded": true
+        }
+      ],
+      "og": "https://opencovenant.org/og/compute-knowledge.png",
+      "canonical": "https://opencovenant.org/compute-knowledge",
+      "statusRows": "Local workflow\nAvailable in Compute 0.5.0\nRelease package\nSigned macOS + Linux builds\nRemote compiler\nPaid pilot accepted · public availability pending\nMeasured results\nReproducible fixture reports",
+      "localAnchor": "#local-preview",
+      "availabilityAnchor": "#availability",
+      "artStatus": 200,
+      "cardStatus": 200,
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "https://opencovenant.org/compute-knowledge",
+      "httpStatus": 200,
+      "title": "Compute Knowledge — Covenant Compute",
+      "horizontalOverflow": false,
+      "errors": [],
+      "headings": [
+        "Codebase knowledgeyour agentscan inspect."
+      ],
+      "images": [
+        {
+          "src": "https://opencovenant.org/_next/image?url=%2Fcompute-knowledge%2Ffield-square-perspective.webp&w=640&q=75",
+          "loaded": true
+        }
+      ],
+      "og": "https://opencovenant.org/og/compute-knowledge.png",
+      "canonical": "https://opencovenant.org/compute-knowledge",
+      "statusRows": "Local workflow\nAvailable in Compute 0.5.0\nRelease package\nSigned macOS + Linux builds\nRemote compiler\nPaid pilot accepted · public availability pending\nMeasured results\nReproducible fixture reports",
+      "localAnchor": "#local-preview",
+      "availabilityAnchor": "#availability",
+      "artStatus": 200,
+      "cardStatus": 200,
+      "pass": true
+    }
+  ]
+}

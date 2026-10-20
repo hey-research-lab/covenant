@@ -30,6 +30,6 @@ COPY deploy/compute-attested-cpu/collector.py \
 RUN chmod 0555 /opt/covenant/*.py && chmod 0444 /opt/covenant/packages.tsv && \
     python3 -m py_compile /opt/covenant/collector.py /opt/covenant/entrypoint.py
 
-WORKDIR /workspace
+WORKDIR /opt/covenant
 EXPOSE 1022 8090
 ENTRYPOINT ["python3", "/opt/covenant/entrypoint.py"]

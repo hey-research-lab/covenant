@@ -180,6 +180,15 @@ fn router(state: Arc<ViewerState>, base: &str) -> Router {
             }),
         )
         .route(
+            &format!("{base}/archivo-body.woff2"),
+            get(|| async {
+                asset(
+                    include_bytes!("knowledge_viewer/archivo-body.woff2"),
+                    "font/woff2",
+                )
+            }),
+        )
+        .route(
             &format!("{base}/mono.ttf"),
             get(|| async {
                 asset(

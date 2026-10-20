@@ -74,5 +74,16 @@
       "sha256": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d",
       "source": "Original font license embedded alongside the viewer font asset."
     }
+  ],
+  "embedded_assets": [
+    {
+      "file": "agent-os/crates/covenant-compute-buyer/src/knowledge_viewer/archivo-body.woff2",
+      "package": "Archivo",
+      "license_file": "OFL-Archivo.txt",
+      "sha256": "4c98b9d490d1698ec95f2ff17a6c7d0e72691864c0c5d7bc2a2c161b45afe5ad",
+      "source": "Original Covenant website Archivo Latin variable font, reused byte-for-byte from the Coinbase AgentKit film font asset.",
+      "source_url": "https://github.com/Omnibus-Type/Archivo",
+      "modifications": "None; embedding filename only."
+    }
   ]
 }

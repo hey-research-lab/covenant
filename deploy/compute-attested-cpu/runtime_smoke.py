@@ -203,13 +203,19 @@ def main():
         assert len(guest_calls) == 1
         assert request_collector("/quote", challenge)[0] == 409
         run("docker", "restart", collector_name)
+        # Docker may allocate a new ephemeral host port across a restart.
+        collector_port = mapped_port(collector_name, 8090)
+        base = f"http://127.0.0.1:{collector_port}"
+        restarted = False
         for _ in range(30):
             try:
                 if request_collector("/identity")[0] == 200:
+                    restarted = True
                     break
             except (OSError, urllib.error.URLError):
                 pass
             time.sleep(0.1)
+        assert restarted, "collector did not become ready after restart"
         assert request_collector("/quote", challenge)[0] == 409
         assert len(guest_calls) == 1
         # Replacing a host-key observation must fail the actual SSH handshake.

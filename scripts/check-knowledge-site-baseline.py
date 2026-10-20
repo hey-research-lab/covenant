@@ -38,6 +38,7 @@ prefixes = (
 exact = {
     "landing/app/_brand.tsx", "landing/app/sitemap.ts",
     "scripts/check-knowledge-site-baseline.py",
+    "pnpm-lock.yaml",
 }
 errors, paths = [], []
 for line in changes:
@@ -64,7 +65,24 @@ for path, (anchor, addition) in shared.items():
     if read(path).decode() not in (old, expected):
         errors.append("Unrelated shared site change: " + path)
 
-# Existing installer pins, pages, lockfile and artwork are outside the allowlist.
+# Production's workspace lock omitted landing's direct sharp dependency, which
+# already resolves to 0.35.5 through the existing root override and snapshot.
+# Permit only the reviewed importer repair; no dependency resolution changes.
+lock = git("show", base + ":pnpm-lock.yaml").decode()
+before, landing = lock.split("\n  landing:\n", 1)
+landing, after = landing.split("\n  packages/config:\n", 1)
+anchor = "      tailwind-merge:\n"
+addition = (
+    "      sharp:\n"
+    "        specifier: 0.35.5\n"
+    "        version: 0.35.5(@types/node@25.6.0)\n"
+)
+fixed_landing = landing if addition in landing else landing.replace(anchor, addition + anchor, 1)
+fixed_lock = before + "\n  landing:\n" + fixed_landing + "\n  packages/config:\n" + after
+if read("pnpm-lock.yaml").decode() not in (lock, fixed_lock):
+    errors.append("Unreviewed dependency lock change")
+
+# Existing installer pins, pages and artwork are outside the allowlist.
 print(json.dumps({
     "baseline": base, "candidate": candidate, "pass": not errors,
     "changed_files": len(paths), "paths": paths, "errors": errors,

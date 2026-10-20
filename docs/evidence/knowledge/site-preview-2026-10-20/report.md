@@ -22,6 +22,14 @@ The initial exact-commit request `dep-dbbpop8m7kps73d3lip0` targeted feature com
 
 Production remained on deployment `dep-dbb7dem0tbcc73f3s3o0`, commit `3f50e7eed7d88c88f6d97193f8e2cae19cf2e58d`. No unsafe build was promoted. The corrected candidate starts at that freshly fetched `origin/main` revision and adds only the Knowledge feature.
 
+## Inherited frozen-lock repair
+
+The corrected page candidate `6d7fbe56b47841ca9a8ab6716142bd12bddd7a31` passed the landing CI job. The Mizuki `application` job `118765632840` failed before application checks: the root `pnpm-lock.yaml` omitted `landing`'s direct `sharp` dependency. The package manifest and lockfile both matched production; the existing root override already selected `sharp@0.35.5` and its complete snapshot was already present.
+
+The repair adds only the three importer lines for `sharp`, preserving every resolved version and the separate landing lockfile. The baseline guard allows exactly that repair and rejects any other root lockfile change. No workflow conditions or required checks were weakened.
+
+Locally, pnpm 10.31.0 `install --frozen-lockfile --lockfile-only --ignore-scripts` passes for all 25 workspace manifests. This validates the frozen resolution without relinking the shared local dependency directory; CI must still complete the normal full install. The page's 64 metadata/card tests and social-card audit (85 pages, 78 prerendered pages) also pass.
+
 ## Acceptance before promotion
 
 - Production build and the site's social-card check pass.

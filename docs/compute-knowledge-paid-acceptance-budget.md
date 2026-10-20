@@ -1,6 +1,13 @@
 # Knowledge paid acceptance: proposed budget
 
-**Proposal only, 20 October 2026. No spending is authorized or performed by this document.**
+**Historical proposal, 20 October 2026.** The user subsequently approved this
+bounded run. [Completed acceptance evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md)
+records two jobs totaling **0.10 USDC** and **0.000015 SOL** in actual network
+fees, with no duplicate executions or charges. The existing hold was preserved
+and the original operator service restored. The paid client was the explicitly
+hashed clean native 0.5.0 candidate; signed public archive installation is
+verified separately. All observations and proposed gates below describe the
+earlier research state, not current public remote availability.
 
 Request approval for **at most 0.10 USDC in new gross job charges, plus a separate 0.0001 SOL transaction-fee ceiling**. This covers **two original Knowledge compilation jobs at no more than 0.05 USDC each**. Replaying either original job after a client restart authorizes **zero additional jobs**. Unused allowance is not a cost or permission for another test.
 

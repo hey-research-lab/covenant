@@ -1,0 +1,172 @@
+{
+  "schema": "covenant.knowledge.paid-pilot.v1",
+  "recorded_at": "2026-10-20T17:16:15.174879+00:00",
+  "scope": "Two authorized public-source acceptance jobs. This does not establish continuing public remote capacity.",
+  "coordinator": {
+    "url": "https://compute-api.opencovenant.org",
+    "revision": "5146e46e6bae31bf6813ca85f099674e878a1ae9"
+  },
+  "buyer_binary": {
+    "version": "0.5.0",
+    "binary_sha256": "16d5a702cbe298580a130f2707e84ff8e2bb9fc6a423ee31aa07306b423a74bf",
+    "archive_sha256": "8ad75e576ce5e52931cc147f5397fd9e9f1362618b9dc0ecd8b2b2c81c3cbd60",
+    "source_revision": "3d4499211fabec97da0ee918dc281bd3a4226758",
+    "source_tracked_dirty": false
+  },
+  "source": {
+    "repository": "https://github.com/pallets/itsdangerous",
+    "commit": "672971d66a2ef9f85151e53283113f33d642dabd",
+    "normalized_source_sha256": "9ce84a3e81b11f03398a63a9e0e2ade69618354c10e6fe25946db6f45baeba42",
+    "normalized_source_json_bytes": 294697,
+    "file_count": 50
+  },
+  "compiler_image_sha256": "d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+  "quote_micro_usdc_per_job": 50000,
+  "jobs": [
+    {
+      "label": "A",
+      "scenario": "normal completion then settled-key replay",
+      "job_id": "181df61f-4544-4f5d-a95d-cbff19a2ad57",
+      "signed_receipt": {
+        "receipt": {
+          "job_id": "181df61f-4544-4f5d-a95d-cbff19a2ad57",
+          "operator": {
+            "display": "operator@compute",
+            "pubkey": "HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh"
+          },
+          "job_hash_hex": "61287dacdc690667489ae82ed036072b1bff3950c239e353e6b3139f335c9fc0",
+          "result_hash_hex": "c6dfe252502e757c555c9b403eed4bfc6c1a5d56e4918db633bd7e3a0ddcbf0d",
+          "meter": {
+            "wall_ms": 1468,
+            "tokens_in": null,
+            "tokens_out": null,
+            "gpu_seconds": null,
+            "finish_reason": null
+          },
+          "price_micro_usdc": 50000,
+          "status": "ok",
+          "executed_at_ms": 1792516379192,
+          "node_audit_root_hex": "6f5f44e51939cc04d8c90f8751d85df4f037f544faff69c9b31c6a19a76f9a43"
+        },
+        "receipt_json": "{\"job_id\":\"181df61f-4544-4f5d-a95d-cbff19a2ad57\",\"operator\":{\"display\":\"operator@compute\",\"pubkey\":\"HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh\"},\"job_hash_hex\":\"61287dacdc690667489ae82ed036072b1bff3950c239e353e6b3139f335c9fc0\",\"result_hash_hex\":\"c6dfe252502e757c555c9b403eed4bfc6c1a5d56e4918db633bd7e3a0ddcbf0d\",\"meter\":{\"wall_ms\":1468,\"tokens_in\":null,\"tokens_out\":null,\"gpu_seconds\":null,\"finish_reason\":null},\"price_micro_usdc\":50000,\"status\":\"ok\",\"executed_at_ms\":1792516379192,\"node_audit_root_hex\":\"6f5f44e51939cc04d8c90f8751d85df4f037f544faff69c9b31c6a19a76f9a43\"}",
+        "signature_b58": "5g5cPSLkHccc9MFDJgwrSM5T9uGmni22JMvXSDy3yFceeJKd5k7VN3T6PZJMMmhyEtSeFxfwPfGFGpSTNJ3GWM4G",
+        "signer_pubkey_b58": "HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh"
+      },
+      "payout": {
+        "amount_micro_usdc": 45000,
+        "tx_signature": "35au4EpQjcbQsAYXvmkBgwAkgXwe6cTNcuzWzCryRTyULuwPZtvhWrw2qH5n9QiwanpYyjwNMcb6YX3gkCS9kBaK",
+        "memo": "compute-payout:v1:181df61f-4544-4f5d-a95d-cbff19a2ad57:5g5cPSLkHccc9MFDJgwrSM5T9uGmni22JMvXSDy3yFceeJKd5k7VN3T6PZJMMmhyEtSeFxfwPfGFGpSTNJ3GWM4G",
+        "recorded_at_ms": 1792516380423
+      },
+      "charged_micro_usdc": 50000,
+      "checks": {
+        "ed25519_verified": true,
+        "original_envelope_hash_verified": true,
+        "output_hash_verified": true,
+        "source_hash_verified": true,
+        "snapshot_hash_verified": true
+      },
+      "source_sha256": "9ce84a3e81b11f03398a63a9e0e2ade69618354c10e6fe25946db6f45baeba42",
+      "snapshot_sha256": "2cfc9a5ad3c0df4dcec7cfe37c107ba3573c103e2875f23c304c2a44bac2b03a",
+      "snapshot_id": "460181928b11eda628c6b764d82b977ec1da52ee65fc53b587a350b4721bd3d2",
+      "settled_replay_same_receipt_no_additional_debit": true,
+      "client_interrupted_after_authoritative_submission": false,
+      "same_envelope_restart_verified": false,
+      "chain_verification": {
+        "job_id": "181df61f-4544-4f5d-a95d-cbff19a2ad57",
+        "verdict": "verified_onchain",
+        "memo": "compute-payout:v1:181df61f-4544-4f5d-a95d-cbff19a2ad57:5g5cPSLkHccc9MFDJgwrSM5T9uGmni22JMvXSDy3yFceeJKd5k7VN3T6PZJMMmhyEtSeFxfwPfGFGpSTNJ3GWM4G",
+        "tx_signature": "35au4EpQjcbQsAYXvmkBgwAkgXwe6cTNcuzWzCryRTyULuwPZtvhWrw2qH5n9QiwanpYyjwNMcb6YX3gkCS9kBaK",
+        "proof": {
+          "amount_micro_usdc": 45000,
+          "mint_b58": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "recipient_owner_b58": "JZXvQHLoiXW5ewVoGPAJ13gnhwkg2dCc94UibpTQ5xL"
+        },
+        "explorer_url": "https://explorer.solana.com/tx/35au4EpQjcbQsAYXvmkBgwAkgXwe6cTNcuzWzCryRTyULuwPZtvhWrw2qH5n9QiwanpYyjwNMcb6YX3gkCS9kBaK",
+        "detail": "the chain's own record carries this receipt's memo and paid 45000 base units of mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v to JZXvQHLoiXW5ewVoGPAJ13gnhwkg2dCc94UibpTQ5xL"
+      }
+    },
+    {
+      "label": "B",
+      "scenario": "client restart after observed submission then same-key recovery and replay",
+      "job_id": "408e1676-9cdd-4cdf-9afd-1da0fa8091dc",
+      "signed_receipt": {
+        "receipt": {
+          "job_id": "408e1676-9cdd-4cdf-9afd-1da0fa8091dc",
+          "operator": {
+            "display": "operator@compute",
+            "pubkey": "HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh"
+          },
+          "job_hash_hex": "e58f55f45284a05e22fb271ea5450e4aac01c92fd07d5768d597a992fefa1321",
+          "result_hash_hex": "c6dfe252502e757c555c9b403eed4bfc6c1a5d56e4918db633bd7e3a0ddcbf0d",
+          "meter": {
+            "wall_ms": 1336,
+            "tokens_in": null,
+            "tokens_out": null,
+            "gpu_seconds": null,
+            "finish_reason": null
+          },
+          "price_micro_usdc": 50000,
+          "status": "ok",
+          "executed_at_ms": 1792516423457,
+          "node_audit_root_hex": "e4f7463041bd4257f9e73f66cf8ba9dcf404b2cdd762c15672ce49f9c14d0d93"
+        },
+        "receipt_json": "{\"job_id\":\"408e1676-9cdd-4cdf-9afd-1da0fa8091dc\",\"operator\":{\"display\":\"operator@compute\",\"pubkey\":\"HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh\"},\"job_hash_hex\":\"e58f55f45284a05e22fb271ea5450e4aac01c92fd07d5768d597a992fefa1321\",\"result_hash_hex\":\"c6dfe252502e757c555c9b403eed4bfc6c1a5d56e4918db633bd7e3a0ddcbf0d\",\"meter\":{\"wall_ms\":1336,\"tokens_in\":null,\"tokens_out\":null,\"gpu_seconds\":null,\"finish_reason\":null},\"price_micro_usdc\":50000,\"status\":\"ok\",\"executed_at_ms\":1792516423457,\"node_audit_root_hex\":\"e4f7463041bd4257f9e73f66cf8ba9dcf404b2cdd762c15672ce49f9c14d0d93\"}",
+        "signature_b58": "62RVipeWV2RJcw85tkiJnnip4cGsxLhpFnmrAEo8WkuG6y7z1xroPq3y3ZxBwT3ttaghWcbuv7nBXeiQECjyRf9Z",
+        "signer_pubkey_b58": "HuTP2kfzhns9p3ZvmuZxGzcgYan7z4LaZVytgcG9VVuh"
+      },
+      "payout": {
+        "amount_micro_usdc": 45000,
+        "tx_signature": "5yBBSb3eM2KPEJ465nT17YgWbMaW5qSSAj3gSZ9dZQMUS93R7gKjNem9qq8pEsZ2yHDvjUiP4hiCBuLX3pbrYtDy",
+        "memo": "compute-payout:v1:408e1676-9cdd-4cdf-9afd-1da0fa8091dc:62RVipeWV2RJcw85tkiJnnip4cGsxLhpFnmrAEo8WkuG6y7z1xroPq3y3ZxBwT3ttaghWcbuv7nBXeiQECjyRf9Z",
+        "recorded_at_ms": 1792516426126
+      },
+      "charged_micro_usdc": 50000,
+      "checks": {
+        "ed25519_verified": true,
+        "original_envelope_hash_verified": true,
+        "output_hash_verified": true,
+        "source_hash_verified": true,
+        "snapshot_hash_verified": true
+      },
+      "source_sha256": "9ce84a3e81b11f03398a63a9e0e2ade69618354c10e6fe25946db6f45baeba42",
+      "snapshot_sha256": "2cfc9a5ad3c0df4dcec7cfe37c107ba3573c103e2875f23c304c2a44bac2b03a",
+      "snapshot_id": "460181928b11eda628c6b764d82b977ec1da52ee65fc53b587a350b4721bd3d2",
+      "settled_replay_same_receipt_no_additional_debit": true,
+      "client_interrupted_after_authoritative_submission": true,
+      "same_envelope_restart_verified": true,
+      "chain_verification": {
+        "job_id": "408e1676-9cdd-4cdf-9afd-1da0fa8091dc",
+        "verdict": "verified_onchain",
+        "memo": "compute-payout:v1:408e1676-9cdd-4cdf-9afd-1da0fa8091dc:62RVipeWV2RJcw85tkiJnnip4cGsxLhpFnmrAEo8WkuG6y7z1xroPq3y3ZxBwT3ttaghWcbuv7nBXeiQECjyRf9Z",
+        "tx_signature": "5yBBSb3eM2KPEJ465nT17YgWbMaW5qSSAj3gSZ9dZQMUS93R7gKjNem9qq8pEsZ2yHDvjUiP4hiCBuLX3pbrYtDy",
+        "proof": {
+          "amount_micro_usdc": 45000,
+          "mint_b58": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "recipient_owner_b58": "JZXvQHLoiXW5ewVoGPAJ13gnhwkg2dCc94UibpTQ5xL"
+        },
+        "explorer_url": "https://explorer.solana.com/tx/5yBBSb3eM2KPEJ465nT17YgWbMaW5qSSAj3gSZ9dZQMUS93R7gKjNem9qq8pEsZ2yHDvjUiP4hiCBuLX3pbrYtDy",
+        "detail": "the chain's own record carries this receipt's memo and paid 45000 base units of mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v to JZXvQHLoiXW5ewVoGPAJ13gnhwkg2dCc94UibpTQ5xL"
+      }
+    }
+  ],
+  "totals": {
+    "original_jobs": 2,
+    "job_charges_micro_usdc": 100000,
+    "funding_fee_lamports": 5000,
+    "payout_fee_lamports": 10000,
+    "total_network_fee_lamports": 15000,
+    "local_snapshot_objects": 1378,
+    "local_snapshot_relationships": 2628,
+    "resolved_relationships": 1374,
+    "unresolved_relationships": 1254,
+    "citations_verified": 1378
+  },
+  "limitations": [
+    "Paid buyer is the explicitly hashed clean native candidate, not a claim that all public archive builds ran paid jobs.",
+    "Operator logs and Docker observations separately establish two executions and resource isolation.",
+    "Remote compiler runs Linux ARM64 with host emulation; no ingestion latency or speedup claim follows.",
+    "Source citations identify captured bytes; operator signatures identify execution and its output. Neither proves semantic correctness or confidential execution.",
+    "Shared daemon project permissions and private remote repositories remain outside this pilot."
+  ]
+}

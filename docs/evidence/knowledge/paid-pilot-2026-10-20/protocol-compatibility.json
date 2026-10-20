@@ -1,0 +1,220 @@
+{
+  "schema": "covenant-knowledge-protocol-compatibility-v1",
+  "buyer_candidate_source_revision": "3d4499211fabec97da0ee918dc281bd3a4226758",
+  "deployed_coordinator_and_pilot_node_revision": "5146e46e6bae31bf6813ca85f099674e878a1ae9",
+  "comparison": "Exact Git blob bytes, not version-label inference",
+  "protocol_crate_files_identical": true,
+  "protocol_file_count": 40,
+  "protocol_files": [
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/Cargo.toml",
+      "sha256": "ad5d08341d8aec6b287079d3d3b5271373564bfbdd17f0670ac98ea422c192e3",
+      "bytes": 1659
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/README.md",
+      "sha256": "af57abc2bfa19e2cc26fedf4eb194bb5bc11b16d79cc4b1fa6fdc6c9ec8b91db",
+      "bytes": 5189
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/address.rs",
+      "sha256": "d4765217430c15c5f2439d6ae17fb5386f0a78a2ccf3b7f902cd95e2f52fdca8",
+      "bytes": 2455
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/agent.rs",
+      "sha256": "d98808645fdbfae39676240496308a387cbff2fa74b115b59cd95f7683fecb2b",
+      "bytes": 66257
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/agent_evidence.rs",
+      "sha256": "d613ea103893ade8b34bb2a1ac41b74e022335a0c5487d7f08d7795d171cd472",
+      "bytes": 1391
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/bond.rs",
+      "sha256": "d02fee19eb40677dcb6277aa76e91f71cd6081aed46a133736f3d1b618b10468",
+      "bytes": 9820
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/cancel.rs",
+      "sha256": "254f6ce0fba68f35b3eb47c3123dc5fe5c50f9cbc549df52f143c3472874d8e2",
+      "bytes": 5103
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/capability.rs",
+      "sha256": "5a8f836a89ea3b703f8745f31fba0591d9508fc1e119af5501f5e1fb25ff2baf",
+      "bytes": 45598
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/chat.rs",
+      "sha256": "4ac67430fae4a8063f983b36a266f591302f72c05b7055c2728d1b445c799e76",
+      "bytes": 14141
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/dispute.rs",
+      "sha256": "80a61c4e009697b18e4db4f8eec3bc30373b0bc00f494c0291d0d525f03df330",
+      "bytes": 6914
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/embedding.rs",
+      "sha256": "95c16ff66864f648934ecba636d38ad40b4adcc8332b8b4ae3c6a953832bb41a",
+      "bytes": 11936
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/envelope.rs",
+      "sha256": "2a3e839e8ba5b947c2da3a910afe52864f8f32dc8d8a209dfe87b2b1879486d9",
+      "bytes": 29566
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/escrow.rs",
+      "sha256": "49d10822716c9942b73ebb4b8dbbafb5cec2888da5b72f190c06534ac6cf7667",
+      "bytes": 13233
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/fees.rs",
+      "sha256": "3da5185e5ee4d03fa011734979bb176d559a5a6b32984ac632e8cd7b98060fc3",
+      "bytes": 3324
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/generation.rs",
+      "sha256": "5f820992e1028bb1a3a82f43776b707778c7e4c9430a68773c60975abfc291f1",
+      "bytes": 25828
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/kani.rs",
+      "sha256": "fe51be3fa442c52b158cc5b7a6c5e5d3c964234a569b9d758e95effcf029740c",
+      "bytes": 39093
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/knowledge.rs",
+      "sha256": "1714cff5227dab4c9f000c922f2f52c50505edb1427c0089a28cd2b424934691",
+      "bytes": 12243
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/lease.rs",
+      "sha256": "7bc9bf656b0dd1354f3c938ec919bb49e44609fe259cbc4de221614a2b01f588",
+      "bytes": 12581
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/lease_close.rs",
+      "sha256": "48a9f67ae548dc38a30d377b37e5b98c68f0eec05291339b1976bff717125b13",
+      "bytes": 10448
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/lib.rs",
+      "sha256": "e8d259ea44dbd0d7717866121da6159b92ac53e9d043ce42ea8dd77542adc75f",
+      "bytes": 6176
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/logprobs.rs",
+      "sha256": "6f308dfcf502d666d1ac349d4cb98fbbfd51472707c60a8d31b4e1cdd2d4e162",
+      "bytes": 5950
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/merkle.rs",
+      "sha256": "f2ff476cc605a601857e96b0fa34e59dfa50d9699777cfbbd71cdf41f7ef2ab5",
+      "bytes": 7577
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/payout.rs",
+      "sha256": "4eb6ce4533fb0248ce68fdb92f8d94aba656b674437849a2a1f472f5c8171020",
+      "bytes": 11750
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/price_history.rs",
+      "sha256": "d4a89f704f6d76440e5c4a3f21aad0f856fd7fc988529833be23b6e4f53481ca",
+      "bytes": 1164
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/proof.rs",
+      "sha256": "9f6e8fbc3417e05d079bc47ea72f634ff1b583f87352b8669e0d9197a44c97fc",
+      "bytes": 24099
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/read_auth.rs",
+      "sha256": "53c286b7e92bd936ea837fc18e3cfdfbe403f9ed06a36e950c76397d670d7940",
+      "bytes": 4889
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/receipt.rs",
+      "sha256": "6987b92c6fdaba4933e61df8f147fb967d2657f6f3eb5528445be5d774ae2577",
+      "bytes": 19723
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/sign.rs",
+      "sha256": "4b25452e64cd563275dab19c474ddd962aeb4a60a8fdf988e7d40cc040bee02b",
+      "bytes": 3195
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/speech.rs",
+      "sha256": "537078ab03132aa1610532b30b4dc2ac5a27f9a91637b396e57c9cf73b760235",
+      "bytes": 14641
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/stream.rs",
+      "sha256": "2c430f4c767f97be21fdb78cf585b48047ac609897c035818ed967968b1fcf87",
+      "bytes": 2924
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/swarm.rs",
+      "sha256": "f872fbc2aeecc3219e6d3a3bcde679bfd4b07d1469e05a6151e72f857ee23c3e",
+      "bytes": 13836
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/tariff.rs",
+      "sha256": "e9619857202ad0ff709e9885eaa476c4e1baf75a41882bd95a185b28838f8ea2",
+      "bytes": 16763
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/tool.rs",
+      "sha256": "ba4ca69a4e6a6034fff0859b73c0477386fee0d439e672c309d4624cef2260ae",
+      "bytes": 20760
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/transcription.rs",
+      "sha256": "76beb308f22ca09ad3af3ebca2e190de9ce1016fb08cc2599af84fd667b39002",
+      "bytes": 16501
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/vault.rs",
+      "sha256": "b588bb0b69cab24adcd203024ea34c7297b0fdbbd8823d44b996e232f6d423ee",
+      "bytes": 16427
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/version.rs",
+      "sha256": "bd3cdfe9f4b8e3878396a5226a582806f171a85f20a776a4a55ab80f8eaddeaf",
+      "bytes": 2293
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/wire.rs",
+      "sha256": "b5583ed64175498ee36929f3424a0416dc7ad66f3323e38db9fd9739aff5abe4",
+      "bytes": 23655
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/withdrawal.rs",
+      "sha256": "6240327383fc0edbc78be0944e40221b8c95c89742210e451256dcb0f765c4e7",
+      "bytes": 9008
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/src/workspace.rs",
+      "sha256": "3a98cbaa174773dde8bd303df3d14c55f595532ce0c068112772a51c8bdd5f64",
+      "bytes": 16715
+    },
+    {
+      "path": "agent-os/crates/covenant-compute-protocol/tests/fixtures/kani-0.68-cases.json",
+      "sha256": "ba28fe6aeaccba3779adaaa24ef1bd2edd0d074d64426d15ba86859369e5d00e",
+      "bytes": 101938
+    }
+  ],
+  "pilot_node_execution_source_files_identical": [
+    "agent-os/crates/covenant-compute-node/src/main.rs",
+    "agent-os/crates/covenant-compute-node/src/knowledge.rs",
+    "agent-os/crates/covenant-compute-node/src/executor.rs",
+    "agent-os/crates/covenant-compute-node/src/lib.rs"
+  ],
+  "retained_receipt_signatures_independently_verified": 2,
+  "retained_evidence_consistency_check": "passed",
+  "private_local_paths_or_secret_fields_found": false,
+  "scope": "This compares the accepted native candidate protocol and execution sources with the minimal production backport. Public archive installation is separately verified."
+}

@@ -1,0 +1,61 @@
+{
+  "schema": "covenant-knowledge-paid-deployment-evidence-v1",
+  "observed_at_utc": "2026-10-20T17:15:10.601066+00:00",
+  "status": "bounded paid pilot completed; original Kani capacity restored",
+  "coordinator": {
+    "url": "https://compute-api.opencovenant.org",
+    "source_revision": "5146e46e6bae31bf6813ca85f099674e878a1ae9",
+    "image": "ghcr.io/open-covenant/covenant/compute-coordinator-public@sha256:7e3a8459fadf2bae1da851333ee8c50c9cbbe4ba8c5c05345467757d46079e87",
+    "platform": "linux/amd64",
+    "deployment_id": "dep-dbbprm8ae00c73aemtbg",
+    "deployment_status": "live",
+    "all_82_environment_values_preserved": true,
+    "existing_service_plan_and_disk_preserved": true,
+    "existing_canary_job_and_reservations_preserved": true,
+    "coordinator_journal_exact_bytes_preserved_at_restart": true
+  },
+  "ci_run": "https://github.com/open-covenant/covenant/actions/runs/39460106528",
+  "pilot_operator": {
+    "source_revision": "5146e46e6bae31bf6813ca85f099674e878a1ae9",
+    "node_image": "ghcr.io/open-covenant/covenant/compute-node-public@sha256:f15ddfedf069167992834f5285e799eff25176d1b81abdb891a6d2412796db10",
+    "node_binary_sha256": "3fce4b040f660543b39ca07f09e951f7118ee1eabea44419c6fb1836dc112748",
+    "node_platform": "linux/amd64",
+    "compiler_image": "covenant-knowledge@sha256:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+    "compiler_platform": "linux/arm64",
+    "arm_execution_runtime": "qemu-user-static 8.2.2 via Linux binfmt_misc",
+    "native_startup_image_inspection_passed": true,
+    "startup_owned_orphan_removed": true,
+    "startup_other_operator_container_preserved": true,
+    "ask_micro_usdc_per_job": 50000,
+    "new_infrastructure_rented": false
+  },
+  "restoration": {
+    "at_utc": "2026-10-20T17:14:51+00:00",
+    "original_service": "active",
+    "pilot_service": "inactive",
+    "original_node_binary_sha256": "684243fbed3fa2f61579a0b82b2f89de646af7bc0b4ab685c39f60393f7a7c28",
+    "original_environment_unchanged": true,
+    "original_operator_identity_unchanged": true,
+    "original_service_unit_unchanged": true,
+    "existing_audit_and_earnings_history_prefixes_preserved": true,
+    "original_kani_capacity": {
+      "kind": "agent_check",
+      "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+      "operators": 1,
+      "min_ask_micro_usdc": 19000,
+      "min_ask_unit": "per_job",
+      "max_ask_micro_usdc": 19000,
+      "max_vram_gb": 0,
+      "gpu_classes": [
+        "cpu"
+      ],
+      "tee_capable": false
+    },
+    "knowledge_capacity_rows": 0,
+    "accepted_pending": 0,
+    "outbox_pending": 0,
+    "active_jobs": 0,
+    "compiler_containers": 0
+  },
+  "launch_boundary": "Local Knowledge may launch independently. This validates two paid remote jobs on a temporary operator window; ongoing public remote supply remains a separate gate."
+}

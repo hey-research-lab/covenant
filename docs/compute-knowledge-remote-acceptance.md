@@ -1,6 +1,14 @@
 # Remote Knowledge compilation acceptance
 
-This branch implements a public-source pilot over existing Compute jobs. Local Docker acceptance now exercises the production container executor, signed dispatch, receipts, deterministic import validation, and same-job replay. Funding and payout remain mocked in that loopback test. A live operator, funded acceptance, and production performance are separate gates.
+This branch implements a public-source pilot over existing Compute jobs. The
+production coordinator and exact compiler completed
+[two funded acceptance jobs](evidence/knowledge/paid-pilot-2026-10-20/report.md)
+on 20 October 2026, including actual client interruption, same-envelope recovery,
+settled replay, deterministic import and finalized payout verification.
+The temporary operator has returned to its original service. **Paid pilot
+accepted; public remote availability pending.** Continuous compiler supply,
+shared daemon project authorization and private remote processing remain
+separate gates.
 
 ## Local Docker acceptance recorded
 
@@ -21,7 +29,9 @@ funded production job.
 
 See the [reproducible Docker recipe](../deploy/knowledge-compiler/README.md) and
 [build evidence](evidence/knowledge/docker-build-acceptance-2026-10-20.json).
-These images are local candidates; they have not been published or deployed.
+The exact accepted compiler image was subsequently transferred to the pilot
+host and deployed for the two funded jobs. It is not a public registry release
+or evidence of continuing operator capacity.
 
 ## Contract and boundaries
 

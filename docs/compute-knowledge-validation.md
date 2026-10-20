@@ -1,4 +1,4 @@
-# Knowledge candidate validation
+# Knowledge validation and release evidence
 
 Recorded 20 October 2026 on Apple Silicon macOS with Rust 1.98.1. This is an
 independent implementation based on the refreshed deployment source
@@ -46,19 +46,25 @@ not a production payment, a GitHub visibility attestation or a real OCI run.
 
 ## Subsequent shipping and Docker checks
 
-The candidate now has a distinct **0.5.0** version, with the public installer
-still pinned to the existing 0.4.1 release. Its native Apple Silicon archive and
+The candidate received a distinct **0.5.0** version while the public installer
+remained pinned to the existing 0.4.1 release. Its native Apple Silicon archive and
 fresh installed Knowledge workflow passed the 19 offline checks, including 18
 exact citations and all six MCP reads. The release path now retains examples,
 guides, licenses and build metadata after installation. The
 [final native acceptance record](evidence/knowledge/release-candidate-0.5.0/report.md)
 identifies clean source commit `3d4499211fabec97da0ee918dc281bd3a4226758`,
 the exact archive and binary hashes, and 11 installer checks plus destination
-conflict refusal. Four-platform CI and signing remain separate gates in the
-[shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md).
-Read-only GitHub checks found that the available API connections have pull
-access only; dispatch, signing and public release require a repository
-collaborator.
+conflict refusal.
+
+The subsequent [signed public 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0)
+was built from `8cbaeb7e423eead8bf12389820857437ad693717` through the normal
+[release workflow](https://github.com/open-covenant/covenant/actions/runs/39462626252).
+All four native macOS/Linux targets passed package and fresh-install checks.
+Downloaded public archives independently passed exact tag/workflow Cosign
+identity, signed checksum, source/ref attestation, clean build metadata and
+binary-hash verification. The downloaded Apple Silicon package also passed a
+fresh local installation. Website installer promotion is a separate gate in
+the [shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md).
 
 The production Docker executor subsequently passed the
 [real-container HTTP acceptance](evidence/knowledge/docker-http-acceptance-2026-10-20.json):
@@ -78,6 +84,18 @@ of normalized source JSON. It then refused before signing because no operator
 advertised the exact accepted image digest. This establishes the observed
 zero-spend refusal and, from the reviewed call order, completion of anonymous
 source verification; it is not a successful quote or remote job.
+
+The subsequent [paid pilot acceptance](evidence/knowledge/paid-pilot-2026-10-20/report.md)
+records a fresh source-verified quote and two successful production jobs on the
+exact compiler digest. The normal job replayed with the same receipt and no
+additional debit. The second client was killed after authoritative submission;
+a new process recovered its original signed envelope, then settled replay also
+passed. Independent signature, artifact and source hashes, deterministic local
+import, all 1,378 citation spans, and both finalized on-chain payouts verified.
+Host evidence records exactly two executions and one paid earnings entry per
+job. Total charges were 0.10 USDC with 0.000015 SOL in network fees. The existing
+hold was preserved. The original operator service and price are restored;
+ongoing public remote availability is not claimed.
 
 The central website graph was updated to square glass nodes. Its production
 build and desktop/mobile layout checks passed; campaign exports retain exact
@@ -107,14 +125,14 @@ brand fonts and the official mark at 1080p and 4K composition sizes.
 |---|---|
 | Local compiler and interfaces | Implemented; relevant suites and responsive viewer checks passed |
 | Local package candidate | Version 0.5.0 Apple Silicon archive from clean commit 3d4499211 passed extracted, installed and installer checks; [exact artifact evidence](evidence/knowledge/release-candidate-0.5.0/report.md) |
-| Signed public macOS/Linux release | Four-platform CI/signing and public installer acceptance pending repository collaborator access; no tag or release published |
-| Actual OCI compiler image | Linux/ARM64 Docker build, real executor/receipt/import/replay and isolation/lifecycle checks passed; candidate image remains local |
-| Public operator and routing rollout | Not deployed |
-| Installed client paid acceptance | Not performed; [budget proposed](compute-knowledge-paid-acceptance-budget.md), no spending approved or performed; live exact capability remains required |
-| Real process restart / financial reconciliation | Local durable replay tested; production restart remains unaccepted |
+| Signed public macOS/Linux release | [compute-v0.5.0 published](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0); all four native installs and downloaded public archive signatures/checksums/attestations verified; live website installer acceptance remains separate |
+| Actual OCI compiler image | Exact Linux/ARM64 image passed Docker lifecycle checks and two funded production jobs on an isolated host; image has no public registry release |
+| Public operator and routing rollout | Coordinator revision 5146e46e6bae31bf6813ca85f099674e878a1ae9 deployed; temporary exact compiler operator accepted then original Kani service restored |
+| Installed client paid acceptance | Two jobs passed with the explicitly hashed clean native 0.5.0 candidate; [receipts, payout and accounting evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md); public archive installation has separate evidence |
+| Real process restart / financial reconciliation | Actual client interruption after acknowledged submission, same-envelope recovery, identical settled receipt replay, two executions and two finalized payouts verified; no coordinator or host power-loss claim |
 | Shared authenticated daemon access | Not exposed; public proxy refuses knowledge access; project authorization adapter remains a separate gate |
 | Private remote repositories | Refused by the public-source pilot; operator-access policy remains undefined |
-| Feature page and campaign | Prepared locally; no deployment, publication or scheduling |
+| Feature page and campaign | Revised artwork and release drafts prepared; production page and live installer promotion pending; no X posting or scheduling |
 
 Follow the [remote acceptance guide](compute-knowledge-remote-acceptance.md) for
 the coordinator → compiler operator → client order and the evidence that must

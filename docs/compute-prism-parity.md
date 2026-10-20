@@ -39,15 +39,25 @@ Packages 1 and 2 preserve Solana USDC settlement, CVNT staking, admission and
 existing fees.
 Provider market sampling is read-only and cannot create rentals or move funds.
 
-**Independent Knowledge candidate, 2026-10-20:** the `codex/compute-knowledge`
+**Independent Knowledge implementation and bounded paid pilot, 2026-10-20:** the `codex/compute-knowledge`
 branch starts from deployment source `72f66142f407690024c6a0ca4a3bdaf148ef8766`.
 It adds original local source compilation, immutable citations, read-only MCP,
-an embedded explorer, and a typed public-source remote compilation candidate.
+an embedded explorer, and typed public-source remote compilation.
 This work is separate from the numbered Prism adoption packages below and does
 not change their acceptance status. The [Knowledge validation record](compute-knowledge-validation.md)
 separates local tests, package checks, real container execution, funded acceptance,
-deployment and publication. No Knowledge operator or paid service is activated
-by this candidate.
+deployment and publication. Exact compiler routing is deployed at
+`5146e46e6bae31bf6813ca85f099674e878a1ae9`. A temporary existing operator completed
+two paid jobs at 50,000 micro-USDC each; signed receipts, deterministic local import,
+finalized payouts, interrupted-client recovery and settled replay passed. Operator
+and container records show exactly two executions; recovery and settled replays
+added none. Containers used the pinned compiler, no network, a read-only filesystem
+and bounded resources.
+The [paid pilot evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md)
+records the exact client, compiler, deployment and transaction identities.
+The original Kani service and its 19,000-micro-USDC ask were restored with no pending
+work and no remaining Knowledge capacity. This is accepted bounded remote execution;
+ongoing remote supply and local public release remain separate gates.
 
 | # | Earliest upstream change | Local implementation | Local validation | Production evidence |
 |---|---|---|---|---|

@@ -1,10 +1,10 @@
 # Measured CPU lease acceptance plan
 
 Prepared 2026-10-20 for Prism adoption package 11. This is implementation
-preparation, not a production activation or an acceptance result. No resources
-were purchased, no provider account was created or logged into, and no paid
-hardware test was performed for this investigation. Keep the served hardware
-trust ceiling at `Open`.
+preparation, not a production activation or an acceptance result. The user
+subsequently created the Phala CVM recorded below; no paid Covenant lease or
+hardware acceptance has completed. Keep the served hardware trust ceiling at
+`Open`.
 
 The first target is one lease-bound, measured CPU guest. A successful CPU
 acceptance would establish only the reviewed guest/session properties. It would
@@ -248,11 +248,12 @@ but the management API rejected it with HTTP 401; a Cloud management API token
 is still required for the API lifecycle path. The signed-in browser provides
 configuration visibility without that token.
 
-The available production OS also exposes an implementation gap: dstack 0.6.1
-uses V2 event/VM-configuration bindings. The imported verifier currently pins a
-historical V1 profile. Production image measurements and V2 log verification
-must be independently qualified, with strict vendor TCB/advisory policy retained,
-before any stronger trust can be served.
+The production OS uses V2 event/VM-configuration bindings. The diagnostic
+verifier now supports its independently pinned launch tuple and canonical V2
+event replay. Runtime events must belong to IMR3 and preserve the authenticated
+application, instance, OS, key-provider and system-ready boundaries. Strict
+vendor TCB/advisory policy remains unchanged; this implementation still requires
+live quote and guest acceptance before any stronger trust can be served.
 
 The starter's public `Info` response reports production OS hash
 `ec43cb8c5e04b6bb6c53b33b16076a01d83d01f7f4b703f2f78a0d947d6247e6`
@@ -260,7 +261,26 @@ and a lite TDX measurement document. Its embedded checksum manifest and
 measurement CBOR were compared byte-for-byte with the official
 `mkosi-os-v0.6.1` archive, whose SHA-256 is
 `7583f51c717011b8086c2dd4d1e73fbbe7bf2d6d2420b90858d538c26efcca41`.
-The manifest hash matches the pinned OS hash. This qualifies the source
-material, not the running quote: independent launch replay and signature/TCB
-verification are still required. The actual boot reports ext4 storage,
-superseding the earlier deployment form's ZFS preview.
+The manifest hash matches the pinned OS hash. Independent launch replay from
+that archive and the pinned dstack source reproduced the complete expected
+MRTD/RTMR0–2 tuple; inputs, tool lockfile and recipe are retained under
+`deploy/compute-attested-cpu/measurement/`. This qualifies the launch reference,
+not the running quote: signature/current-collateral/TCB verification remains
+outstanding. The actual boot reports ext4 storage, superseding the earlier
+deployment form's ZFS preview.
+
+At source `6ff0d50097f81522f22f5a91416b037e5d9bc75d`, both full Rust CI
+jobs, all four native builds, both guest image builds/smoke jobs, landing and
+security checks passed. Release signing was skipped for the feature branch.
+The staged guest image is the previously verified immutable digest
+`sha256:922c3ba47a5a20ab30d8603fb08c9fdfdad1f21bd59ec5744848666e82a1058e`.
+
+The first browser update timed out. A fresh update form still loaded the
+original starter, and the operation history showed only the original boot;
+no successful Covenant update was observed. The initial collector probe on
+host port8090 reached dstack's guest agent, which reserves that port. The
+corrected candidate publishes host18090 to the unchanged collector port8090;
+the client and rendered-template regression now enforce that mapping.
+All 29 collector/client tests pass. The corrected configuration is staged
+for user credential submission on the same CVM, with the original diagnostic
+expiry of 2026-10-20 18:38 Copenhagen time. No replacement resource was created.

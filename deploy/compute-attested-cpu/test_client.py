@@ -11,6 +11,7 @@ from unittest import mock
 
 import client
 import collector as c
+import render
 from test_collector import INFO, NOW, POLICY, PUBLIC
 
 INSTANCE = "fc551bcb5f96283763f42da3578805ec7e2ecfe3"
@@ -74,13 +75,32 @@ class Tests(unittest.TestCase):
         return path
 
     def test_destination_is_fixed_instance_and_gateway(self):
-        self.assertEqual(client.destination(INSTANCE, 8090),
-                         f"{INSTANCE}-8090.dstack-pha-prod5.phala.network")
+        self.assertEqual(client.destination(INSTANCE, 18090),
+                         f"{INSTANCE}-18090.dstack-pha-prod5.phala.network")
         for bad in ("https://other.example", INSTANCE.upper(), INSTANCE + ".evil", "ab"):
             with self.subTest(value=bad), self.assertRaises(client.ClientError):
                 client.destination(bad, 1022)
-        with self.assertRaises(client.ClientError):
-            client.destination(INSTANCE, 80)
+        for port in (80, 8090):
+            with self.subTest(port=port), self.assertRaises(client.ClientError):
+                client.destination(INSTANCE, port)
+
+    def test_rendered_collector_mapping_avoids_reserved_guest_agent_port(self):
+        # Pinned dstack 7f143148 guest-agent/dstack.toml binds host 8090 before
+        # Docker starts. The published port must match the diagnostic client
+        # while retaining the image's internal 8090 listener.
+        template = Path(__file__).with_name("compose.template.yaml").read_text()
+        rendered = render.render(template, "sha256:" + "ab" * 32, POLICY, NOW)
+        collector = rendered.split("  collector:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+        mappings = [
+            json.loads(line.partition(":")[2].strip())
+            for line in collector.splitlines() if line.strip().startswith("ports:")
+        ]
+        self.assertEqual(mappings, [["18090:8090"]])
+        published, internal = map(int, mappings[0][0].split(":"))
+        self.assertNotEqual(published, 8090)
+        self.assertEqual(internal, 8090)
+        self.assertEqual(client.destination(INSTANCE, published),
+                         f"{INSTANCE}-18090.dstack-pha-prod5.phala.network")
 
     def test_token_must_be_private_regular_owned_file_without_symlink(self):
         self.assertEqual(client.read_token(self.token), "ab" * 32)
@@ -114,7 +134,7 @@ class Tests(unittest.TestCase):
         with mock.patch.object(client.http.client, "HTTPSConnection", return_value=connection) as factory:
             result = client.fetch(INSTANCE, self.token, self.out)
         self.assertEqual(factory.call_count, 1)
-        self.assertEqual(factory.call_args.args[:2], (client.destination(INSTANCE, 8090), 443))
+        self.assertEqual(factory.call_args.args[:2], (client.destination(INSTANCE, 18090), 443))
         self.assertTrue(factory.call_args.kwargs["context"].check_hostname)
         self.assertEqual(self.out.read_bytes(), raw)
         self.assertEqual(self.out.stat().st_mode & 0o777, 0o600)

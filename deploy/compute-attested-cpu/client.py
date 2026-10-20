@@ -35,7 +35,7 @@ def require(condition, message):
 def destination(instance_id, port):
     require(type(instance_id) is str and re.fullmatch(r"[0-9a-f]{40}", instance_id),
             "instance ID must be exactly 40 lowercase hexadecimal characters")
-    require(port in (1022, 8090), "unsupported diagnostic port")
+    require(port in (1022, 18090), "unsupported diagnostic port")
     return f"{instance_id}-{port}.{GATEWAY}"
 
 
@@ -139,7 +139,7 @@ def checked_challenge(path, instance_id, now_ms):
 
 
 def fetch(instance_id, bearer_file, output, challenge_file=None):
-    host = destination(instance_id, 8090)
+    host = destination(instance_id, 18090)
     token = read_token(bearer_file)
     now_ms = int(time.time() * 1000)
     body = checked_challenge(challenge_file, instance_id, now_ms) if challenge_file else None

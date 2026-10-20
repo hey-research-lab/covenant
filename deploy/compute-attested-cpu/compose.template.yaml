@@ -36,7 +36,9 @@ services:
     environment:
       COVENANT_LEASE_POLICY_B64: "__LEASE_POLICY_B64__"
       COVENANT_COLLECTOR_TOKEN: "${COVENANT_COLLECTOR_TOKEN:?missing encrypted collector token}"
-    ports: ["8090:8090"]
+    # Host 8090 belongs to the dstack guest agent; the collector keeps its
+    # internal image port and publishes a separate guest host port.
+    ports: ["18090:8090"]
     volumes:
       - /var/run/dstack.sock:/var/run/dstack.sock:ro
       - host-public:/host-public:ro

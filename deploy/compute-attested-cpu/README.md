@@ -94,6 +94,14 @@ Secret rotation and application update behavior need review with Phala KMS.
 
 ## Collection and channel binding
 
+The collector publishes guest host port 18090 to container port 8090
+(`18090:8090`). Its instance-pinned HTTPS endpoint is
+`https://<Info.instance_id>-18090.<gateway_domain>`.
+dstack 0.6.1 already binds guest host `0.0.0.0:8090` for its own
+[guest agent](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/guest-agent/dstack.toml#L28-L30).
+Publishing or requesting collector traffic on host 8090 conflicts with that
+service. The collector image continues to listen on internal port 8090.
+
 `GET /identity` and `POST /quote` require `Authorization: Bearer <token>`.
 The POST body is the complete coordinator `HardwareChallenge` object.
 The collector checks:

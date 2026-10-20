@@ -63,8 +63,14 @@ All four native macOS/Linux targets passed package and fresh-install checks.
 Downloaded public archives independently passed exact tag/workflow Cosign
 identity, signed checksum, source/ref attestation, clean build metadata and
 binary-hash verification. The downloaded Apple Silicon package also passed a
-fresh local installation. Website installer promotion is a separate gate in
-the [shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md).
+fresh local installation. The deployed
+[website installer](https://opencovenant.org/install/compute.sh) then passed a
+fresh installation with real HTTPS downloads, all four binary hashes and
+versions, 19 Knowledge checks, 18 citations and all six MCP tools.
+See the [installer promotion record](evidence/knowledge/public-release-0.5.0/installer-promotion.md)
+and [shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md).
+Homebrew remains on 0.4.1 because the tap rejected the normal update with HTTP
+403; it is not advertised as a Knowledge installation method.
 
 The production Docker executor subsequently passed the
 [real-container HTTP acceptance](evidence/knowledge/docker-http-acceptance-2026-10-20.json):
@@ -125,14 +131,14 @@ brand fonts and the official mark at 1080p and 4K composition sizes.
 |---|---|
 | Local compiler and interfaces | Implemented; relevant suites and responsive viewer checks passed |
 | Local package candidate | Version 0.5.0 Apple Silicon archive from clean commit 3d4499211 passed extracted, installed and installer checks; [exact artifact evidence](evidence/knowledge/release-candidate-0.5.0/report.md) |
-| Signed public macOS/Linux release | [compute-v0.5.0 published](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0); all four native installs and downloaded public archive signatures/checksums/attestations verified; live website installer acceptance remains separate |
+| Signed public macOS/Linux release | [compute-v0.5.0 published](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0); all four native installs and downloaded public archive provenance verified; actual live HTTPS installer passed; Homebrew promotion blocked by tap write permission |
 | Actual OCI compiler image | Exact Linux/ARM64 image passed Docker lifecycle checks and two funded production jobs on an isolated host; image has no public registry release |
 | Public operator and routing rollout | Coordinator revision 5146e46e6bae31bf6813ca85f099674e878a1ae9 deployed; temporary exact compiler operator accepted then original Kani service restored |
-| Installed client paid acceptance | Two jobs passed with the explicitly hashed clean native 0.5.0 candidate; [receipts, payout and accounting evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md); public archive installation has separate evidence |
+| Installed client paid acceptance | Two funded jobs passed with the clean native 0.5.0 candidate; the freshly installed signed public Apple Silicon binary then recovered both original receipts and imported identical snapshots without new jobs or charges; [evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md) |
 | Real process restart / financial reconciliation | Actual client interruption after acknowledged submission, same-envelope recovery, identical settled receipt replay, two executions and two finalized payouts verified; no coordinator or host power-loss claim |
 | Shared authenticated daemon access | Not exposed; public proxy refuses knowledge access; project authorization adapter remains a separate gate |
 | Private remote repositories | Refused by the public-source pilot; operator-access policy remains undefined |
-| Feature page and campaign | Revised artwork and release drafts prepared; production page and live installer promotion pending; no X posting or scheduling |
+| Feature page and campaign | [Public feature page](https://opencovenant.org/compute-knowledge) and verified installer deployed from 5b86392ab80be15611cba4bec6cc24ee48b7de43; revised artwork and actual public-client demo prepared; no X posting or scheduling |
 
 Follow the [remote acceptance guide](compute-knowledge-remote-acceptance.md) for
 the coordinator → compiler operator → client order and the evidence that must

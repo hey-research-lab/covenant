@@ -19,6 +19,6 @@ Each archive passed Cosign verification for the exact `compute-v0.5.0` release-w
 
 The downloaded Apple Silicon archive also passed an actual fresh offline installation after publication: four command versions and binary hashes, retained notices/examples, repeat install, conflicting-data rejection, source citations, and six read-only MCP tools. The Knowledge smoke recorded 19 checks and 18 citations on the original packaged example. No wallet, budget, purchase or user configuration was created.
 
-The website-transport portion of `check-install.py` uses a temporary local transport stub. It is not evidence of a deployed website pin or a Homebrew installation. Those promotion checks are recorded separately when completed. The public release is local Knowledge; remote supply and the bounded paid pilot are separate acceptance records.
+The website-transport portion of `check-install.py` uses a temporary local transport stub. It is not evidence of a deployed website pin or a Homebrew installation. The separate [installer promotion record](installer-promotion.md) now records a successful fresh installation through the actual public website URL and the blocked Homebrew update. The public release is local Knowledge; remote supply and the bounded paid pilot are separate acceptance records.
 
 The certificate, signature and attestation JSON files retained here are public release provenance. No binary archives, buyer financial state, local private paths or keys are included.

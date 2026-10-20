@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-20T17:33:35.846Z",
+  "release": "compute-v0.5.0",
+  "binary_sha256": "6cbe4f6ec099a8d15be82ca51b5687732fbef790c1f93f019f51b91962fc85b6",
+  "original_jobs": [
+    {
+      "label": "A",
+      "job_id": "181df61f-4544-4f5d-a95d-cbff19a2ad57",
+      "same_signed_receipt": true,
+      "same_snapshot": true,
+      "deterministic_import_verified": true
+    },
+    {
+      "label": "B",
+      "job_id": "408e1676-9cdd-4cdf-9afd-1da0fa8091dc",
+      "same_signed_receipt": true,
+      "same_snapshot": true,
+      "deterministic_import_verified": true
+    }
+  ],
+  "additional_jobs": 0,
+  "additional_job_charges_micro_usdc": 0,
+  "original_purchase_entries_and_envelopes_unchanged": true,
+  "original_budget_entries_and_limit_unchanged": true,
+  "buyer_accounting_unchanged": true,
+  "knowledge_capacity_rows": 0,
+  "scope": "Fresh installed public binary recovered and re-imported the two settled pilot receipts. No new paid compilation or operator execution."
+}

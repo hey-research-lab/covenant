@@ -1,6 +1,6 @@
 # Compute Knowledge: brand and rollout
 
-Prepared 20 October 2026. **X drafts only; no posting or scheduling performed.** Current execution status: the [signed public 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0) passed four native installation checks and independent public archive verification. The [two-job paid pilot passed](evidence/knowledge/paid-pilot-2026-10-20/report.md), but ongoing public remote capacity is unavailable. The live website installer and each announcement have their own publication gates.
+Prepared 20 October 2026. **X drafts only; no posting or scheduling performed.** Current execution status: the [signed public 0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0) passed four native installation checks and independent public archive verification. The [two-job paid pilot passed](evidence/knowledge/paid-pilot-2026-10-20/report.md), but ongoing public remote capacity is unavailable. The [live feature page](https://opencovenant.org/compute-knowledge) passed desktop, tablet and mobile QA, and the actual public HTTPS installer passed a fresh install with all four binaries, 19 Knowledge checks, 18 citations and six read-only MCP tools. Local launch posts are ready for human publication; no X post has been sent or scheduled. Homebrew remains on 0.4.1 because tap write access was denied; use the verified website installer or signed archives for Knowledge.
 
 ## Positioning
 
@@ -18,39 +18,44 @@ Use **Covenant Compute Knowledge** on first mention, then **Compute Knowledge**.
 
 Publish one feature at a time, in this order. A two-to-three-day gap is a planning suggestion after each gate clears, not an automatic schedule. If a gate is late, hold the post and keep development updates factual. Use replies to answer concrete workflow questions; do not manufacture engagement or imply endorsements.
 
-Each draft below is a complete standalone X post under 280 characters. Post 1 is a development update. Posts 2–5 are **LOCAL RELEASE drafts**, held until a package is published and the linked guide/example works from a fresh install. Post 6 is a **REMOTE RELEASE draft**, held until persistent public capacity, deployment and funded acceptance are all established. The completed bounded pilot alone does not clear this gate. Post 7 waits for published measurements. Canonical links are proposed publication targets: the publisher must confirm HTTP 200 and the promised content before posting. None of the release drafts describes the current branch status.
+Each draft below is a complete standalone X post under 280 weighted characters. Posts 1–5 are **READY local-release drafts**: public artifacts, the live page and fresh HTTPS installation have passed their gates. Post 6 remains **HOLD** until persistent public operator capacity is established; the completed paid pilot alone does not clear this gate. Post 7 is **READY** only with its small-fixture and no-savings caveats intact. Recheck links and current availability at the time of any later post. READY means prepared for a human publishing action, never automatically posted or scheduled.
 
-### 1. Development
+### 1. Local announcement — READY
 
-> We’re building Knowledge inside Covenant Compute. Codebase knowledge your agents can inspect: compile locally, follow source evidence and compare revisions. This is an implementation preview. We’ll share the working features as each release is ready.
+> Knowledge is now part of Covenant Compute.
+>
+> Compile repositories into searchable snapshots. Follow source citations, inspect dependencies and compare revisions through the CLI, local viewer or read-only MCP.
+>
+> Get the local release:
+> https://opencovenant.org/compute-knowledge
 
-**Gate:** original implementation exists; status and scope reviewed. **Asset:** 1080p master artwork with LOCAL PREVIEW and implementation disclaimer. **CTA:** follow the development sequence. **Success signal:** relevant developer questions and preview requests, recorded as actual counts.
+**Gate passed:** signed Compute 0.5.0, live page/source `5b86392ab80be15611cba4bec6cc24ee48b7de43`, responsive QA and actual fresh HTTPS installation. **Asset:** revised local-release artwork or the 38.72-second actual public-client demo. **CTA:** get the local release. **Success signal:** actual installs and relevant developer questions, not inferred conversions. The earlier “we’re building / implementation preview” announcement is historical and must not be published as the current launch.
 
-### 2. Local compile
+### 2. Local compile — READY
 
 > Knowledge is available locally in Covenant Compute. Compile Rust, Python, JS/TS and Markdown, then search the saved source without a model key. Start with our original example and local guide: https://opencovenant.org/compute-knowledge
 
-**Gate:** published installable local release, deployed feature page and guide, fresh-install acceptance; local build and language/exclusion/parser tests pass; demo uses actual saved records. **Asset:** local demo overview/search segment. **CTA:** inspect the example and local guide once those are published. **Success signal:** completed local compilations reported with tool version, not inferred from link clicks.
+**Gate:** published installable local release, deployed feature page and guide, fresh-install acceptance; local build and language/exclusion/parser tests pass; demo uses actual saved records. **Asset:** local demo overview/search segment. **CTA:** install and inspect the included example and local guide. **Success signal:** completed local compilations reported with tool version, not inferred from link clicks.
 
-### 3. Citations + MCP
+### 3. Citations + MCP — READY
 
 > Give your coding agent source it can inspect. Knowledge now pairs results with exact excerpts, paths and line ranges through six read-only MCP tools in Covenant Compute. Try the local workflow: https://opencovenant.org/compute-knowledge
 
 **Gate:** local release/package and feature-page link verified; citations across supported input types and MCP scope/rejection tests pass. **Asset:** exact-source screenshot and short MCP transcript from a real local run. **CTA:** check one cited result against its snapshot. **Success signal:** citation checks or reported mismatches.
 
-### 4. Dependencies
+### 4. Dependencies — READY
 
 > Trace what connects to a symbol in Covenant Compute. Knowledge shows observed dependencies and unresolved references, so the limits stay visible. Follow a real trace from our example: https://opencovenant.org/compute-knowledge
 
 **Gate:** local release/package and feature-page link verified; bounded trace, unresolved reference and project scoping tests pass. **Asset:** actual dependency screenshot; include unresolved rows. **CTA:** examine one dependency trace. **Success signal:** useful source paths discovered and concrete missing-resolution reports.
 
-### 5. Updates + diff
+### 5. Updates + diff — READY
 
 > Code changed? Compare the evidence. Knowledge in Covenant Compute saves revision snapshots, shows source additions, edits and removals, and keeps earlier evidence inspectable. Try the before-and-after: https://opencovenant.org/compute-knowledge
 
 **Gate:** local release/package and feature-page link verified; edit/delete/full-vs-cached/history tests pass. **Asset:** actual two-snapshot diff, with revision IDs retained in supporting evidence. **CTA:** compare a small local edit. **Success signal:** verified reproducible diffs, including deletions.
 
-### 6. Remote
+### 6. Remote — HOLD
 
 > Remote Knowledge compilation is available on Covenant Compute for pinned public GitHub revisions. Choose the compiler image; the buyer verifies the receipt and snapshot before local import. Guide and acceptance evidence: https://opencovenant.org/compute-knowledge
 
@@ -59,7 +64,7 @@ Each draft below is a complete standalone X post under 280 characters. Post 1 is
 Optional factual pilot update while the availability gate remains closed: “Two paid Knowledge pilot jobs passed receipt and snapshot verification, including recovery after an interrupted client. This was a bounded pilot. Public remote capacity is still pending.” Link the sanitized acceptance report only after it is pushed and accessible; do not include a remote-buy CTA or treat the pilot quote as a standing price.
 
 
-### 7. Measured results
+### 7. Measured results — READY
 
 > We published Knowledge’s local measurements, including where direct search wins. Inputs, commands and results are reproducible. This small fixture does not establish production performance or token savings. Report: https://opencovenant.org/compute-knowledge
 
@@ -82,14 +87,14 @@ Optional factual pilot update while the availability gate remains closed: “Two
 | Remote candidate | `knowledge_remote.rs`, protocol/node knowledge modules; [paid pilot](evidence/knowledge/paid-pilot-2026-10-20/report.md) | Source matching, cap/budget, receipt, tamper/container failure tests; independent paid acceptance | “Paid pilot accepted; public remote availability pending” |
 | Container isolation | Node runner and [actual pilot containers](evidence/knowledge/paid-pilot-2026-10-20/container-isolation-and-lifecycle.json) | Exact image, network, identity, resource and lifecycle observations | Accepted container restrictions; no TEE claim |
 | Local measurements | [initial unoptimized report](evidence/knowledge/benchmark-2026-10-20/report.md), [optimized preview](evidence/knowledge/benchmark-release-2026-10-20/report.md) and raw results | Raw repeated results + reproducible commands | Only measured fixture numbers with corpus/build/load caveats |
-| Packaged/released | [Signed public 0.5.0](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0), [four native platform checks](https://github.com/open-covenant/covenant/actions/runs/39462626252) | Downloaded archive signatures, checksums, attestations and fresh install verified | **Local package released; live website installer acceptance separate** |
+| Packaged/released | [Signed public 0.5.0](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0), [four native platform checks](https://github.com/open-covenant/covenant/actions/runs/39462626252) | Downloaded archive signatures, checksums, attestations and fresh install verified | **Local 0.5.0 released; live HTTPS installer and fresh installation verified** |
 | Deployed/paid accepted | [Two-job paid pilot and signed evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md) | Original receipts, same-key restart/replay, imported source, chain settlement verified | **Bounded pilot accepted; no ongoing public capacity or standing price** |
 | Token/cost savings, comparative superiority | No controlled experiment | Matched task quality and token/cost experiment | **Do not claim** |
 | Private/team remote access | No shared daemon knowledge-query authorization adapter | Threat model and project authorization acceptance | **Follow-up scope** |
 
 ## Local release announcement
 
-Hold this ready-to-copy announcement until the signed public release, installed example, and live page have all been verified:
+The signed public release, installed example and live page have now been verified. This is the same READY post 1 above; it has not been posted or scheduled:
 
 > Knowledge is now part of Covenant Compute.
 >
@@ -104,9 +109,9 @@ It is 255 X-weighted characters. Pair it with the release-labeled 1920×1080 art
 
 Local output directory: `output/compute-knowledge-launch/` (kept outside the commit, not automatically published).
 
-- `release-media/compute-knowledge-1920.png` and `compute-knowledge-4k.png`: revised lens/perspective artwork with local 0.5.0 release labels, held until public release verification.
+- `release-media/compute-knowledge-1920.png` and `compute-knowledge-4k.png`: revised lens/perspective artwork with local 0.5.0 release labels; public release verification passed.
 - `release-media/render-manifest.json`: explicit publication gate and output dimensions.
-- `release-demo/`: fresh recording from the verified public installed binary; only use it after provenance and capture QA exist.
+- `release-demo/local-release.mp4`: completed 38.72-second H.264 1920×1080/25fps recording from the verified public installed binary. Exact source citation bytes and two real MCP calls were checked; all six viewer chapters have actual responses and no browser errors.
 - `capture-release.py` and `record-release.mjs`: isolated offline capture, with exact citation verification and two real MCP tool calls.
 - `visuals/compute-knowledge-1920.png`: retained 1920×1080 source-preview artwork.
 - `visuals/compute-knowledge-4k.png`: 3840×2160 composition.
@@ -119,7 +124,7 @@ Local output directory: `output/compute-knowledge-launch/` (kept outside the com
 - `remote-demo-storyboard.md`: held release capture plan to record again after real acceptance.
 - `qa/landing-checks.json`: responsive/browser checks.
 
-The demo uses an original small billing example, two real compiled snapshots and real query responses. A constant **LOCAL IMPLEMENTATION PREVIEW · ORIGINAL EXAMPLE** label separates the recording from deployment evidence. Chapter labels are editing overlays; source data is unmodified.
+The current release demo uses an original small billing example, two real compiled snapshots and real query responses from the public installed 0.5.0 buyer. Its constant **COMPUTE 0.5.0 · LOCAL RELEASE · ORIGINAL EXAMPLE** label identifies the workflow. The earlier `demo/local-preview.mp4` remains historical and retains its original preview label. Chapter labels are editing overlays; source data is unmodified. Neither clip represents paid remote execution.
 
 Suggested 38-second cut: 0–5s snapshot/coverage; 5–12s search; 12–18s exact excerpt; 18–25s relationships including unresolved entries; 25–32s actual diff; 32–38s stored-evidence verification. It is a workflow demonstration, not a performance test.
 
@@ -146,4 +151,4 @@ the corpus and binary hashes for any measured comparison.
 
 ## Release checklist for the publisher
 
-Before each post, confirm its evidence gate, current release state, asset label, exact links and final character count. No draft includes an endorsement, performance comparison or promise of savings. Before changing “preview” to “available,” record the release package, deployed feature URL and any separate remote acceptance evidence. Keep the seven-stage sequence; do not bundle unaccepted remote claims into the local announcement.
+Before each post, confirm its evidence gate, current release state, asset label, exact links and final character count. No draft includes an endorsement, performance comparison or promise of savings. Local availability now has the signed release, live feature page and actual HTTPS fresh-install evidence. Any future remote-availability claim still requires persistent public supply, an operational owner and current verified quotes in addition to the separate paid acceptance evidence. Keep the seven-stage sequence; do not bundle unaccepted remote claims into the local announcement.

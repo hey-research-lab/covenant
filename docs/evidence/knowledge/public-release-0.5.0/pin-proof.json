@@ -1,0 +1,23 @@
+{
+  "result": "pass",
+  "release": "https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0",
+  "source_revision": "8cbaeb7e423eead8bf12389820857437ad693717",
+  "installer_sha256": "18883da2515ea243ef7c95a92c1fac3a60f8c30f55d25df17c17c688efa0b0ef",
+  "installer_body_equals_accepted_source_outside_pin_block": true,
+  "website_before_sha256": "ae0b4f2ebcc6dbbbe4bcea8f49d4f40fcfe34aab579a6d602874f7aa6b4d9d15",
+  "formula_sha256": "18c4bffb8fbd26d07c3c4895e81f7ddee14761439177556b4a451ebd360c84ed",
+  "public_archive_sha256": {
+    "darwin-arm64": "7bb4a1ebfbc9aa20c725fb637f5ede9585da412b56f014eed314a9d01995e586",
+    "darwin-x86_64": "0525372e349c5ad01f16cef22d5c488d5022bd435236c7642b9f1e0069fee74d",
+    "linux-x86_64": "ba1185a4650d953fa71fabb0a0e4b8beee619b17bd3b9d53b7c10396ccf60cf2",
+    "linux-arm64": "26ccb6c8305f4828f56906b662c2d4d136802128672efa884379675e43470495"
+  },
+  "checks": [
+    "signed-checksum-file exact workflow identity and GitHub issuer",
+    "all four pins equal verified public archive digests",
+    "installer body exact accepted8cbaeb7 outside pin block",
+    "POSIX shell syntax",
+    "Ruby formula syntax"
+  ],
+  "deployment_status": "prepared; not yet deployed"
+}

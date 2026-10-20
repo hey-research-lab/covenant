@@ -1,0 +1,59 @@
+diff --git a/Formula/covenant-compute.rb b/Formula/covenant-compute.rb
+index f17aefe..ece7030 100644
+--- a/Formula/covenant-compute.rb
++++ b/Formula/covenant-compute.rb
+@@ -1,38 +1,45 @@
+ class CovenantCompute < Formula
+   desc "Rent GPUs by the second, hire coding agents and run nodes on Covenant Compute"
+   homepage "https://docs.opencovenant.org/compute"
+-  version "0.4.1"
++  version "0.5.0"
+   license "Apache-2.0"
+ 
+   on_macos do
+     on_arm do
+-      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.4.1/covenant-compute-darwin-arm64.tar.gz"
+-      sha256 "bcea9e9bd493cef0f7568197a6b06ed8d14d36bf2502d98b838338c043a6ee39"
++      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.0/covenant-compute-darwin-arm64.tar.gz"
++      sha256 "7bb4a1ebfbc9aa20c725fb637f5ede9585da412b56f014eed314a9d01995e586"
+     end
+     on_intel do
+-      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.4.1/covenant-compute-darwin-x86_64.tar.gz"
+-      sha256 "54340753b65f22c04b4b50e16d1a21e30d230d8a6138c847bd085285c7594928"
++      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.0/covenant-compute-darwin-x86_64.tar.gz"
++      sha256 "0525372e349c5ad01f16cef22d5c488d5022bd435236c7642b9f1e0069fee74d"
+     end
+   end
+ 
+   on_linux do
+     on_arm do
+-      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.4.1/covenant-compute-linux-arm64.tar.gz"
+-      sha256 "5aa9d0673a56094322043a495e39563e8b009b4c643e9f878feaf4ed9a9e0b94"
++      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.0/covenant-compute-linux-arm64.tar.gz"
++      sha256 "26ccb6c8305f4828f56906b662c2d4d136802128672efa884379675e43470495"
+     end
+     on_intel do
+-      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.4.1/covenant-compute-linux-x86_64.tar.gz"
+-      sha256 "a8a91cb60f2251ac070b0bacc104010b121698b65ca9efab6424ef62d79718bb"
++      url "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.0/covenant-compute-linux-x86_64.tar.gz"
++      sha256 "ba1185a4650d953fa71fabb0a0e4b8beee619b17bd3b9d53b7c10396ccf60cf2"
+     end
+   end
+ 
+   def install
+     bin.install "covenant-compute", "covenant-compute-mcp", "covenant-compute-node", "covenant-compute-stake"
++    if File.directory?("examples/knowledge")
++      pkgshare.install "examples", "docs", "licenses", "tools"
++      pkgshare.install "LICENSE", "NOTICE.md", "SECURITY_AUDIT_LICENSE", "RELEASE_NOTES.md", "BUILD_INFO.json"
++    end
+   end
+ 
+   test do
+     %w[covenant-compute covenant-compute-mcp covenant-compute-node covenant-compute-stake].each do |cmd|
+       assert_equal "#{cmd} #{version}", shell_output("#{bin}/#{cmd} --version").strip
+     end
++    if (pkgshare/"examples/knowledge").directory?
++      assert_match "knowledge compile", shell_output("#{bin}/covenant-compute knowledge --help")
++    end
+   end
+ end

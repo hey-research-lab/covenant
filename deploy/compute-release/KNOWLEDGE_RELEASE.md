@@ -17,7 +17,11 @@ artifact. A fresh post-download Apple Silicon installation also passed.
 See the [public release verification](../../docs/evidence/knowledge/public-release-0.5.0/report.md)
 and its machine-readable record for the source, hashes, signatures, attestations,
 native job links and precise installation scope. Website and Homebrew promotion
-are separate checks; publication alone does not establish those pins are live.
+are separate checks. The actual public website installer subsequently passed a
+fresh HTTPS installation of 0.5.0 with all four binary hashes, retained examples
+and notices, 19 Knowledge checks, 18 citations and all six read-only MCP tools.
+See [installer promotion](../../docs/evidence/knowledge/public-release-0.5.0/installer-promotion.md)
+for that result and the separately blocked Homebrew update.
 
 ## Candidate validation
 
@@ -90,8 +94,15 @@ installer body from the accepted release commit as well as the authenticated
 pins: an older four-command-only website installer does not retain examples and
 guides. Review the body change independently of the five pinned values.
 
-Validate a fresh installation through the real published installer and Homebrew
-before announcing availability. The offline installer retains examples, guides,
-build metadata and notices under `~/.local/share/covenant-compute/0.5.0`; Homebrew
-retains those supporting files in `pkgshare`. Local Knowledge requires no buyer
-identity or coordinator configuration.
+Validate a fresh installation through each installation method before
+advertising that method. Signed archive and website-script availability can be
+announced independently of Homebrew promotion. The prepared 0.5.0 Homebrew
+formula passed signature-backed pin and Ruby syntax checks, but the existing
+credential's normal Git push was denied. The public tap remains at 0.4.1;
+no 0.5.0 Homebrew install or tap CI result is claimed.
+
+The offline installer retains examples, guides, build metadata and notices under
+`~/.local/share/covenant-compute/0.5.0`. The prepared Homebrew formula retains
+those supporting files in `pkgshare` when its promotion is authorized by the
+repository. Local Knowledge requires no buyer identity or coordinator
+configuration.

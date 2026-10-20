@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-20T17:22:31.252060+00:00",
+  "result": "blocked",
+  "repository": "https://github.com/open-covenant/homebrew-tap",
+  "proposed_version": "0.5.0",
+  "verified_formula_commit": "4bea805d86436806b9e208d14b9c782854031aee",
+  "remote_main_observed": "1e9ad904647bbae930a347be1414e00b4d0daccc",
+  "public_version": "0.4.1",
+  "public_pin_changed": false,
+  "normal_git_push_result": "HTTP403 permission denied with existing credential; no alternate credential or publication route attempted",
+  "available_checks": [
+    "Ruby syntax passed",
+    "all four formula pins match authenticated0.5.0 archive digests",
+    "git diff --check passed"
+  ],
+  "fresh_homebrew_installation": "not executed; normal tap CI was not triggered"
+}

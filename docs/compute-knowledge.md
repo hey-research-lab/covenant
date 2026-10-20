@@ -1,12 +1,29 @@
 # Covenant Compute Knowledge
 
-**Status, 20 October 2026: source implementation preview.** Local compiler, CLI, MCP and viewer are implemented. This is not a published binary release or deployment announcement. The remote compiler path remains gated on an operator image, deployment and separately authorized acceptance. No speed, accuracy, token savings or production availability claim follows from implementation tests.
+**Status, 20 October 2026: local release 0.5.0 is published.** The signed release includes the local compiler, CLI, read-only MCP server and viewer. The live website installer passed fresh-install acceptance. Two paid remote pilot jobs passed artifact, receipt and recovery checks; ongoing remote capacity remains pending. No speed, accuracy or token-savings claim follows from these release checks.
+
+See the [public release evidence](evidence/knowledge/public-release-0.5.0/report.md), [live installer acceptance](evidence/knowledge/public-release-0.5.0/installer-promotion.md) and [paid pilot report](evidence/knowledge/paid-pilot-2026-10-20/report.md). Homebrew remains at 0.4.1; use the website installer or signed 0.5.0 release archives for Knowledge.
 
 Compute Knowledge turns supported repository files into saved, queryable snapshots. It is part of `covenant-compute`, with no model API key required for local compilation or queries. It does not run the source repository's build scripts, tests or programs.
 
-## Build and compile locally
+## Install and compile locally
 
-Use this implementation branch and a Rust toolchain compatible with the workspace:
+Install the released binary and its original example repository:
+
+```sh
+curl -fsSL https://opencovenant.org/install/compute.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+
+covenant-compute --version
+covenant-compute knowledge compile \
+  "$HOME/.local/share/covenant-compute/0.5.0/examples/knowledge"
+```
+
+The installer verifies the archive against pinned SHA256 checksums. The [0.5.0 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0) also provides signatures and attestations for independent verification.
+
+### Optional source build
+
+Use the `compute-v0.5.0` tag and a Rust toolchain compatible with the workspace:
 
 ```sh
 cargo build --manifest-path agent-os/Cargo.toml \
@@ -17,7 +34,7 @@ export COVENANT_KNOWLEDGE_HOME="$HOME/.covenant/knowledge"
 ./agent-os/target/debug/covenant-compute knowledge compile ./examples/knowledge
 ```
 
-To use the shorter commands below, add the development binary directory to this shell:
+When using a source build, add the development binary directory to this shell:
 
 ```sh
 export PATH="$PWD/agent-os/target/debug:$PATH"
@@ -89,6 +106,8 @@ The MCP interface has no compile, purchase, source-edit or arbitrary shell tool.
 ## Remote compilation preview
 
 See the [remote acceptance and deployment guide](compute-knowledge-remote-acceptance.md) for the exact coordinator, image, operator and funded acceptance order.
+
+The paid pilot is accepted, but its temporary compiler operator has been restored to its previous workload. This is not an always-available remote service announcement. A new purchase requires an available operator advertising the exact compiler digest and an explicitly authorized budget.
 
 The remote path submits the supported source subset from a **public GitHub repository at a full pinned commit**. Before submission, anonymous GitHub checks establish public visibility and compare every selected source file byte-for-byte with that commit. Dirty or unpublished selected source is rejected. Requests are bounded to 1–256 files and 512 KiB of source JSON; results are capped at 3 MiB.
 

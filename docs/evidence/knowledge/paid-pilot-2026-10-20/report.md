@@ -45,6 +45,14 @@ retained separately alongside this report.
 The paid buyer is the clean native 0.5.0 candidate identified in the JSON.
 Public archive signing and fresh public installation have their own evidence.
 This run does not imply that all four platform archives completed paid jobs.
+After publication, the freshly installed and authenticated Apple Silicon
+0.5.0 binary also [recovered both settled original receipts](public-installed-replay.json)
+and deterministically re-imported the same snapshots. Both original envelopes,
+budget entries and buyer accounting remained unchanged; no new job or charge
+occurred. This read-only recovery succeeded after Knowledge capacity was
+withdrawn. Its public binary SHA-256 is
+`6cbe4f6ec099a8d15be82ca51b5687732fbef790c1f93f019f51b91962fc85b6`.
+
 No repository scripts were executed. Private remote processing, shared daemon
 project authorization, continuous remote supply and speedup claims remain
 outside this acceptance.

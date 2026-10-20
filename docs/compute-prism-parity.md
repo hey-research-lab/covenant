@@ -57,7 +57,17 @@ The [paid pilot evidence](evidence/knowledge/paid-pilot-2026-10-20/report.md)
 records the exact client, compiler, deployment and transaction identities.
 The original Kani service and its 19,000-micro-USDC ask were restored with no pending
 work and no remaining Knowledge capacity. This is accepted bounded remote execution;
-ongoing remote supply and local public release remain separate gates.
+ongoing remote supply remains unavailable.
+The separate [signed local 0.5.0 release](evidence/knowledge/public-release-0.5.0/report.md)
+passed all four native builds/installations and independent public archive
+verification. The freshly installed public Apple Silicon binary recovered both
+settled pilot receipts and re-imported identical snapshots without new jobs or
+charges. The [public feature page](https://opencovenant.org/compute-knowledge)
+and data-aware installer are deployed from
+`5b86392ab80be15611cba4bec6cc24ee48b7de43`; a fresh install through the actual
+HTTPS installer passed. Homebrew remains at 0.4.1 after the tap refused the
+normal update; use the verified website installer or signed archives for
+Knowledge. X copy and assets are prepared separately; no posting is claimed.
 
 | # | Earliest upstream change | Local implementation | Local validation | Production evidence |
 |---|---|---|---|---|

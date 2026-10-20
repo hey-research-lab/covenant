@@ -1,0 +1,67 @@
+{
+  "schema": "covenant.compute.live-installer-verification.v1",
+  "observed_at": "2026-10-20T17:36:47.190600+00:00",
+  "result": "pass",
+  "url": "https://opencovenant.org/install/compute.sh",
+  "installer_sha256": "18883da2515ea243ef7c95a92c1fac3a60f8c30f55d25df17c17c688efa0b0ef",
+  "version": "0.5.0",
+  "platform": "darwin-arm64",
+  "release_archive_sha256": "7bb4a1ebfbc9aa20c725fb637f5ede9585da412b56f014eed314a9d01995e586",
+  "binary_sha256": {
+    "covenant-compute": "6cbe4f6ec099a8d15be82ca51b5687732fbef790c1f93f019f51b91962fc85b6",
+    "covenant-compute-mcp": "38ab0c180df1db3ec3a4de049ad7473ffa34622aabf9681f171109527ef44eb5",
+    "covenant-compute-node": "03644e49e2299fa60e9d1e15f5333922463be3185f526b696896c81f273d41b1",
+    "covenant-compute-stake": "f71e3acd479796746ee0e038f1888778a7435fbad7de2e99fbfd5feac1fd3a0c"
+  },
+  "versions": {
+    "covenant-compute": "covenant-compute 0.5.0",
+    "covenant-compute-mcp": "covenant-compute-mcp 0.5.0",
+    "covenant-compute-node": "covenant-compute-node 0.5.0",
+    "covenant-compute-stake": "covenant-compute-stake 0.5.0"
+  },
+  "knowledge_smoke": {
+    "result": "pass",
+    "mode": "development-binary",
+    "buyer_version": "covenant-compute 0.5.0",
+    "binary_sha256": "6cbe4f6ec099a8d15be82ca51b5687732fbef790c1f93f019f51b91962fc85b6",
+    "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+    "example_files": 9,
+    "verified_citations": 18,
+    "license_files": [
+      "tree-sitter-0.25.10-LICENSE.txt",
+      "tree-sitter-rust-0.24.2-LICENSE.txt",
+      "tree-sitter-javascript-0.25.0-LICENSE.txt",
+      "tree-sitter-typescript-0.23.2-LICENSE.txt",
+      "tree-sitter-python-0.25.0-LICENSE.txt",
+      "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+      "OFL-Archivo.txt",
+      "OFL-JetBrainsMono.txt"
+    ],
+    "checks": [
+      "packaged-licenses",
+      "original-example-files",
+      "offline-help",
+      "offline-compile",
+      "status",
+      "multi-language-search",
+      "exact-source-citations",
+      "show",
+      "snapshot-verification",
+      "incremental-cache",
+      "mcp-initialize",
+      "mcp-notifications",
+      "mcp-six-read-only-tools",
+      "mcp-all-six-reads",
+      "mcp-citations",
+      "mcp-no-mutation",
+      "mcp-project-boundary",
+      "source-unchanged",
+      "no-buyer-identity"
+    ],
+    "scope": "Offline local artifact checks. No source execution, purchase, release or deployment."
+  },
+  "scope": "Actual public HTTPS installer and release download into an isolated task-owned prefix; no wallet, budget, purchases, MCP client or persistent user configuration.",
+  "website_source_revision": "5b86392ab80be15611cba4bec6cc24ee48b7de43",
+  "website_deployment_id": "dep-dbbqblbl550s739b5d70",
+  "binary_release_source_revision": "8cbaeb7e423eead8bf12389820857437ad693717"
+}

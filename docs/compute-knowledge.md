@@ -50,7 +50,7 @@ Source capture respects Git ignore rules, `.covenantignore`, built-in sensitive-
 
 ```sh
 covenant-compute knowledge status
-covenant-compute knowledge query "schedule_task" --project PROJECT_ID --limit 10
+covenant-compute knowledge query "calculate_total" --project PROJECT_ID --limit 10
 covenant-compute knowledge show OBJECT_ID --project PROJECT_ID
 covenant-compute knowledge impact OBJECT_ID --project PROJECT_ID \
   --depth 2 --direction both

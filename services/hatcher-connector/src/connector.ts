@@ -8,7 +8,7 @@ import { DaemonUnreachableError, type DaemonClient, type AgentEvent, type GrantR
 import { mapManifest, mapMeshGrants, baselineGrants, type ConsentPolicy } from './capabilities.js';
 import { executionFor } from './execution.js';
 import type { ManifestCapability } from './manifest.js';
-import type { HatcherTransport, InboundFrame } from './transport.js';
+import type { HatcherTransport, InboundFrame, OutboundFrame } from './transport.js';
 
 export interface ConnectorOptions {
   maxConcurrentDispatch: number;
@@ -40,6 +40,10 @@ interface ActiveDispatch {
   submitResult?: unknown;
   // Guards against the SSE-end path and the poll watchdog both finalizing.
   finalizing?: boolean;
+  // Preserve terminal evidence until the transport accepts it locally. The mesh
+  // protocol has no result acknowledgement, so this is not remote delivery proof.
+  finalFrame?: Extract<OutboundFrame, { type: 'result' }>;
+  watchdogStarted?: boolean;
   execution: IntentExecution;
   deadline: number;
   cancelRequestedAt?: number;
@@ -171,10 +175,14 @@ export class Connector {
       return this.transport.send({ v: 1, type: 'error', dispatch_id, code, message: String(err) });
     }
 
-    await this.transport.send({ v: 1, type: 'accepted', dispatch_id, intent_id: entry.intentId });
-    void this.watchTerminal(dispatch_id, entry).catch((err) =>
-      this.log('terminal watchdog error', { dispatch_id, err: String(err) }),
-    );
+    // Once the daemon accepts work, transport failures must not leave it unwatched.
+    this.startWatchdog(dispatch_id, entry);
+    try {
+      await this.transport.send({ v: 1, type: 'accepted', dispatch_id, intent_id: entry.intentId });
+    } catch {
+      this.log('accepted frame not accepted by transport; terminal tracking retained', { dispatch_id });
+    }
+    if (this.active.get(dispatch_id) !== entry) return;
 
     // Async Hermes runs report status "running" and stream their trace over SSE; a
     // synchronously-terminal status (e.g. the daemon's phase-0 fast path) has no live
@@ -197,8 +205,9 @@ export class Connector {
       await this.daemon.streamEvents(
         entry.intentId,
         (event) => {
+          if (entry.finalFrame || this.active.get(dispatchId) !== entry) return;
           entry.events.push(event);
-          void this.transport.send({ v: 1, type: 'trace', dispatch_id: dispatchId, seq: entry.seq++, event });
+          void this.sendTrace(dispatchId, entry.seq++, event);
         },
         entry.abort.signal,
       );
@@ -209,14 +218,40 @@ export class Connector {
     await this.finalize(dispatchId, entry);
   }
 
+  private async sendTrace(dispatchId: string, seq: number, event: AgentEvent): Promise<void> {
+    try {
+      await this.transport.send({ v: 1, type: 'trace', dispatch_id: dispatchId, seq, event });
+    } catch {
+      // Trace delivery is best-effort; the event remains in the final proof.
+      this.log('trace frame not accepted by transport', { dispatchId, seq });
+    }
+  }
+
+  private startWatchdog(dispatchId: string, entry: ActiveDispatch): void {
+    if (entry.watchdogStarted) return;
+    entry.watchdogStarted = true;
+    void this.watchTerminal(dispatchId, entry)
+      .catch(() => this.log('terminal watchdog error; tracking retained', { dispatchId }))
+      .finally(() => {
+        entry.watchdogStarted = false;
+        if (this.active.get(dispatchId) === entry && !entry.abort.signal.aborted) {
+          this.startWatchdog(dispatchId, entry);
+        }
+      });
+  }
+
   // Poll /intents/:id/result until the run reaches a terminal status, then
   // finalize — the fallback for a hung SSE stream. finalize() is guarded, so a
   // race with the stream-end path resolves to a single finalize.
   private async watchTerminal(dispatchId: string, entry: ActiveDispatch): Promise<void> {
-    while (this.active.has(dispatchId)) {
+    while (this.active.get(dispatchId) === entry) {
       await sleep(this.terminalPollMs, entry.abort.signal);
-      if (!this.active.has(dispatchId) || entry.abort.signal.aborted) return;
+      if (this.active.get(dispatchId) !== entry || entry.abort.signal.aborted) return;
       if (entry.finalizing) continue;
+      if (entry.finalFrame) {
+        await this.finalize(dispatchId, entry);
+        continue;
+      }
       if (this.now() >= entry.deadline && entry.cancelRequestedAt === undefined) entry.cancelRequestedAt = this.now();
       if (entry.cancelRequestedAt !== undefined) {
         if (entry.lastStopAttempt === undefined || this.now() - entry.lastStopAttempt >= this.terminalPollMs) {
@@ -232,56 +267,69 @@ export class Connector {
       }
       if (terminalStatus(resultStatus(result))) {
         await this.finalize(dispatchId, entry, result);
-        return;
       }
     }
   }
 
   private async finalize(dispatchId: string, entry: ActiveDispatch, confirmedResult?: unknown): Promise<void> {
-    if (entry.finalizing || !this.active.has(dispatchId)) return;
+    if (entry.finalizing || this.active.get(dispatchId) !== entry) return;
     entry.finalizing = true;
-    let result: unknown = confirmedResult ?? entry.submitResult ?? null;
-    let auditRoot: string | null = null;
-    let auditVerified = false;
     try {
-      // Async runs expose the final result here; the synchronous fast path 404s on
-      // re-fetch (its result already arrived in the submit response), so keep that.
-      if (confirmedResult === undefined) result = await this.daemon.intentResult(entry.intentId);
-    } catch (err) {
-      this.log('result re-fetch failed; using submit-time result', { dispatchId, err: String(err) });
-    }
-    if (!terminalStatus(resultStatus(result))) {
+      if (!entry.finalFrame) {
+        let result: unknown = confirmedResult ?? entry.submitResult ?? null;
+        let auditRoot: string | null = null;
+        let auditVerified = false;
+        try {
+          // Async runs expose the final result here; the synchronous fast path 404s on
+          // re-fetch (its result already arrived in the submit response), so keep that.
+          if (confirmedResult === undefined) result = await this.daemon.intentResult(entry.intentId);
+        } catch (err) {
+          this.log('result re-fetch failed; using submit-time result', { dispatchId, err: String(err) });
+        }
+        if (!terminalStatus(resultStatus(result))) {
+          return; // A closed SSE stream, missing status, or failed read is not completion.
+        }
+        try {
+          const report = await this.daemon.verify();
+          auditRoot = report.root_hash_hex;
+          auditVerified = report.valid;
+        } catch (err) {
+          this.log('audit verify failed', { dispatchId, err: String(err) });
+        }
+        const status = meshStatus(resultStatus(result)!);
+        const receiptId = (result as { settlement?: { receipt_id?: string } | null })?.settlement?.receipt_id ?? null;
+        const proof = {
+          spec: 'covenant.connector-trace.v0',
+          intent_id: entry.intentId,
+          result,
+          status,
+          audit_root: auditRoot,
+          audit_verified: auditVerified,
+          receipt_id: receiptId,
+          memory_ids: [] as string[], // best-effort v1: populated once memory↔intent linkage is wired
+          capability_grants: entry.grants ?? [],
+          declared_policy: entry.policy ?? null,
+          context: entry.context ?? null,
+          execution: entry.execution,
+          events: [...entry.events],
+        };
+        entry.finalFrame = { v: 1, type: 'result', dispatch_id: dispatchId, status, result, proof };
+      }
+      try {
+        await this.transport.send(entry.finalFrame);
+      } catch {
+        // Keep the same receipt/proof even if a later daemon read is unavailable.
+        // Also covers cancellation before submission, which has no watchdog yet.
+        this.log('terminal result not accepted by transport; retry pending', { dispatchId });
+        this.startWatchdog(dispatchId, entry);
+        return;
+      }
+      // send() confirms only local acceptance/queueing, not a remote mesh ack.
+      this.active.delete(dispatchId);
+      entry.abort.abort();
+    } finally {
       entry.finalizing = false;
-      return; // A closed SSE stream, missing status, or failed read is not completion.
     }
-    entry.abort.abort();
-    try {
-      const report = await this.daemon.verify();
-      auditRoot = report.root_hash_hex;
-      auditVerified = report.valid;
-    } catch (err) {
-      this.log('audit verify failed', { dispatchId, err: String(err) });
-    }
-    const daemonStatus = resultStatus(result)!;
-    const status = meshStatus(daemonStatus);
-    const receiptId = (result as { settlement?: { receipt_id?: string } | null })?.settlement?.receipt_id ?? null;
-    const proof = {
-      spec: 'covenant.connector-trace.v0',
-      intent_id: entry.intentId,
-      result,
-      status,
-      audit_root: auditRoot,
-      audit_verified: auditVerified,
-      receipt_id: receiptId,
-      memory_ids: [] as string[], // best-effort v1: populated once memory↔intent linkage is wired
-      capability_grants: entry.grants ?? [],
-      declared_policy: entry.policy ?? null,
-      context: entry.context ?? null,
-      execution: entry.execution,
-      events: entry.events,
-    };
-    this.active.delete(dispatchId);
-    await this.transport.send({ v: 1, type: 'result', dispatch_id: dispatchId, status, result, proof });
   }
 
   private async cancel(dispatchId: string): Promise<void> {
@@ -297,7 +345,7 @@ export class Connector {
   }
 
   private async requestStop(dispatchId: string, entry: ActiveDispatch): Promise<void> {
-    if (!entry.intentId || entry.finalizing) return;
+    if (!entry.intentId || entry.finalizing || entry.finalFrame) return;
     entry.lastStopAttempt = this.now();
     try {
       await this.daemon.stopIntent(entry.intentId);
@@ -307,9 +355,14 @@ export class Connector {
   }
 
   private async reportCleanupPending(dispatchId: string, entry: ActiveDispatch): Promise<void> {
-    if (entry.cleanupPendingReported) return;
+    if (entry.cleanupPendingReported || entry.finalFrame || this.active.get(dispatchId) !== entry) return;
     entry.cleanupPendingReported = true;
-    await this.transport.send({ v: 1, type: 'error', dispatch_id: dispatchId, code: 'cleanup_pending', message: 'Workload cleanup is not confirmed; the dispatch remains tracked. Do not start a replacement run.' });
+    try {
+      await this.transport.send({ v: 1, type: 'error', dispatch_id: dispatchId, code: 'cleanup_pending', message: 'Workload cleanup is not confirmed; the dispatch remains tracked. Do not start a replacement run.' });
+    } catch {
+      entry.cleanupPendingReported = false;
+      this.log('cleanup_pending frame not accepted by transport; tracking retained', { dispatchId });
+    }
   }
 
   get inFlight(): number {

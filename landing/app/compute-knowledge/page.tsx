@@ -15,9 +15,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/compute-knowledge" },
   openGraph: {
     type: "website", title, description, url: "https://opencovenant.org/compute-knowledge",
-    images: [{ url: "/compute-knowledge/card.png", width: 1920, height: 1080, alt: "Covenant Compute: codebase knowledge your agents can inspect. Local implementation preview." }],
+    images: [{ url: "/compute-knowledge/card-perspective.png", width: 1920, height: 1080, alt: "Covenant Compute: codebase knowledge your agents can inspect. Local implementation preview." }],
   },
-  twitter: { card: "summary_large_image", site: "@OpenCovenant", title, description, images: "/compute-knowledge/card.png" },
+  twitter: { card: "summary_large_image", site: "@OpenCovenant", title, description, images: "/compute-knowledge/card-perspective.png" },
 };
 
 const steps = [
@@ -33,7 +33,7 @@ export default function ComputeKnowledgePage() {
       <main id="main-content" className={`${styles.page} ${mono.className}`}>
         <section className={styles.hero} aria-labelledby="knowledge-title">
           <div className={styles.heroArt}>
-            <Image src="/compute-knowledge/field-square-nodes.webp" alt="" fill priority sizes="(max-width: 760px) 100vw, 1240px" />
+            <Image src="/compute-knowledge/field-square-perspective.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 1240px" />
           </div>
           <div className={styles.heroContent}>
             <p className={styles.eyebrow}><span className={styles.dot} />Local implementation preview</p>
@@ -44,7 +44,7 @@ export default function ComputeKnowledgePage() {
               <a className={styles.primary} href="#local-preview">Explore the local workflow <span aria-hidden="true">↗</span></a>
               <a className={styles.secondary} href="#availability">See what is available <span aria-hidden="true">↓</span></a>
             </div>
-            <p className={styles.releaseNote}>Source implementation preview. Public release and deployment pending.</p>
+            <p className={styles.releaseNote}>Build from the source preview. Signed client release pending.</p>
           </div>
         </section>
 
@@ -120,13 +120,13 @@ covenant-compute knowledge mcp --project <id>`}</code></pre>
               <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/evidence/knowledge/benchmark-2026-10-20/report.md">Earlier debug measurements ↗</a><br />
               Both runs used the same small fixture. Direct search returned fewer bytes in all seven matching cases. Knowledge had lower median command latency in the optimized run; direct search was faster in the debug run. The optimized run overlapped regression tests. These measurements establish neither production performance nor token savings. Preview branch documentation.
             </p>
-            <p className={styles.small}>The remote compiler is not deployed or accepted through a funded production run. No remote service, pricing, performance or token savings is being announced here.</p>
+            <p className={styles.small}>Remote compilation is undergoing deployment and paid acceptance. The source preview is available now; remote availability will follow verified results.</p>
           </div>
           <dl className={styles.statusList}>
             <div><dt>Local workflow</dt><dd>Implementation preview</dd></div>
-            <div><dt>Release package</dt><dd>Not released</dd></div>
-            <div><dt>Remote compiler</dt><dd>Not deployed</dd></div>
-            <div><dt>Measured results</dt><dd>Publication gated on evidence</dd></div>
+            <div><dt>Release package</dt><dd>Signed release pending</dd></div>
+            <div><dt>Remote compiler</dt><dd>Acceptance in progress</dd></div>
+            <div><dt>Measured results</dt><dd>Reproducible fixture reports</dd></div>
           </dl>
         </section>
         <section className={styles.closing} aria-label="Follow the rollout">

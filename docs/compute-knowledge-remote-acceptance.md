@@ -1,6 +1,27 @@
 # Remote Knowledge compilation acceptance
 
-This branch implements a public-source pilot over existing Compute jobs. Local mocked tests exercise signed dispatch, the real source compiler, receipts, import validation, and purchase replay. They do not establish a deployed compiler image, a live operator, funded acceptance, or production performance.
+This branch implements a public-source pilot over existing Compute jobs. Local Docker acceptance now exercises the production container executor, signed dispatch, receipts, deterministic import validation, and same-job replay. Funding and payout remain mocked in that loopback test. A live operator, funded acceptance, and production performance are separate gates.
+
+## Local Docker acceptance recorded
+
+On 20 October 2026, Docker 29.9.1 on Linux/ARM64 ran the compiler at
+`covenant-knowledge@sha256:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c`.
+The [HTTP acceptance record](evidence/knowledge/docker-http-acceptance-2026-10-20.json)
+contains its signed fixture job and receipt, verified result, same-job replay,
+one-execution count, and rejection checks. It explicitly records mocked payment,
+mocked public-source verification, and the isolated test's disabled daily-budget
+guard. No production wallet, allowance, or purchase was used.
+
+The [real container lifecycle record](evidence/knowledge/docker-lifecycle-acceptance-2026-10-20.json)
+uses a separately pinned fault-injection image through the same production
+executor. It verifies nonroot identity, read-only root, no network routes or host
+mounts, dropped capabilities, resource limits, timeout/output/cancellation cleanup,
+and operator-scoped orphan cleanup. It does not establish crash recovery of a
+funded production job.
+
+See the [reproducible Docker recipe](../deploy/knowledge-compiler/README.md) and
+[build evidence](evidence/knowledge/docker-build-acceptance-2026-10-20.json).
+These images are local candidates; they have not been published or deployed.
 
 ## Contract and boundaries
 
@@ -39,8 +60,10 @@ Use `--commit` at the repository root to prepare release acceptance evidence. Th
 Build from the repository root:
 
 ```sh
-docker build -f deploy/knowledge-compiler/Dockerfile \
-  -t YOUR_REGISTRY/covenant-knowledge:REVIEWED_REVISION .
+python3 deploy/knowledge-compiler/build-context.py \
+  2> knowledge-build-inputs.json |
+  docker build -f deploy/knowledge-compiler/Dockerfile \
+    -t YOUR_REGISTRY/covenant-knowledge:REVIEWED_REVISION -
 ```
 
 After obtaining and installing its real digest, configure the existing operator home and coordinator identity as usual, plus:
@@ -86,7 +109,7 @@ Release claims must remain limited to implemented and tested behavior until the 
 
 ## Reproduce the local test demonstration
 
-The HTTP integration test can export a fresh evidence file for a clearly labeled demonstration. It runs an actual loopback coordinator and node, signs ephemeral fixture jobs and receipts, invokes the actual source compiler, verifies the result, and checks purchase replay. Funding and payout are mock implementations; the GitHub verifier and OCI invocation are substituted, and the production daily-budget guard is disabled only in this isolated fixture.
+The HTTP integration test can export a fresh evidence file for a clearly labeled demonstration. It runs an actual loopback coordinator and node, signs ephemeral fixture jobs and receipts, invokes the actual source compiler, verifies the result, and checks purchase replay. Funding and payout are mock implementations; the GitHub verifier is substituted, and the production daily-budget guard is disabled only in this isolated fixture. The default test invokes the compiler in process. Set both `COVENANT_KNOWLEDGE_TEST_DOCKER_RUNTIME` and `COVENANT_KNOWLEDGE_TEST_DOCKER_IMAGE` to an installed digest-pinned image to use the production Docker executor.
 
 From `agent-os`:
 
@@ -99,6 +122,10 @@ COVENANT_KNOWLEDGE_TEST_EVIDENCE_PATH="$KNOWLEDGE_EVIDENCE_DIR/local-remote-evid
   -- --exact
 ```
 
-The export refuses to overwrite an existing file and contains no signing keys. Its schema explicitly records the substitutions and marks funded acceptance, real OCI execution, and actual public GitHub verification false. It includes the quote, typed request, signed fixture job and receipt, source snapshot, same-job replay identifier, one-execution count, and rejection checks.
+The export refuses to overwrite an existing file and contains no signing keys. Its schema explicitly records the substitutions and always marks funded acceptance and actual public GitHub verification false. `real_oci_execution` records whether the production Docker executor was selected. It includes the quote, typed request, signed fixture job and receipt, source snapshot, same-job replay identifier, one-execution count, and rejection checks.
+
+The [paid-acceptance budget proposal](compute-knowledge-paid-acceptance-budget.md)
+requires approval before any funding or purchase. A local Docker pass is not
+permission to spend or advertise remote availability.
 
 A 30–45 second local-test walkthrough can show the submitted digest and quote, the fixture receipt and verified source snapshot, then the identical replay job ID and one-execution counter. Keep **LOCAL TEST — MOCK FUNDING — NOT DEPLOYED** visible throughout. This demonstration supports the local integration claim; replace it with independently recorded real-OCI and funded acceptance evidence before announcing the remote release.

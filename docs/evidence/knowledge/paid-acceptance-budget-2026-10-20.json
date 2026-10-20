@@ -1,0 +1,357 @@
+{
+  "schema": "covenant.knowledge.paid-acceptance-budget.v1",
+  "prepared_at": "2026-10-20T15:55:50.883676+00:00",
+  "status": "PROPOSAL_ONLY_NO_SPEND_AUTHORIZED",
+  "source_revision": "b165494a0029320c717dc2666aa0c9b8aa11c58f",
+  "actions": {
+    "signed_requests": 0,
+    "funding_transfers": 0,
+    "purchases": 0,
+    "budget_mutations": 0,
+    "deployment_actions": 0,
+    "private_balance_read": false
+  },
+  "knowledge_capacity": {
+    "matching_rows": 0,
+    "exact_operator_ask_micro_usdc": null,
+    "reason": "No Knowledge compiler digest advertised in live capacity"
+  },
+  "proposed_authorization": {
+    "distinct_original_jobs": 2,
+    "proposed_pilot_ask_micro_usdc": 50000,
+    "per_job_ceiling_micro_usdc": 50000,
+    "new_gross_job_allowance_micro_usdc": 100000,
+    "same_job_replay_new_jobs": 0,
+    "solana_total_fee_ceiling_lamports": 100000,
+    "maximum_new_prefunding_micro_usdc_if_verified_available_is_zero": 100000,
+    "new_token_account_rent_included": false,
+    "hosting_or_operator_deployment_spend_included": false,
+    "price_status": "Proposed pilot configuration and approval ceiling, not an observed quote",
+    "per_call_environment_cap_micro_usdc": 50000
+  },
+  "observations": {
+    "health": {
+      "fetched_at": "2026-10-20T15:51:29.851122+00:00",
+      "url": "https://compute-api.opencovenant.org/health",
+      "status": 200,
+      "final_url": "https://compute-api.opencovenant.org/health",
+      "response_sha256": "40150f4d023fcad6691868709b96e3cc95461460ccbbd24d6fe5653fba126ad3",
+      "data": {
+        "revision": "b3e4c3de460703410675e30e429cf52e3ae779d3",
+        "status": "ok"
+      }
+    },
+    "capacity": {
+      "fetched_at": "2026-10-20T15:51:29.969386+00:00",
+      "url": "https://compute-api.opencovenant.org/federation/capacity",
+      "status": 200,
+      "final_url": "https://compute-api.opencovenant.org/federation/capacity",
+      "response_sha256": "53a3eeb319fc5015e7bcecdf15857cf109aa77422e00ab2d608fc7bc13cb8a4f",
+      "data": {
+        "registered_operators": 7,
+        "matchable_operators": 7,
+        "liveness_window_ms": 45000,
+        "min_score_bps": 0,
+        "min_bond_micro_usdc": 0,
+        "entries": [
+          {
+            "inference_tariffs": [
+              {
+                "tariff": {
+                  "schema_version": 1,
+                  "id": "covenant-haiku-4.5-native",
+                  "revision": 1,
+                  "model": "claude-haiku-4.5",
+                  "base_micro_usdc": 10000,
+                  "output_cap_micro_usdc_per_million": 7500000,
+                  "max_output_tokens": 2048,
+                  "valid_from_ms": 1792409700000,
+                  "valid_until_ms": 1795001700000
+                },
+                "gpu_class": "cpu",
+                "vram_gb": 0
+              }
+            ],
+            "kind": "inference_call",
+            "model": "claude-haiku-4.5",
+            "operators": 1,
+            "min_ask_micro_usdc": 30000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 30000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "batch_job",
+            "model": "imd-swarm",
+            "operators": 1,
+            "min_ask_micro_usdc": 5000000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 5000000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "lease_session",
+            "model": "any",
+            "operators": 1,
+            "min_ask_micro_usdc": 1200000,
+            "min_ask_unit": "per_lease_hour",
+            "max_ask_micro_usdc": 1200000,
+            "max_vram_gb": 48,
+            "gpu_classes": [
+              "L40S"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_task",
+            "model": "claude-code",
+            "operators": 4,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 20000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "covenant-compute-check:rust",
+            "operators": 4,
+            "min_ask_micro_usdc": 5000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "golang:1.23",
+            "operators": 4,
+            "min_ask_micro_usdc": 5000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "kani-v1:2bf73b40a77f602c334527fa79b6d1bc903c7a92394b4ab02e3889eeed9cda91",
+            "operators": 1,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "native-empty-v1:1d0447543fac833cc86eed3edb0988e1c6ea7dfb011f7448f93bf50a6f1486d0",
+            "operators": 1,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "native-empty-v1:8a02eda372743655dfbe5f03e83a19ea8b6c35a44be41aea679db02fa4c72a35",
+            "operators": 1,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "native-empty-v1:ba986a3cc02317d9fd8be478d0ca1b6ec98697a948c976436a85376e50e12a60",
+            "operators": 1,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "native-empty-v1:cdad5a4434fff84420f52b6baea16c1094e93b5eb2bb3cc1b8526822cc63b950",
+            "operators": 1,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "native-empty-v1:e3efd51c9a3540dff42c9a1a06745771b4349f9a41331ffe5193557f6914ccac",
+            "operators": 1,
+            "min_ask_micro_usdc": 19000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "node:22",
+            "operators": 4,
+            "min_ask_micro_usdc": 5000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "python:3.12",
+            "operators": 4,
+            "min_ask_micro_usdc": 5000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          },
+          {
+            "kind": "agent_check",
+            "model": "python:3.12-slim",
+            "operators": 4,
+            "min_ask_micro_usdc": 5000,
+            "min_ask_unit": "per_job",
+            "max_ask_micro_usdc": 19000,
+            "max_vram_gb": 0,
+            "gpu_classes": [
+              "cpu"
+            ],
+            "tee_capable": false
+          }
+        ]
+      }
+    },
+    "deposit-info": {
+      "fetched_at": "2026-10-20T15:51:30.086758+00:00",
+      "url": "https://compute-api.opencovenant.org/federation/deposit-info",
+      "status": 200,
+      "final_url": "https://compute-api.opencovenant.org/federation/deposit-info",
+      "response_sha256": "078727ec47a9fa3c5550e7bcbc3339184e638076c757c95f3feabf29225dc45d",
+      "data": {
+        "configured": true,
+        "instructions": {
+          "deposit_owner_b58": "EQpsU4i6g9dFru72bcLcg8fjYWsWLGhMPQFor2nAruPv",
+          "how": "SPL-transfer the mint to the deposit owner's associated token account with the memo naming your buyer pubkey, then claim the transaction signature at POST /federation/buyers/deposit",
+          "memo_format": "compute-buyer:<buyer_pubkey_b58>",
+          "mint_b58": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "rail": "solana-rpc"
+        },
+        "prefunding_enforced": true
+      }
+    },
+    "fees": {
+      "observed_at": "2026-10-20T15:54:25Z",
+      "url": "https://compute-api.opencovenant.org/federation/fees",
+      "status": 403,
+      "note": "Unauthenticated GET refused; current fee basis points not established. No credential or alternate route used.",
+      "timestamp_note": "Timestamp marks the end of the read batch; request failed with HTTP 403 in that batch."
+    },
+    "solana-readonly": {
+      "url": "https://api.mainnet-beta.solana.com",
+      "operations": [
+        {
+          "method": "getGenesisHash",
+          "params": [],
+          "fetched_at": "2026-10-20T15:53:17.424213+00:00",
+          "response": {
+            "jsonrpc": "2.0",
+            "result": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+            "id": 1
+          }
+        },
+        {
+          "method": "getMinimumBalanceForRentExemption",
+          "params": [
+            165,
+            {
+              "commitment": "finalized"
+            }
+          ],
+          "fetched_at": "2026-10-20T15:53:17.606935+00:00",
+          "response": {
+            "jsonrpc": "2.0",
+            "result": 1488440,
+            "id": 1
+          }
+        }
+      ]
+    },
+    "deposit-token-account": {
+      "observed_at": "2026-10-20T15:54:25.175Z",
+      "url": "https://api.mainnet-beta.solana.com",
+      "method": "getAccountInfo",
+      "deposit_token_account": "5xwduCSqtPDDXhoUzdZVVRRncYYYQbz5sM6vp14wgZGd",
+      "exists": true,
+      "program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "owner": "EQpsU4i6g9dFru72bcLcg8fjYWsWLGhMPQFor2nAruPv",
+      "state": "initialized",
+      "slot": 459286762,
+      "error": null,
+      "note": "No amounts retained; public account metadata only."
+    }
+  },
+  "primary_sources": {
+    "solana_fee_reference": "https://solana.com/docs/core/fees",
+    "fee_code": "agent-os/crates/covenant-compute-protocol/src/fees.rs",
+    "coordinator_fee_configuration": "agent-os/crates/covenant-compute-coordinator/src/main.rs",
+    "budget_code": "agent-os/crates/covenant-compute-buyer/src/durable_budget.rs",
+    "purchase_recovery": "agent-os/crates/covenant-compute-buyer/src/knowledge_remote.rs"
+  },
+  "budget_policy": {
+    "new_allowance_micro_usdc": 100000,
+    "required_rolling_limit_formula": "existing_pending + rolling_settled + new_allowance",
+    "existing_commitments_preserved": true,
+    "guarded_update_requires_separate_approval": true,
+    "buyer_specific_state": "Private local review only; omitted from public evidence",
+    "actual_buyer_balance_read": false
+  }
+}

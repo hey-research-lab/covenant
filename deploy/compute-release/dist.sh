@@ -87,12 +87,38 @@ install -m 0755 "$stake_bin_dir/covenant-compute-stake" "$stage/"
 install -m 0644 "$root/LICENSE" "$root/NOTICE.md" "$here/README.md" "$stage/"
 install -m 0644 "$workspace/crates/covenant-compute-buyer/skills/security-audit/upstream/LICENSE" "$stage/SECURITY_AUDIT_LICENSE"
 install -m 0644 "$notes" "$stage/RELEASE_NOTES.md"
+install -m 0755 "$here/install.sh" "$stage/install.sh"
 mkdir -p "$stage/examples" "$stage/docs/evidence" "$stage/licenses" "$stage/tools"
 cp -R "$root/examples/knowledge" "$stage/examples/"
 cp -R "$here/licenses/knowledge" "$stage/licenses/"
 install -m 0644 "$root"/docs/compute-knowledge*.md "$stage/docs/"
 cp -R "$root/docs/evidence/knowledge" "$stage/docs/evidence/"
 install -m 0755 "$root/scripts/knowledge-package-smoke.py" "$stage/tools/"
+python3 - "$root" "$stage" "$target" "$version" <<'PY'
+import hashlib, json, pathlib, subprocess, sys
+from datetime import datetime, timezone
+root, stage = map(pathlib.Path, sys.argv[1:3])
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+def git(*args):
+    return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+names = ["covenant-compute", "covenant-compute-mcp", "covenant-compute-node", "covenant-compute-stake"]
+record = {
+    "schema": "covenant.compute.release-build.v1",
+    "version": sys.argv[4], "target": sys.argv[3],
+    "source_revision": git("rev-parse", "HEAD"),
+    "tracked_source_dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
+    "built_at": datetime.now(timezone.utc).isoformat(),
+    "binary_sha256": {name: digest(stage / name) for name in names},
+    "lockfile_sha256": {
+        name: digest(root / name) for name in [
+            "agent-os/Cargo.lock", "agent-os/crates/covenant-compute-lease-signer/Cargo.lock"
+        ]
+    },
+    "signature": "Signing and GitHub provenance are separate release-workflow outputs.",
+}
+(stage / "BUILD_INFO.json").write_text(json.dumps(record, indent=2) + "\n")
+PY
 
 if tar --version | grep -q 'GNU tar'; then
   tar_flags=(--owner=0 --group=0 --numeric-owner)
@@ -182,6 +208,22 @@ if [ "$target" = x86_64-apple-darwin ] && [ "$(uname -m)" = arm64 ]; then
   knowledge_smoke_args+=(--rosetta)
 fi
 python3 "$work/check/$asset/tools/knowledge-package-smoke.py" "${knowledge_smoke_args[@]}"
+
+# Test the offline installation itself, including data/license retention.
+installed="$work/installed"
+COVENANT_COMPUTE_INSTALL_DIR="$installed/bin" \
+  COVENANT_COMPUTE_DATA_DIR="$installed/share/covenant-compute" \
+  run_packed /bin/sh "$work/check/$asset/install.sh"
+installed_smoke_args=(
+  --binary "$installed/bin/covenant-compute"
+  --examples "$installed/share/covenant-compute/$version/examples/knowledge"
+  --licenses "$installed/share/covenant-compute/$version/licenses/knowledge"
+  --lockfile "$workspace/Cargo.lock"
+)
+if [ "$target" = x86_64-apple-darwin ] && [ "$(uname -m)" = arm64 ]; then
+  installed_smoke_args+=(--rosetta)
+fi
+python3 "$work/check/$asset/tools/knowledge-package-smoke.py" "${installed_smoke_args[@]}"
 
 mkdir -p "$root/dist"
 mv "$archive" "$root/dist/"

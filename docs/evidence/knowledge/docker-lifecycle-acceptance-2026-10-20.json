@@ -1,0 +1,215 @@
+{
+  "fixture_image": "covenant-knowledge-lifecycle@sha256:0ba52586e6fead44e9e00ed57384a58066d6add5a7139d4bd0f0098da7d72a47",
+  "funded_acceptance": false,
+  "inspection": {
+    "AppArmorProfile": "docker-default",
+    "Args": [],
+    "Config": {
+      "AttachStderr": true,
+      "AttachStdin": true,
+      "AttachStdout": true,
+      "Cmd": null,
+      "Domainname": "",
+      "Entrypoint": [
+        "/usr/local/bin/covenant-knowledge-compiler"
+      ],
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      ],
+      "Hostname": "b2c72885d98a",
+      "Image": "covenant-knowledge-lifecycle@sha256:0ba52586e6fead44e9e00ed57384a58066d6add5a7139d4bd0f0098da7d72a47",
+      "Labels": {
+        "covenant.knowledge.operator": "b220ad638ed24a2b8e9d095f287f5aa9"
+      },
+      "OpenStdin": true,
+      "StdinOnce": true,
+      "Tty": false,
+      "User": "65532:65532",
+      "Volumes": null,
+      "WorkingDir": ""
+    },
+    "Created": "2026-10-20T16:01:19.847799622Z",
+    "Driver": "overlayfs",
+    "ExecIDs": null,
+    "HostConfig": {
+      "AutoRemove": true,
+      "Binds": null,
+      "BlkioDeviceReadBps": [],
+      "BlkioDeviceReadIOps": [],
+      "BlkioDeviceWriteBps": [],
+      "BlkioDeviceWriteIOps": [],
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": [],
+      "CapAdd": null,
+      "CapDrop": [
+        "ALL"
+      ],
+      "Cgroup": "",
+      "CgroupParent": "",
+      "CgroupnsMode": "private",
+      "ConsoleSize": [
+        0,
+        0
+      ],
+      "ContainerIDFile": "",
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "CpuPeriod": 0,
+      "CpuQuota": 0,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpuShares": 0,
+      "CpusetCpus": "",
+      "CpusetMems": "",
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "Devices": [],
+      "Dns": null,
+      "DnsOptions": [],
+      "DnsSearch": [],
+      "ExtraHosts": null,
+      "GroupAdd": null,
+      "IOMaximumBandwidth": 0,
+      "IOMaximumIOps": 0,
+      "IpcMode": "private",
+      "Isolation": "",
+      "Links": null,
+      "LogConfig": {
+        "Config": {},
+        "Type": "json-file"
+      },
+      "MaskedPaths": [
+        "/proc/acpi",
+        "/proc/asound",
+        "/proc/interrupts",
+        "/proc/kcore",
+        "/proc/keys",
+        "/proc/latency_stats",
+        "/proc/sched_debug",
+        "/proc/scsi",
+        "/proc/timer_list",
+        "/proc/timer_stats",
+        "/sys/devices/virtual/powercap",
+        "/sys/firmware"
+      ],
+      "Memory": 536870912,
+      "MemoryReservation": 0,
+      "MemorySwap": 1073741824,
+      "MemorySwappiness": null,
+      "NanoCpus": 1000000000,
+      "NetworkMode": "none",
+      "OomKillDisable": null,
+      "OomScoreAdj": 0,
+      "PidMode": "",
+      "PidsLimit": 64,
+      "PortBindings": {},
+      "Privileged": false,
+      "PublishAllPorts": false,
+      "ReadonlyPaths": [
+        "/proc/bus",
+        "/proc/fs",
+        "/proc/irq",
+        "/proc/sys",
+        "/proc/sysrq-trigger"
+      ],
+      "ReadonlyRootfs": true,
+      "RestartPolicy": {
+        "MaximumRetryCount": 0,
+        "Name": "no"
+      },
+      "Runtime": "runc",
+      "SecurityOpt": [
+        "no-new-privileges"
+      ],
+      "ShmSize": 67108864,
+      "UTSMode": "",
+      "Ulimits": null,
+      "UsernsMode": "",
+      "VolumeDriver": "",
+      "VolumesFrom": null
+    },
+    "HostnamePath": "/var/lib/docker/containers/b2c72885d98a7f50de89110213ea1c97ab4f67d65344b8179e4acce87083c684/hostname",
+    "HostsPath": "/var/lib/docker/containers/b2c72885d98a7f50de89110213ea1c97ab4f67d65344b8179e4acce87083c684/hosts",
+    "Id": "b2c72885d98a7f50de89110213ea1c97ab4f67d65344b8179e4acce87083c684",
+    "Image": "sha256:0ba52586e6fead44e9e00ed57384a58066d6add5a7139d4bd0f0098da7d72a47",
+    "ImageManifestDescriptor": {
+      "digest": "sha256:8068a8d382dfd661de82bf894df67d74b96cbef9e8fcecbcd964dc5809a57ea6",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux"
+      },
+      "size": 670
+    },
+    "LogPath": "/var/lib/docker/containers/b2c72885d98a7f50de89110213ea1c97ab4f67d65344b8179e4acce87083c684/b2c72885d98a7f50de89110213ea1c97ab4f67d65344b8179e4acce87083c684-json.log",
+    "MountLabel": "",
+    "Mounts": [],
+    "Name": "/covenant-knowledge-b220ad638ed24a2b8e9d095f287f5aa9-405840c6-13b1-4706-9bd8-f819fd01717b",
+    "NetworkSettings": {
+      "Networks": {
+        "none": {
+          "Aliases": null,
+          "DNSNames": null,
+          "DriverOpts": null,
+          "EndpointID": "3636cf0037d50e4286176e5420ad4e129c5c2a1feef297401845bce9d2e6b22e",
+          "Gateway": "",
+          "GlobalIPv6Address": "",
+          "GlobalIPv6PrefixLen": 0,
+          "GwPriority": 0,
+          "IPAMConfig": null,
+          "IPAddress": "",
+          "IPPrefixLen": 0,
+          "IPv6Gateway": "",
+          "Links": null,
+          "MacAddress": "",
+          "NetworkID": "8f3ae095b51768780dc507d44d236ab9b38d0523580c4df652ba2eee59bf6ee9"
+        }
+      },
+      "Ports": {},
+      "SandboxID": "8f5afd56ec9cc3ff175185e25cc3499bbef94b1ef1f4d984725010f3443ba6f3",
+      "SandboxKey": "/var/run/docker/netns/8f5afd56ec9c"
+    },
+    "Path": "/usr/local/bin/covenant-knowledge-compiler",
+    "Platform": "linux",
+    "ProcessLabel": "",
+    "ResolvConfPath": "/var/lib/docker/containers/b2c72885d98a7f50de89110213ea1c97ab4f67d65344b8179e4acce87083c684/resolv.conf",
+    "RestartCount": 0,
+    "State": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 5140,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-10-20T16:01:19.901451335Z",
+      "Status": "running"
+    },
+    "Storage": {
+      "RootFS": {
+        "Snapshot": {
+          "Name": "overlayfs"
+        }
+      }
+    }
+  },
+  "local_test_only": true,
+  "passed": [
+    "nonroot",
+    "read_only_rootfs",
+    "no_network_routes",
+    "no_mounts",
+    "no_capabilities",
+    "no_new_privileges",
+    "memory_cpu_pid_limits",
+    "timeout_cleanup",
+    "output_ceiling_cleanup",
+    "cancellation_cleanup",
+    "operator_scoped_orphan_cleanup"
+  ],
+  "runtime_probe_stderr": "touch: cannot touch '/knowledge-write-probe': Read-only file system\n",
+  "runtime_probe_stdout": "",
+  "schema": "covenant.knowledge.real-docker-lifecycle.v1"
+}

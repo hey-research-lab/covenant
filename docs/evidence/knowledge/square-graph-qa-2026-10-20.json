@@ -1,0 +1,33 @@
+{
+  "change": "Central knowledge graph uses square glass nodes",
+  "generator": "built-in image_gen; official typography composed separately",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "horizontal_overflow": false,
+      "javascript_errors": []
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "horizontal_overflow": false,
+      "javascript_errors": []
+    }
+  ],
+  "production_build": "passed with webpack",
+  "artwork_exports": [
+    [
+      1920,
+      1080
+    ],
+    [
+      3840,
+      2160
+    ]
+  ],
+  "assets": {
+    "landing/public/compute-knowledge/field-square-nodes.webp": "ec114a6fe03cb53755e4403691a715bb496a4c54ea06c3efe3524fbb9eb97607",
+    "landing/public/compute-knowledge/card.png": "6080571f0f65f380b0ea5c10a05da3a4f1207d690495de3ede1cb8af28571ef4"
+  }
+}

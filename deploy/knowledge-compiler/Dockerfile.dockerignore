@@ -1,0 +1,14 @@
+# This deny-by-default policy also applies to ordinary repository-root builds.
+# The staged build-context.py route is preferred and records source hashes.
+**
+!agent-os/
+!agent-os/**/
+!agent-os/**/*.rs
+!agent-os/**/Cargo.toml
+!agent-os/**/Cargo.lock
+!agent-os/Cargo.toml
+!agent-os/Cargo.lock
+**/target/**
+**/.git/**
+**/node_modules/**
+**/output/**

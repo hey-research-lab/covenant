@@ -301,6 +301,10 @@ impl JobExecutor for KnowledgeExecutor {
 }
 
 #[cfg(test)]
+#[path = "knowledge_docker_tests.rs"]
+mod docker_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     #[test]

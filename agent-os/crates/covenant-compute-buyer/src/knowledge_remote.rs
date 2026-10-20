@@ -355,10 +355,16 @@ mod tests {
         Arc,
     };
 
-    struct FixtureCompiler(Arc<AtomicUsize>);
+    struct FixtureCompiler {
+        calls: Arc<AtomicUsize>,
+        docker: Option<covenant_compute_node::knowledge::KnowledgeExecutor>,
+    }
     #[async_trait]
     impl JobExecutor for FixtureCompiler {
-        fn admit(&self, job: &JobEnvelopePayload, _: Duration) -> std::result::Result<(), String> {
+        fn admit(&self, job: &JobEnvelopePayload, remaining: Duration) -> std::result::Result<(), String> {
+            if let Some(docker) = &self.docker {
+                return docker.admit(job, remaining);
+            }
             validate_knowledge_job(job)
                 .map(|_| ())
                 .map_err(|e| e.to_string())
@@ -366,9 +372,12 @@ mod tests {
         async fn execute(
             &self,
             job: &JobEnvelopePayload,
-            _: Duration,
+            remaining: Duration,
         ) -> std::result::Result<ExecutionOutcome, ExecutorError> {
-            self.0.fetch_add(1, Ordering::SeqCst);
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if let Some(docker) = &self.docker {
+                return docker.execute(job, remaining).await;
+            }
             let request = validate_knowledge_job(job).unwrap();
             let source = serde_json::from_value(request.source.clone()).unwrap();
             let snapshot = covenant_knowledge::compile_source(source).unwrap();
@@ -437,11 +446,28 @@ mod tests {
             .contains("private-acquisition"));
     }
 
-    /// Real HTTP coordinator + signed node work/receipt + existing buyer
-    /// purchase book. Only GitHub availability and the container invocation are
-    /// substituted; the actual source compiler and all network accounting run.
+    /// Real HTTP coordinator, signed node work/receipt, and durable buyer
+    /// purchase book. Funding, payouts and GitHub availability are fixtures.
+    /// Explicit test-only runtime/image variables enable the production Docker
+    /// executor; otherwise the compiler runs in process. Neither mode spends.
     #[tokio::test]
     async fn knowledge_remote_http_dry_run_purchase_replay_and_conflict() {
+        let docker_config = match (
+            std::env::var("COVENANT_KNOWLEDGE_TEST_DOCKER_RUNTIME").ok(),
+            std::env::var("COVENANT_KNOWLEDGE_TEST_DOCKER_IMAGE").ok(),
+        ) {
+            (None, None) => None,
+            (Some(runtime), Some(image)) => Some(
+                covenant_compute_node::knowledge::KnowledgeConfig::new(runtime, image)
+                    .expect("Docker acceptance requires a pinned installed compiler image"),
+            ),
+            _ => panic!("Docker acceptance requires both test runtime and image variables"),
+        };
+        let real_oci = docker_config.is_some();
+        let image_sha256 = docker_config
+            .as_ref()
+            .map(|config| config.image_sha256.clone())
+            .unwrap_or_else(|| "b".repeat(64));
         let dir = tempfile::tempdir().unwrap();
         let rail = Arc::new(MockRail::new());
         let state = CoordinatorState::with_journal(
@@ -484,7 +510,7 @@ mod tests {
             .await
             .unwrap();
         let operator = LocalIdentity::generate("compiler@local");
-        let model = format!("knowledge-compile-v1:{}", "b".repeat(64));
+        let model = format!("knowledge-compile-v1:{image_sha256}");
         let profile = CapabilityProfile {
             operator: operator.agent_id(),
             hardware: HardwareClass::CpuOnly,
@@ -513,11 +539,23 @@ mod tests {
             .await
             .unwrap();
         let calls = Arc::new(AtomicUsize::new(0));
+        let docker = if let Some(config) = docker_config {
+            let executor = covenant_compute_node::knowledge::KnowledgeExecutor::new(config)
+                .with_operator(&operator.agent_id());
+            executor.health().await.expect("installed Docker compiler");
+            executor.reap_orphans().await.expect("scoped orphan cleanup");
+            Some(executor)
+        } else {
+            None
+        };
         let node = Node::new(
             operator,
             profile,
             client,
-            Arc::new(FixtureCompiler(calls.clone())),
+            Arc::new(FixtureCompiler {
+                calls: calls.clone(),
+                docker,
+            }),
             Arc::new(InMemoryEarningsLedger::new()),
             Arc::new(covenant_audit::InMemoryAuditLog::new()),
             NodeConfig {
@@ -535,10 +573,10 @@ mod tests {
         });
         let options = RemoteCompileOptions {
             repository: "https://github.com/example/public".into(),
-            compiler_image_sha256: "b".repeat(64),
+            compiler_image_sha256: image_sha256,
             price_micro_usdc: None,
             max_price_micro_usdc: 1_000,
-            deadline_ms: 5_000,
+            deadline_ms: if real_oci { 60_000 } else { 5_000 },
             idempotency_key: None,
             dry_run: true,
             purchase_home: dir.path().join("buyer"),
@@ -655,13 +693,17 @@ mod tests {
                 "schema":"covenant.knowledge.local-test-evidence.v1",
                 "local_test_only":true,
                 "funded_acceptance":false,
-                "real_oci_execution":false,
+                "real_oci_execution":real_oci,
                 "public_github_verified":false,
                 "substitutions":{
                     "funding":"MockRail with fixture credit",
                     "payout":"MockPayout; no on-chain transfer",
                     "public_source_verifier":"fixture verifier; no GitHub requests",
-                    "executor":"in-process fixture calls actual covenant_knowledge::compile_source",
+                    "executor":if real_oci {
+                        "production KnowledgeExecutor with installed digest-pinned Docker image"
+                    } else {
+                        "in-process fixture calls actual covenant_knowledge::compile_source"
+                    },
                     "daily_budget":"production guard disabled only for this isolated test"
                 },
                 "preview":preview,

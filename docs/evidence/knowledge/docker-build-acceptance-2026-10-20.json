@@ -1,0 +1,80 @@
+{
+  "schema": "covenant.knowledge.docker-acceptance-summary.v1",
+  "local_test_only": true,
+  "funded_acceptance": false,
+  "external_spend_usd": 0,
+  "platform": "linux/arm64",
+  "docker_version": "29.9.1",
+  "compiler_image": "covenant-knowledge@sha256:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+  "lifecycle_image": "covenant-knowledge-lifecycle@sha256:0ba52586e6fead44e9e00ed57384a58066d6add5a7139d4bd0f0098da7d72a47",
+  "core_build_inputs": [
+    {
+      "bytes": 275114,
+      "path": "agent-os/Cargo.lock",
+      "sha256": "ecb2a490d0c4630c66875d5ddc6a3da553ee91e21af379f3d0366e5157d460ad"
+    },
+    {
+      "bytes": 2574,
+      "path": "agent-os/Cargo.toml",
+      "sha256": "7d31141adbe80f2004f5252857d87ff3aef6c099c492573c251666ded3476a6c"
+    },
+    {
+      "bytes": 680,
+      "path": "agent-os/crates/covenant-knowledge/Cargo.toml",
+      "sha256": "9cbac08530a18600a46bcb35bb331b16d51a15f13858ad1ca69c662fa20e5947"
+    },
+    {
+      "bytes": 554,
+      "path": "agent-os/crates/covenant-knowledge/src/bin/covenant-knowledge-compiler.rs",
+      "sha256": "44344a2902e1e0aadffe55a1589251a1c9b894eea41236556723633c9ad6ddf3"
+    },
+    {
+      "bytes": 10097,
+      "path": "agent-os/crates/covenant-knowledge/src/lib.rs",
+      "sha256": "998977e5371674494f684834a10ad03fd61eabba0fbe8b3cf4fac3e3c95aa9ba"
+    },
+    {
+      "bytes": 20842,
+      "path": "agent-os/crates/covenant-knowledge/src/parser.rs",
+      "sha256": "c52f58c523e17670b1014578e9c75d0d7cf7c51f5d1c6f11bacdcd373a61251a"
+    },
+    {
+      "bytes": 18655,
+      "path": "agent-os/crates/covenant-knowledge/src/source.rs",
+      "sha256": "93782b871bff02f02029a079b21dc16790db8acca97282d403168ec37bcc32a6"
+    },
+    {
+      "bytes": 24531,
+      "path": "agent-os/crates/covenant-knowledge/src/store.rs",
+      "sha256": "0949cd0217f6119c9f142b0f23470850440af9e2e70ed7857501d6aff33f8a33"
+    },
+    {
+      "bytes": 28438,
+      "path": "agent-os/crates/covenant-knowledge/tests/knowledge.rs",
+      "sha256": "9b40f535e58d9bff829ca3d919f7cade32de6156c044b42c2a2b25d698d88f20"
+    },
+    {
+      "bytes": 4406,
+      "path": "agent-os/crates/covenant-knowledge/tests/migration_concurrency.rs",
+      "sha256": "d7273cce5521c9498a99ed3052388f20d33a63679c27f9f96a536c7043c01802"
+    },
+    {
+      "bytes": 1015,
+      "path": "deploy/knowledge-compiler/Dockerfile",
+      "sha256": "8d7ba8da68ef894520d254c07c9a97516370e5f9ba951bfc093267b57fb81c4a"
+    },
+    {
+      "bytes": 347,
+      "path": "deploy/knowledge-compiler/Dockerfile.dockerignore",
+      "sha256": "3db8d71ee45be8e03a7ff2e2ec2438a0f06641905121f827c25eda22eb3a6062"
+    }
+  ],
+  "evidence_sha256": {
+    "build-inputs.json": "4a781fdc5d677f57b224e1f85741dc515ff6faa11ea64e2033a77d3575886b50",
+    "staged-image-build.log": "5f2d671209b5446d28284f7790748150931b6675a57ae117074f31c5c092d755",
+    "compiler-image-staged.json": "223bbca9abc3ccff8d72e1b72caf7bb0289fe9e5ad28082328bfbeba71ea47d6",
+    "lifecycle-evidence.json": "71807416412b875cac92446cb627e5b3e50c317cbaba5b9288415b7782cf9b49",
+    "lifecycle-test.log": "cff9af9074dea8e885e6e4b95e35bb06807f43239bde93f07ecb063b2137d538",
+    "accepted-images.tar.gz": "983ccab787119a32aa00034774488af4402404075cff4559a2413044a010c1fc"
+  }
+}

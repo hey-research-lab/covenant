@@ -33,7 +33,7 @@ export default function ComputeKnowledgePage() {
       <main id="main-content" className={`${styles.page} ${mono.className}`}>
         <section className={styles.hero} aria-labelledby="knowledge-title">
           <div className={styles.heroArt}>
-            <Image src="/compute-knowledge/field.webp" alt="" fill priority sizes="(max-width: 760px) 100vw, 1240px" />
+            <Image src="/compute-knowledge/field-square-nodes.webp" alt="" fill priority sizes="(max-width: 760px) 100vw, 1240px" />
           </div>
           <div className={styles.heroContent}>
             <p className={styles.eyebrow}><span className={styles.dot} />Local implementation preview</p>

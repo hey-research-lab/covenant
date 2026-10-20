@@ -156,3 +156,7 @@ test-results/
 *.tsbuildinfo
 scratchpad/
 programs/*/target/
+
+# Local acceptance planning may contain buyer identities and financial state.
+/output/compute-knowledge-paid-acceptance/
+/output/compute-knowledge-budget-research/

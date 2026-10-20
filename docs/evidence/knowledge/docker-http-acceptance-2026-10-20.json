@@ -1,0 +1,225 @@
+{
+  "checks": {
+    "changed_input_same_key_refused": true,
+    "compiler_executions": 1,
+    "replay_job_id": "0362e159-1ae5-4c1b-8f0a-debe21ef4321",
+    "same_job_on_replay": true,
+    "snapshot_recompiled_locally": true,
+    "tamper_error": "knowledge result version, source, compiler, size or snapshot digest mismatch",
+    "tampered_result_refused": true,
+    "unavailable_exact_digest_refused": true
+  },
+  "funded_acceptance": false,
+  "local_test_only": true,
+  "preview": {
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "deadline_ms": 60000,
+    "dry_run": true,
+    "model": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+    "price_micro_usdc": 100,
+    "repository": "https://github.com/example/public",
+    "source_bytes": 252,
+    "source_sha256": "5bba5a6db7aedcf0f367fc071227907c387803d1bc5beeb73e597fa18669109e",
+    "submitted": false
+  },
+  "public_github_verified": false,
+  "real_oci_execution": true,
+  "request": {
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "compiler_image_sha256": "d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+    "repository": "https://github.com/example/public",
+    "schema_version": 1,
+    "source": {
+      "config": {
+        "max_file_bytes": 1048576,
+        "max_files": 20000,
+        "max_total_bytes": 67108864
+      },
+      "diagnostics": [],
+      "files": [
+        {
+          "content": "pub fn hello() -> usize { 42 }\n",
+          "path": "src/lib.rs"
+        }
+      ],
+      "git": {
+        "dirty": false,
+        "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "source_sha256": "5bba5a6db7aedcf0f367fc071227907c387803d1bc5beeb73e597fa18669109e"
+  },
+  "result": {
+    "compiler_image_sha256": "d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+    "schema_version": 1,
+    "snapshot": {
+      "compiler_version": "0.1.0",
+      "diagnostics": [],
+      "id": "0fcdfa28c472f66a5c42adc87216b1ed55c85e25d20a456512c2171eb8943147",
+      "objects": [
+        {
+          "end_byte": 31,
+          "end_line": 1,
+          "exported": false,
+          "id": "a035edee5c0e6cb18faf55b557fc3127ddd1168a7a8b3b337f1fe929982360ff",
+          "kind": "file",
+          "language": "rust",
+          "name": "src/lib.rs",
+          "path": "src/lib.rs",
+          "signature": "pub fn hello() -> usize { 42 }",
+          "source_sha256": "fb71afff8cebf0d3b74899cb3ba639706fa9b6b09c67fa3f4165860a6071ddaa",
+          "start_byte": 0,
+          "start_line": 1
+        },
+        {
+          "end_byte": 30,
+          "end_line": 1,
+          "exported": true,
+          "id": "60bc33517d89d16311ffbd554d3bfbefe6e36090d8fce085dd2a06cb22b28805",
+          "kind": "function",
+          "language": "rust",
+          "name": "hello",
+          "path": "src/lib.rs",
+          "signature": "pub fn hello() -> usize { 42 }",
+          "source_sha256": "fb71afff8cebf0d3b74899cb3ba639706fa9b6b09c67fa3f4165860a6071ddaa",
+          "start_byte": 0,
+          "start_line": 1
+        }
+      ],
+      "parser_versions": {
+        "extractor": "covenant-syntax-v2",
+        "javascript": "0.25.0",
+        "markdown": "covenant-sections-v1",
+        "python": "0.25.0",
+        "rust": "0.24.2",
+        "tree-sitter": "0.25.10",
+        "typescript": "0.23.2"
+      },
+      "relationships": [
+        {
+          "from": "a035edee5c0e6cb18faf55b557fc3127ddd1168a7a8b3b337f1fe929982360ff",
+          "kind": "contains",
+          "line": 1,
+          "path": "src/lib.rs",
+          "resolution": "resolved",
+          "target": "hello",
+          "to": "60bc33517d89d16311ffbd554d3bfbefe6e36090d8fce085dd2a06cb22b28805"
+        }
+      ],
+      "schema_version": 1,
+      "source": {
+        "config": {
+          "max_file_bytes": 1048576,
+          "max_files": 20000,
+          "max_total_bytes": 67108864
+        },
+        "diagnostics": [],
+        "files": [
+          {
+            "content": "pub fn hello() -> usize { 42 }\n",
+            "path": "src/lib.rs"
+          }
+        ],
+        "git": {
+          "dirty": false,
+          "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    "snapshot_sha256": "a4635bd226b2bc14d527db09a4d3b0762c5bc9f2efc11eaedeae8b7034625a3c",
+    "source_sha256": "5bba5a6db7aedcf0f367fc071227907c387803d1bc5beeb73e597fa18669109e"
+  },
+  "schema": "covenant.knowledge.local-test-evidence.v1",
+  "signed_job": {
+    "payload": {
+      "buyer": {
+        "display": "buyer@local",
+        "pubkey": "Fp34282dpozsMoXDpJTuLfibm4PeF8eS1YTHPKhRsund"
+      },
+      "capability_requirement": {
+        "gpu_class": null,
+        "kind": "batch_job",
+        "max_duration_secs": 60,
+        "min_reputation_bps": null,
+        "min_vram_gb": null,
+        "model_id": "knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c"
+      },
+      "deadline_ms": 60000,
+      "idempotency": {
+        "duplicate_safety": "idempotent",
+        "key": "0362e159-1ae5-4c1b-8f0a-debe21ef4321"
+      },
+      "input": [
+        {
+          "type": "json",
+          "value": {
+            "knowledge_compile": {
+              "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "compiler_image_sha256": "d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+              "repository": "https://github.com/example/public",
+              "schema_version": 1,
+              "source": {
+                "config": {
+                  "max_file_bytes": 1048576,
+                  "max_files": 20000,
+                  "max_total_bytes": 67108864
+                },
+                "diagnostics": [],
+                "files": [
+                  {
+                    "content": "pub fn hello() -> usize { 42 }\n",
+                    "path": "src/lib.rs"
+                  }
+                ],
+                "git": {
+                  "dirty": false,
+                  "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "source_sha256": "5bba5a6db7aedcf0f367fc071227907c387803d1bc5beeb73e597fa18669109e"
+            }
+          }
+        }
+      ],
+      "issued_at_ms": 1792512290890,
+      "job_id": "0362e159-1ae5-4c1b-8f0a-debe21ef4321",
+      "kind": "batch_job",
+      "price_micro_usdc": 100
+    },
+    "payload_json": "{\"job_id\":\"0362e159-1ae5-4c1b-8f0a-debe21ef4321\",\"buyer\":{\"display\":\"buyer@local\",\"pubkey\":\"Fp34282dpozsMoXDpJTuLfibm4PeF8eS1YTHPKhRsund\"},\"kind\":\"batch_job\",\"capability_requirement\":{\"gpu_class\":null,\"min_vram_gb\":null,\"model_id\":\"knowledge-compile-v1:d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c\",\"kind\":\"batch_job\",\"max_duration_secs\":60,\"min_reputation_bps\":null},\"input\":[{\"type\":\"json\",\"value\":{\"knowledge_compile\":{\"commit\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"compiler_image_sha256\":\"d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c\",\"repository\":\"https://github.com/example/public\",\"schema_version\":1,\"source\":{\"config\":{\"max_file_bytes\":1048576,\"max_files\":20000,\"max_total_bytes\":67108864},\"diagnostics\":[],\"files\":[{\"content\":\"pub fn hello() -> usize { 42 }\\n\",\"path\":\"src/lib.rs\"}],\"git\":{\"dirty\":false,\"revision\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},\"source_sha256\":\"5bba5a6db7aedcf0f367fc071227907c387803d1bc5beeb73e597fa18669109e\"}}}],\"price_micro_usdc\":100,\"deadline_ms\":60000,\"idempotency\":{\"duplicate_safety\":\"idempotent\",\"key\":\"0362e159-1ae5-4c1b-8f0a-debe21ef4321\"},\"issued_at_ms\":1792512290890}",
+    "signature_b58": "BNicKkF7V8KxAhxFV6C7ZGQKQtWtD7DfCsKeNMugxURQk9yRduPh1ay9n21uCJyRSDmk2db18BRSLmp9snFzA2Z",
+    "signer_pubkey_b58": "Fp34282dpozsMoXDpJTuLfibm4PeF8eS1YTHPKhRsund"
+  },
+  "signed_receipt": {
+    "receipt": {
+      "executed_at_ms": 1792512291071,
+      "job_hash_hex": "1560bfecdbe4f885c9021326beb788573878ea4fcd0e19ff006cf6952208029d",
+      "job_id": "0362e159-1ae5-4c1b-8f0a-debe21ef4321",
+      "meter": {
+        "finish_reason": null,
+        "gpu_seconds": null,
+        "tokens_in": null,
+        "tokens_out": null,
+        "wall_ms": 158
+      },
+      "node_audit_root_hex": "976b3521dc4843a8309f89950400e4587b03b2a9c5f137c34109b730ac479079",
+      "operator": {
+        "display": "compiler@local",
+        "pubkey": "21wrAdG27AFxpw3dXZdDn2DpYxsi9S1oYijSMBiZGm5B"
+      },
+      "price_micro_usdc": 100,
+      "result_hash_hex": "e520f082c6c0a764380a6b6448c4ac269adf59cdcda4d7d4c0236f199cad8855",
+      "status": "ok"
+    },
+    "receipt_json": "{\"job_id\":\"0362e159-1ae5-4c1b-8f0a-debe21ef4321\",\"operator\":{\"display\":\"compiler@local\",\"pubkey\":\"21wrAdG27AFxpw3dXZdDn2DpYxsi9S1oYijSMBiZGm5B\"},\"job_hash_hex\":\"1560bfecdbe4f885c9021326beb788573878ea4fcd0e19ff006cf6952208029d\",\"result_hash_hex\":\"e520f082c6c0a764380a6b6448c4ac269adf59cdcda4d7d4c0236f199cad8855\",\"meter\":{\"wall_ms\":158,\"tokens_in\":null,\"tokens_out\":null,\"gpu_seconds\":null,\"finish_reason\":null},\"price_micro_usdc\":100,\"status\":\"ok\",\"executed_at_ms\":1792512291071,\"node_audit_root_hex\":\"976b3521dc4843a8309f89950400e4587b03b2a9c5f137c34109b730ac479079\"}",
+    "signature_b58": "2Zi2mwvs3kfyf6ShgjcZsGMNDZgMF4uM3VpnWW7VzEQBLE8HdrEdhuyLvUeUaxEkaDd4G8qNVN7zVEzH58SncN2s",
+    "signer_pubkey_b58": "21wrAdG27AFxpw3dXZdDn2DpYxsi9S1oYijSMBiZGm5B"
+  },
+  "substitutions": {
+    "daily_budget": "production guard disabled only for this isolated test",
+    "executor": "production KnowledgeExecutor with installed digest-pinned Docker image",
+    "funding": "MockRail with fixture credit",
+    "payout": "MockPayout; no on-chain transfer",
+    "public_source_verifier": "fixture verifier; no GitHub requests"
+  }
+}

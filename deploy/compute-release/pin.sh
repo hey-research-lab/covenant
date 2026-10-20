@@ -91,11 +91,18 @@ class CovenantCompute < Formula
 
   def install
     bin.install "covenant-compute", "covenant-compute-mcp", "covenant-compute-node", "covenant-compute-stake"
+    if File.directory?("examples/knowledge")
+      pkgshare.install "examples", "docs", "licenses", "tools"
+      pkgshare.install "LICENSE", "NOTICE.md", "SECURITY_AUDIT_LICENSE", "RELEASE_NOTES.md", "BUILD_INFO.json"
+    end
   end
 
   test do
     %w[covenant-compute covenant-compute-mcp covenant-compute-node covenant-compute-stake].each do |cmd|
       assert_equal "#{cmd} #{version}", shell_output("#{bin}/#{cmd} --version").strip
+    end
+    if (pkgshare/"examples/knowledge").directory?
+      assert_match "knowledge compile", shell_output("#{bin}/covenant-compute knowledge --help")
     end
   end
 end

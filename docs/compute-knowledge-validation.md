@@ -44,6 +44,31 @@ The signed HTTP fixture was rerun successfully after adding an opt-in evidence
 export. The export contains no private signing keys. It is **local test evidence**,
 not a production payment, a GitHub visibility attestation or a real OCI run.
 
+## Subsequent shipping and Docker checks
+
+The candidate now has a distinct **0.5.0** version, with the public installer
+still pinned to the existing 0.4.1 release. Its native Apple Silicon archive and
+fresh installed Knowledge workflow passed the 19 offline checks, including 18
+exact citations and all six MCP reads. The release path now retains examples,
+guides, licenses and build metadata after installation. Final source provenance,
+installer acceptance, four-platform CI and signing remain separately recorded
+in the [shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md).
+
+The production Docker executor subsequently passed the
+[real-container HTTP acceptance](evidence/knowledge/docker-http-acceptance-2026-10-20.json):
+signed fixture receipt, deterministic import, one compiler execution, same-job
+replay and tamper/conflict refusal. The
+[container lifecycle probes](evidence/knowledge/docker-lifecycle-acceptance-2026-10-20.json)
+passed all 11 isolation/cleanup checks. See
+[build provenance](evidence/knowledge/docker-build-acceptance-2026-10-20.json)
+for the installed Linux/ARM64 image digest and source input hashes. Funding,
+payout and public-source verification in the HTTP fixture are substituted;
+no paid acceptance is claimed.
+
+The central website graph was updated to square glass nodes. Its production
+build and desktop/mobile layout checks passed; campaign exports retain exact
+brand fonts and the official mark at 1080p and 4K composition sizes.
+
 ## Interface and measurement evidence
 
 - [Viewer acceptance](evidence/knowledge/viewer-acceptance.md): actual saved
@@ -67,11 +92,11 @@ not a production payment, a GitHub visibility attestation or a real OCI run.
 | Gate | Status |
 |---|---|
 | Local compiler and interfaces | Implemented; relevant suites and responsive viewer checks passed |
-| Local package candidate | Optimized, unsigned Apple Silicon archive built; [19 extracted-package checks passed](evidence/knowledge/package-release-preview-2026-10-20.json), including 18 exact citations and all six MCP reads |
+| Local package candidate | Version 0.5.0 native archive and installed Knowledge workflow checked; see the [shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md) for final provenance and platform gates |
 | Signed public macOS/Linux release | Not published; existing release workflow remains the publishing path |
-| Actual OCI compiler image | Docker is unavailable in this environment; image execution unverified |
+| Actual OCI compiler image | Linux/ARM64 Docker build, real executor/receipt/import/replay and isolation/lifecycle checks passed; candidate image remains local |
 | Public operator and routing rollout | Not deployed |
-| Installed client paid acceptance | Not performed; requires an explicit budget and deployed exact capability |
+| Installed client paid acceptance | Not performed; [budget proposed](compute-knowledge-paid-acceptance-budget.md), no spending approved or performed; live exact capability remains required |
 | Real process restart / financial reconciliation | Local durable replay tested; production restart remains unaccepted |
 | Shared authenticated daemon access | Not exposed; public proxy refuses knowledge access; project authorization adapter remains a separate gate |
 | Private remote repositories | Refused by the public-source pilot; operator-access policy remains undefined |

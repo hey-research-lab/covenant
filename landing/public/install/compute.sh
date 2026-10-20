@@ -5,16 +5,17 @@
 #
 # Downloads the release archive for this machine from GitHub, checks it against
 # the checksum pinned below, and copies the four commands to
-# $COVENANT_COMPUTE_INSTALL_DIR (default: ~/.local/bin). Nothing else on the
-# system is changed. Guide: https://docs.opencovenant.org/compute
+# $COVENANT_COMPUTE_INSTALL_DIR (default: ~/.local/bin). Releases with a bundled
+# installer also retain examples, guides and notices in COVENANT_COMPUTE_DATA_DIR
+# (default: ~/.local/share/covenant-compute). Guide: https://docs.opencovenant.org/compute
 set -eu
 
 # >>> pinned release
-version=0.4.1
-sha256_darwin_arm64=bcea9e9bd493cef0f7568197a6b06ed8d14d36bf2502d98b838338c043a6ee39
-sha256_darwin_x86_64=54340753b65f22c04b4b50e16d1a21e30d230d8a6138c847bd085285c7594928
-sha256_linux_x86_64=a8a91cb60f2251ac070b0bacc104010b121698b65ca9efab6424ef62d79718bb
-sha256_linux_arm64=5aa9d0673a56094322043a495e39563e8b009b4c643e9f878feaf4ed9a9e0b94
+version=0.5.0
+sha256_darwin_arm64=7bb4a1ebfbc9aa20c725fb637f5ede9585da412b56f014eed314a9d01995e586
+sha256_darwin_x86_64=0525372e349c5ad01f16cef22d5c488d5022bd435236c7642b9f1e0069fee74d
+sha256_linux_x86_64=ba1185a4650d953fa71fabb0a0e4b8beee619b17bd3b9d53b7c10396ccf60cf2
+sha256_linux_arm64=26ccb6c8305f4828f56906b662c2d4d136802128672efa884379675e43470495
 # <<< pinned release
 
 commands="covenant-compute covenant-compute-mcp covenant-compute-node covenant-compute-stake"
@@ -74,6 +75,14 @@ fi
 printf 'Checksum verified\n'
 
 tar -xzf "$tmp/$asset.tar.gz" -C "$tmp"
+# New releases retain supporting examples, guides and license notices through
+# the bundled offline installer. Older pinned releases retain their existing
+# four-command installation behavior.
+if [ -f "$tmp/$asset/install.sh" ]; then
+  sh "$tmp/$asset/install.sh"
+  printf '\nAdd the binary directory to PATH if needed. Local Knowledge needs no coordinator or wallet.\n'
+  exit 0
+fi
 dir="${COVENANT_COMPUTE_INSTALL_DIR:-$HOME/.local/bin}"
 mkdir -p "$dir" || fail "cannot create $dir; set COVENANT_COMPUTE_INSTALL_DIR to a directory you can write to"
 # Stage next to the destination, then rename: a rename needs no free space, so a

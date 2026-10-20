@@ -8,12 +8,12 @@ import styles from "./page.module.css";
 
 const display = localFont({ src: "./_assets/archivo-expanded-600.ttf", weight: "600", display: "swap" });
 const mono = localFont({ src: "./_assets/jetbrains-mono-500.ttf", weight: "500", display: "swap" });
-const title = "Compute Knowledge — Covenant implementation preview";
-const description = "Explore Covenant Compute’s local code knowledge preview: source citations, dependency inspection and revision snapshots for Rust, Python, JavaScript, TypeScript and Markdown.";
+const title = "Compute Knowledge — Covenant Compute";
+const description = "Covenant Compute’s local code knowledge tools: source citations, dependency inspection and revision snapshots for Rust, Python, JavaScript, TypeScript and Markdown.";
 
 export const metadata: Metadata = pageMetadata(
   "/compute-knowledge",
-  { title: "Codebase knowledge your agents can inspect.", section: "Compute Knowledge / source preview" },
+  { title: "Codebase knowledge your agents can inspect.", section: "Compute Knowledge / local release" },
   { title, description },
 );
 
@@ -33,7 +33,7 @@ export default function ComputeKnowledgePage() {
             <Image src="/compute-knowledge/field-square-perspective.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 1240px" />
           </div>
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}><span className={styles.dot} />Local implementation preview</p>
+            <p className={styles.eyebrow}><span className={styles.dot} />Local release · Compute 0.5.0</p>
             <p className={styles.product}>Covenant Compute / Knowledge</p>
             <h1 id="knowledge-title" className={display.className}>Codebase knowledge<br /><span>your agents<br />can inspect.</span></h1>
             <p className={styles.lead}>A code knowledge layer inside Covenant Compute. Give agents and developers a searchable view of a repository, with evidence they can inspect.</p>
@@ -41,7 +41,7 @@ export default function ComputeKnowledgePage() {
               <a className={styles.primary} href="#local-preview">Explore the local workflow <span aria-hidden="true">↗</span></a>
               <a className={styles.secondary} href="#availability">See what is available <span aria-hidden="true">↓</span></a>
             </div>
-            <p className={styles.releaseNote}>Build from the source preview. Signed client release pending.</p>
+            <p className={styles.releaseNote}>Available for macOS and Linux, on ARM64 and x86-64.</p>
           </div>
         </section>
 
@@ -69,18 +69,18 @@ export default function ComputeKnowledgePage() {
             <p className={styles.eyebrow}>Start with a local repository</p>
             <h2 id="local-title" className={display.className}>One snapshot.<br />A shared view.</h2>
             <p className={styles.copy}>Compile once, then inspect the same saved source through the CLI, a browser viewer or a read-only MCP connection. Historical queries stay attached to the snapshot you select.</p>
-            <p className={styles.small}>Build from the preview source in a complete Covenant checkout. The compile command returns your project ID; the viewer prints its private loopback URL.</p>
-          <p className={styles.small}><a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/compute-knowledge.md">Read the source guide ↗</a><br /><span>Preview branch documentation.</span></p>
+            <p className={styles.small}>Install the signed Compute 0.5.0 release, then compile the included example or your own repository. The compile command returns your project ID; the viewer prints its private loopback URL.</p>
+          <p className={styles.small}><a className={styles.secondary} href="https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.0">Download Compute 0.5.0 ↗</a><br /><span>Signed release, four native builds. Guides and examples are included.</span></p>
           </div>
           <div className={styles.terminal}>
-            <div className={styles.terminalBar}><span>LOCAL WORKFLOW</span><span>CLI PREVIEW</span></div>
-            <pre tabIndex={0} aria-label="Example local knowledge commands"><code>{String.raw`# Build the preview from this source branch
-cargo build --manifest-path agent-os/Cargo.toml \
-  -p covenant-compute-buyer --bin covenant-compute
-export PATH="$PWD/agent-os/target/debug:$PATH"
+            <div className={styles.terminalBar}><span>LOCAL WORKFLOW</span><span>COMPUTE 0.5.0</span></div>
+            <pre tabIndex={0} aria-label="Example local knowledge commands"><code>{String.raw`# Install the checksum-pinned release
+curl -fsSL https://opencovenant.org/install/compute.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 
 # Compile the included original example
-covenant-compute knowledge compile ./examples/knowledge
+covenant-compute knowledge compile \
+  "$HOME/.local/share/covenant-compute/0.5.0/examples/knowledge"
 
 # Use the project ID returned by compile
 covenant-compute knowledge query "calculate_total" \
@@ -111,18 +111,18 @@ covenant-compute knowledge mcp --project <id>`}</code></pre>
           <div>
             <p className={styles.eyebrow}>Built into Compute</p>
             <h2 id="availability-title" className={display.className}>Local first.<br />Remote is the next gate.</h2>
-            <p className={styles.copy}>The preview includes a remote compilation path for a pinned public GitHub revision. A remote result must pass receipt and snapshot verification before local import.</p>
+            <p className={styles.copy}>The client includes a remote compilation path for a pinned public GitHub revision. A remote result must pass receipt and snapshot verification before local import.</p>
             <p className={styles.small}>
-              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/evidence/knowledge/benchmark-release-2026-10-20/report.md">Optimized preview measurements ↗</a><br />
-              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/codex/compute-knowledge/docs/evidence/knowledge/benchmark-2026-10-20/report.md">Earlier debug measurements ↗</a><br />
-              Both runs used the same small fixture. Direct search returned fewer bytes in all seven matching cases. Knowledge had lower median command latency in the optimized run; direct search was faster in the debug run. The optimized run overlapped regression tests. These measurements establish neither production performance nor token savings. Preview branch documentation.
+              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-release-2026-10-20/report.md">Optimized preview measurements ↗</a><br />
+              <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/compute-v0.5.0/docs/evidence/knowledge/benchmark-2026-10-20/report.md">Earlier debug measurements ↗</a><br />
+              Both runs used the same small fixture. Direct search returned fewer bytes in all seven matching cases. Knowledge had lower median command latency in the optimized run; direct search was faster in the debug run. The optimized run overlapped regression tests. These measurements establish neither production performance nor token savings. Build-time reports from the release source.
             </p>
-            <p className={styles.small}>Remote compilation is undergoing deployment and paid acceptance. The source preview is available now; remote availability will follow verified results.</p>
+            <p className={styles.small}>Local tools are available now. The paid remote pilot has been accepted; persistent public remote capacity is not available. <a className={styles.secondary} href="https://github.com/open-covenant/covenant/blob/74c432f900e57d48557abf79a52891b6f28aac0c/docs/evidence/knowledge/paid-pilot-2026-10-20/report.md">Read the bounded pilot evidence ↗</a></p>
           </div>
           <dl className={styles.statusList}>
-            <div><dt>Local workflow</dt><dd>Implementation preview</dd></div>
-            <div><dt>Release package</dt><dd>Signed release pending</dd></div>
-            <div><dt>Remote compiler</dt><dd>Acceptance in progress</dd></div>
+            <div><dt>Local workflow</dt><dd>Available in Compute 0.5.0</dd></div>
+            <div><dt>Release package</dt><dd>Signed macOS + Linux builds</dd></div>
+            <div><dt>Remote compiler</dt><dd>Paid pilot accepted · public availability pending</dd></div>
             <div><dt>Measured results</dt><dd>Reproducible fixture reports</dd></div>
           </dl>
         </section>

@@ -1,0 +1,271 @@
+{
+  "limit": 50,
+  "results": [
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 132,
+        "end_line": 8,
+        "fragment": "pricing::unit_price()",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "cc586ed5707925d2f5e529d2b17accde8c8262df80a2b554049fa0d819dc835f",
+        "path": "rust/src/lib.rs",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 111,
+        "start_line": 8,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 132,
+        "end_line": 8,
+        "exported": false,
+        "id": "cc586ed5707925d2f5e529d2b17accde8c8262df80a2b554049fa0d819dc835f",
+        "kind": "call",
+        "language": "rust",
+        "name": "pricing::unit_price",
+        "path": "rust/src/lib.rs",
+        "signature": "pricing::unit_price()",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 111,
+        "start_line": 8
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 31,
+        "end_line": 2,
+        "fragment": "def unit_price():\n    return 12",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "715f0967da075e797c5e67616f6340a0e10da742daea80a6d55ff8853bca61f4",
+        "path": "python/pricing.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "77833a93eaefb8acc93f6243656c61a1b6e87d29b9a3782495b9df30c75cbbea",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 31,
+        "end_line": 2,
+        "exported": false,
+        "id": "715f0967da075e797c5e67616f6340a0e10da742daea80a6d55ff8853bca61f4",
+        "kind": "function",
+        "language": "python",
+        "name": "unit_price",
+        "path": "python/pricing.py",
+        "signature": "def unit_price():",
+        "source_sha256": "77833a93eaefb8acc93f6243656c61a1b6e87d29b9a3782495b9df30c75cbbea",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 37,
+        "end_line": 3,
+        "fragment": "pub fn unit_price() -> u32 {\n    12\n}",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "9b2fa20c5be9094ceadc767b663eae53588c2d535ee20ad7190d966f1099e715",
+        "path": "rust/src/pricing.rs",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "22e828b9e11064790351d826ac5003d0399e205f7f9233e58fe87d55610b3317",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 37,
+        "end_line": 3,
+        "exported": true,
+        "id": "9b2fa20c5be9094ceadc767b663eae53588c2d535ee20ad7190d966f1099e715",
+        "kind": "function",
+        "language": "rust",
+        "name": "unit_price",
+        "path": "rust/src/pricing.rs",
+        "signature": "pub fn unit_price() -> u32 {",
+        "source_sha256": "22e828b9e11064790351d826ac5003d0399e205f7f9233e58fe87d55610b3317",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 32,
+        "end_line": 2,
+        "fragment": "def unit_price():\n    return 12\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "5790fce1b95f94594c927cb75be029566b5b7c9bbdd8632839d9d7723cac01ca",
+        "path": "python/pricing.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "77833a93eaefb8acc93f6243656c61a1b6e87d29b9a3782495b9df30c75cbbea",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 32,
+        "end_line": 2,
+        "exported": false,
+        "id": "5790fce1b95f94594c927cb75be029566b5b7c9bbdd8632839d9d7723cac01ca",
+        "kind": "file",
+        "language": "python",
+        "name": "python/pricing.py",
+        "path": "python/pricing.py",
+        "signature": "def unit_price():",
+        "source_sha256": "77833a93eaefb8acc93f6243656c61a1b6e87d29b9a3782495b9df30c75cbbea",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 38,
+        "end_line": 3,
+        "fragment": "pub fn unit_price() -> u32 {\n    12\n}\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "cf53749b293cf84111da805f75c643377acccc9b64c745e50dc8ad4a7b1cd82f",
+        "path": "rust/src/pricing.rs",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "22e828b9e11064790351d826ac5003d0399e205f7f9233e58fe87d55610b3317",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 38,
+        "end_line": 3,
+        "exported": false,
+        "id": "cf53749b293cf84111da805f75c643377acccc9b64c745e50dc8ad4a7b1cd82f",
+        "kind": "file",
+        "language": "rust",
+        "name": "rust/src/pricing.rs",
+        "path": "rust/src/pricing.rs",
+        "signature": "pub fn unit_price() -> u32 {",
+        "source_sha256": "22e828b9e11064790351d826ac5003d0399e205f7f9233e58fe87d55610b3317",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 148,
+        "end_line": 9,
+        "fragment": "pub fn calculate_total(order: &Order) -> u32 {\n    pricing::unit_price() * order.units\n}",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "c1023cacceb8c4df3e6dae246ac6302f1be551ceeff2f031603a6a77d8158ffe",
+        "path": "rust/src/lib.rs",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 60,
+        "start_line": 7,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 148,
+        "end_line": 9,
+        "exported": true,
+        "id": "c1023cacceb8c4df3e6dae246ac6302f1be551ceeff2f031603a6a77d8158ffe",
+        "kind": "function",
+        "language": "rust",
+        "name": "calculate_total",
+        "path": "rust/src/lib.rs",
+        "signature": "pub fn calculate_total(order: &Order) -> u32 {",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 60,
+        "start_line": 7
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 149,
+        "end_line": 9,
+        "fragment": "pub mod pricing;\n\npub struct Order {\n    pub units: u32,\n}\n\npub fn calculate_total(order: &Order) -> u32 {\n    pricing::unit_price() * order.units\n}\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "14a1a3e79b4734f3abfa1ffc4ea80d9ec0579cb160178d2bf54dd338e83864c9",
+        "path": "rust/src/lib.rs",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 149,
+        "end_line": 9,
+        "exported": false,
+        "id": "14a1a3e79b4734f3abfa1ffc4ea80d9ec0579cb160178d2bf54dd338e83864c9",
+        "kind": "file",
+        "language": "rust",
+        "name": "rust/src/lib.rs",
+        "path": "rust/src/lib.rs",
+        "signature": "pub mod pricing;",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 238,
+        "end_line": 13,
+        "fragment": "from python.pricing import unit_price\n\n\ndef calculate_total(units):\n    return units * unit_price()\n\n\nclass Order:\n    def __init__(self, units):\n        self.units = units\n\n    def total(self):\n        return calculate_total(self.units)\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "ec1c747f96e1c0a8ee625bba0f3eda61786b0cc581c799a1a7bd77d945d8af0b",
+        "path": "python/orders.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 238,
+        "end_line": 13,
+        "exported": false,
+        "id": "ec1c747f96e1c0a8ee625bba0f3eda61786b0cc581c799a1a7bd77d945d8af0b",
+        "kind": "file",
+        "language": "python",
+        "name": "python/orders.py",
+        "path": "python/orders.py",
+        "signature": "from python.pricing import unit_price",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    }
+  ],
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "total": 8
+}

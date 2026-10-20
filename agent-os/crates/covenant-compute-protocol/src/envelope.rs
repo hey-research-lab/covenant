@@ -72,6 +72,21 @@ impl JobEnvelopePayload {
     /// batch executor reads its command from the first text block and
     /// ignores the rest, malformed or not.
     pub fn validate_input(&self) -> Result<(), ProtocolError> {
+        if self
+            .capability_requirement
+            .model_id
+            .as_deref()
+            .is_some_and(|m| m.starts_with(crate::knowledge::KNOWLEDGE_MODEL_PREFIX))
+        {
+            crate::knowledge::validate_knowledge_job(self)?;
+        } else if self.input.iter().any(|block| {
+            matches!(block,
+            Content::Json { value } if value.get("knowledge_compile").is_some())
+        }) {
+            return Err(ProtocolError::Invalid(
+                "knowledge compile input requires exact compiler model routing".into(),
+            ));
+        }
         // A job's kind and the kind it requires of an operator travel as
         // two signed fields but must agree — the buyer builds both from
         // one `kind`. A divergence only serves to smuggle input past the

@@ -1,0 +1,106 @@
+{
+  "limit": 50,
+  "results": [
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 660,
+        "end_line": 17,
+        "fragment": "## Try it\n\n    covenant-compute knowledge compile examples/knowledge --json\n    cd examples/knowledge\n    covenant-compute knowledge query calculate_total --json\n    covenant-compute knowledge status --json\n\nUse the returned project ID with `knowledge mcp --project ID` or\n`knowledge serve --project ID`. The index lives outside the repository.\nThe source snapshot preserves the bytes captured when it was compiled.\n\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "73f615f0a8609bfa2f4907f00abd648afe9970fd2b1f647beaa7123f5f0074eb",
+        "path": "README.md",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 243,
+        "start_line": 7,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 660,
+        "end_line": 17,
+        "exported": false,
+        "id": "73f615f0a8609bfa2f4907f00abd648afe9970fd2b1f647beaa7123f5f0074eb",
+        "kind": "heading",
+        "language": "markdown",
+        "name": "Try it",
+        "path": "README.md",
+        "signature": "## Try it",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 243,
+        "start_line": 7
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 904,
+        "end_line": 22,
+        "fragment": "# Knowledge example\n\nAn original, offline example for Covenant Compute's knowledge compiler.\nThe Rust, Python, JavaScript and TypeScript files demonstrate declarations,\nmodule dependencies and source citations. The code need not be executed.\n\n## Try it\n\n    covenant-compute knowledge compile examples/knowledge --json\n    cd examples/knowledge\n    covenant-compute knowledge query calculate_total --json\n    covenant-compute knowledge status --json\n\nUse the returned project ID with `knowledge mcp --project ID` or\n`knowledge serve --project ID`. The index lives outside the repository.\nThe source snapshot preserves the bytes captured when it was compiled.\n\n## Limits\n\nStatic module relationships and call candidates describe source observations.\nDynamic dispatch, external package resolution and runtime behavior are not\nevaluated. No model key, wallet, code execution or network service is required.\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "148bf04b2de63fb37a33d02b19a04f433a1ed8337d8302d233c9639100cf207d",
+        "path": "README.md",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 904,
+        "end_line": 22,
+        "exported": false,
+        "id": "148bf04b2de63fb37a33d02b19a04f433a1ed8337d8302d233c9639100cf207d",
+        "kind": "file",
+        "language": "markdown",
+        "name": "README.md",
+        "path": "README.md",
+        "signature": "# Knowledge example",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 904,
+        "end_line": 22,
+        "fragment": "# Knowledge example\n\nAn original, offline example for Covenant Compute's knowledge compiler.\nThe Rust, Python, JavaScript and TypeScript files demonstrate declarations,\nmodule dependencies and source citations. The code need not be executed.\n\n## Try it\n\n    covenant-compute knowledge compile examples/knowledge --json\n    cd examples/knowledge\n    covenant-compute knowledge query calculate_total --json\n    covenant-compute knowledge status --json\n\nUse the returned project ID with `knowledge mcp --project ID` or\n`knowledge serve --project ID`. The index lives outside the repository.\nThe source snapshot preserves the bytes captured when it was compiled.\n\n## Limits\n\nStatic module relationships and call candidates describe source observations.\nDynamic dispatch, external package resolution and runtime behavior are not\nevaluated. No model key, wallet, code execution or network service is required.\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "41a363e53be36029e5aa37fff6688717bdb12177c17539e793839021485f578c",
+        "path": "README.md",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 904,
+        "end_line": 22,
+        "exported": false,
+        "id": "41a363e53be36029e5aa37fff6688717bdb12177c17539e793839021485f578c",
+        "kind": "heading",
+        "language": "markdown",
+        "name": "Knowledge example",
+        "path": "README.md",
+        "signature": "# Knowledge example",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    }
+  ],
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "total": 3
+}

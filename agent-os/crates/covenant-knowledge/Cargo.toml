@@ -1,0 +1,27 @@
+[package]
+name = "covenant-knowledge"
+version = "0.1.0"
+description = "Independent, offline source knowledge compiler with immutable evidence snapshots."
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sha1 = "0.10.6"
+rusqlite.workspace = true
+tempfile.workspace = true
+libc.workspace = true
+ignore = "=0.4.33"
+tree-sitter = "=0.25.10"
+tree-sitter-rust = "=0.24.2"
+tree-sitter-javascript = "=0.25.0"
+tree-sitter-typescript = "=0.23.2"
+tree-sitter-python = "=0.25.0"
+
+[dev-dependencies]
+tempfile.workspace = true

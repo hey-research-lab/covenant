@@ -31,6 +31,7 @@ root="$(cd "$here/../.." && pwd)"
 workspace="$root/agent-os"
 stake_workspace="$workspace/crates/covenant-compute-lease-signer"
 bins=(covenant-compute covenant-compute-mcp covenant-compute-node)
+command -v python3 >/dev/null || { echo "dist.sh: python3 is required for offline package acceptance" >&2; exit 1; }
 
 version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$workspace/crates/covenant-compute-buyer/Cargo.toml")"
 [ -n "$version" ] || { echo "dist.sh: no version in covenant-compute-buyer/Cargo.toml" >&2; exit 1; }
@@ -86,6 +87,12 @@ install -m 0755 "$stake_bin_dir/covenant-compute-stake" "$stage/"
 install -m 0644 "$root/LICENSE" "$root/NOTICE.md" "$here/README.md" "$stage/"
 install -m 0644 "$workspace/crates/covenant-compute-buyer/skills/security-audit/upstream/LICENSE" "$stage/SECURITY_AUDIT_LICENSE"
 install -m 0644 "$notes" "$stage/RELEASE_NOTES.md"
+mkdir -p "$stage/examples" "$stage/docs/evidence" "$stage/licenses" "$stage/tools"
+cp -R "$root/examples/knowledge" "$stage/examples/"
+cp -R "$here/licenses/knowledge" "$stage/licenses/"
+install -m 0644 "$root"/docs/compute-knowledge*.md "$stage/docs/"
+cp -R "$root/docs/evidence/knowledge" "$stage/docs/evidence/"
+install -m 0755 "$root/scripts/knowledge-package-smoke.py" "$stage/tools/"
 
 if tar --version | grep -q 'GNU tar'; then
   tar_flags=(--owner=0 --group=0 --numeric-owner)
@@ -166,6 +173,15 @@ if [ -e "$help_home" ]; then
   echo "dist.sh: workspace help unexpectedly created buyer state" >&2
   exit 1
 fi
+
+# Exercise the extracted buyer against the extracted original example. This
+# checks source citations and stdio MCP without an identity, daemon or model key.
+# Python stays native; only an Intel buyer uses Rosetta on Apple silicon.
+knowledge_smoke_args=(--package "$work/check/$asset" --lockfile "$workspace/Cargo.lock")
+if [ "$target" = x86_64-apple-darwin ] && [ "$(uname -m)" = arm64 ]; then
+  knowledge_smoke_args+=(--rosetta)
+fi
+python3 "$work/check/$asset/tools/knowledge-package-smoke.py" "${knowledge_smoke_args[@]}"
 
 mkdir -p "$root/dist"
 mv "$archive" "$root/dist/"

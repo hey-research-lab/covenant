@@ -1,0 +1,988 @@
+{
+  "schema_version": 1,
+  "release": "Ekos v1.1.0",
+  "rea_version": "6.7.0",
+  "scope": "Bounded behavioral observation of original small fixtures; no implementation-source review or copying",
+  "observations": [
+    {
+      "id": "ingest",
+      "status": "observed",
+      "finding": "Original Rust, Python, JavaScript/TypeScript and Markdown fixture objects were searchable. Baseline graph returned 26 objects and 12 edges from 13 ledger relationships.",
+      "evidence": "logs/object-evidence-baseline.json",
+      "command_ids": [
+        "object-evidence-baseline:01",
+        "object-evidence-baseline:02",
+        "object-evidence-baseline:03",
+        "object-evidence-baseline:04",
+        "object-evidence-baseline:05",
+        "object-evidence-baseline:06",
+        "object-evidence-baseline:07",
+        "object-evidence-baseline:08"
+      ]
+    },
+    {
+      "id": "rust_python_citations",
+      "status": "observed",
+      "finding": "admit_task and schedule_task detail display source path, excerpt and line range.",
+      "evidence": "logs/object-evidence-baseline.json",
+      "command_ids": [
+        "object-evidence-baseline:01",
+        "object-evidence-baseline:02",
+        "object-evidence-baseline:03",
+        "object-evidence-baseline:04",
+        "object-evidence-baseline:05",
+        "object-evidence-baseline:06",
+        "object-evidence-baseline:07",
+        "object-evidence-baseline:08"
+      ]
+    },
+    {
+      "id": "ts_citation_gap",
+      "status": "observed",
+      "finding": "queueTask is searchable but its object detail displays no Evidence section or source_span. Coverage reports JS/TS ZERO even though graph contains JsSymbol nodes.",
+      "evidence": "logs/object-evidence-baseline.json; logs/initial-pipeline.json",
+      "command_ids": [
+        "object-evidence-baseline:01",
+        "object-evidence-baseline:02",
+        "object-evidence-baseline:03",
+        "object-evidence-baseline:04",
+        "object-evidence-baseline:05",
+        "object-evidence-baseline:06",
+        "object-evidence-baseline:07",
+        "object-evidence-baseline:08",
+        "initial-pipeline:01",
+        "initial-pipeline:02",
+        "initial-pipeline:03",
+        "initial-pipeline:04",
+        "initial-pipeline:05",
+        "initial-pipeline:06",
+        "initial-pipeline:07",
+        "initial-pipeline:08",
+        "initial-pipeline:09"
+      ]
+    },
+    {
+      "id": "dependency_bounds",
+      "status": "observed",
+      "finding": "Graph contains file-to-import-name DependsOn edges for Python and TypeScript. No Calls edges join the original cross-file Rust/Python/TypeScript functions.",
+      "evidence": "logs/object-evidence-baseline.json",
+      "command_ids": [
+        "object-evidence-baseline:01",
+        "object-evidence-baseline:02",
+        "object-evidence-baseline:03",
+        "object-evidence-baseline:04",
+        "object-evidence-baseline:05",
+        "object-evidence-baseline:06",
+        "object-evidence-baseline:07",
+        "object-evidence-baseline:08"
+      ]
+    },
+    {
+      "id": "default_exclusions",
+      "status": "observed",
+      "finding": "node_modules and .env have no file/symbol nodes. A Python file excluded by .gitignore is still ingested and searchable.",
+      "evidence": "logs/query-baseline.json; logs/object-evidence-baseline.json",
+      "command_ids": [
+        "query-baseline:01",
+        "query-baseline:02",
+        "query-baseline:03",
+        "query-baseline:04",
+        "query-baseline:05",
+        "query-baseline:06",
+        "query-baseline:07",
+        "query-baseline:08",
+        "query-baseline:09",
+        "query-baseline:10",
+        "query-baseline:11",
+        "object-evidence-baseline:01",
+        "object-evidence-baseline:02",
+        "object-evidence-baseline:03",
+        "object-evidence-baseline:04",
+        "object-evidence-baseline:05",
+        "object-evidence-baseline:06",
+        "object-evidence-baseline:07",
+        "object-evidence-baseline:08"
+      ]
+    },
+    {
+      "id": "explicit_exclusions",
+      "status": "observed",
+      "finding": "A fresh project with security.extra-excluded-globs removes the ignored Python file and its symbol; lexical query still matches the filename in .gitignore.",
+      "evidence": "logs/explicit-exclusions.json",
+      "command_ids": [
+        "explicit-exclusions:01",
+        "explicit-exclusions:02",
+        "explicit-exclusions:03",
+        "explicit-exclusions:04",
+        "explicit-exclusions:05",
+        "explicit-exclusions:06",
+        "explicit-exclusions:07",
+        "explicit-exclusions:08",
+        "explicit-exclusions:09"
+      ]
+    },
+    {
+      "id": "freshness",
+      "status": "observed",
+      "finding": "Before recompilation, freshness identified one changed file, three added malformed sources and one removed file; it associated the changed Rust source with its symbol. Default freshness compares size/mtime.",
+      "evidence": "logs/update-failure-history.json",
+      "command_ids": [
+        "update-failure-history:01",
+        "update-failure-history:02",
+        "update-failure-history:03",
+        "update-failure-history:04",
+        "update-failure-history:05",
+        "update-failure-history:06",
+        "update-failure-history:07",
+        "update-failure-history:08",
+        "update-failure-history:09",
+        "update-failure-history:10",
+        "update-failure-history:11",
+        "update-failure-history:12",
+        "update-failure-history:13",
+        "update-failure-history:14",
+        "update-failure-history:15"
+      ]
+    },
+    {
+      "id": "update_history",
+      "status": "observed",
+      "finding": "Recompile updated the Rust symbol excerpt/description under the same ID. Audit returned two writes with run IDs, timestamps and artifact IDs. Time-bounded diff returned nine versions.",
+      "evidence": "logs/update-failure-history.json; logs/history-diff-cleanup.json",
+      "command_ids": [
+        "update-failure-history:01",
+        "update-failure-history:02",
+        "update-failure-history:03",
+        "update-failure-history:04",
+        "update-failure-history:05",
+        "update-failure-history:06",
+        "update-failure-history:07",
+        "update-failure-history:08",
+        "update-failure-history:09",
+        "update-failure-history:10",
+        "update-failure-history:11",
+        "update-failure-history:12",
+        "update-failure-history:13",
+        "update-failure-history:14",
+        "update-failure-history:15",
+        "history-diff-cleanup:01",
+        "history-diff-cleanup:02",
+        "history-diff-cleanup:03"
+      ]
+    },
+    {
+      "id": "deleted_search_result",
+      "status": "observed",
+      "finding": "After deleting web/display.js and rerunning build/recover/resolve/compile/commit, statusLabel and web/display.js remained searchable while freshness reported fresh.",
+      "evidence": "logs/update-failure-history.json",
+      "command_ids": [
+        "update-failure-history:01",
+        "update-failure-history:02",
+        "update-failure-history:03",
+        "update-failure-history:04",
+        "update-failure-history:05",
+        "update-failure-history:06",
+        "update-failure-history:07",
+        "update-failure-history:08",
+        "update-failure-history:09",
+        "update-failure-history:10",
+        "update-failure-history:11",
+        "update-failure-history:12",
+        "update-failure-history:13",
+        "update-failure-history:14",
+        "update-failure-history:15"
+      ]
+    },
+    {
+      "id": "parse_failures",
+      "status": "observed",
+      "finding": "Malformed Rust/Python/TypeScript files emitted RUST003/PYTHON003/JS003. Pipeline stages returned exit 0 and valid symbols remained queryable. Coverage returned exit 0 with ok:false.",
+      "evidence": "logs/update-failure-history.json",
+      "command_ids": [
+        "update-failure-history:01",
+        "update-failure-history:02",
+        "update-failure-history:03",
+        "update-failure-history:04",
+        "update-failure-history:05",
+        "update-failure-history:06",
+        "update-failure-history:07",
+        "update-failure-history:08",
+        "update-failure-history:09",
+        "update-failure-history:10",
+        "update-failure-history:11",
+        "update-failure-history:12",
+        "update-failure-history:13",
+        "update-failure-history:14",
+        "update-failure-history:15"
+      ]
+    },
+    {
+      "id": "console",
+      "status": "observed",
+      "finding": "Local-mode login opened workspaces and behavior dashboard. Dashboard showed counts, graph/chat/run/commands/history/evals/semantics/conflicts/config links, Init & compile, and doctor coverage/freshness findings.",
+      "evidence": "logs/rea-console-home.json; logs/rea-console-project.json",
+      "rea_evidence_ids": [
+        "ev_e80dadeb43bd3d5be7caec89e6b6a2db97ff8497c541941022c400b179fe9387",
+        "ev_5ba72f31f61246760bd5f39cc72da7f62d556530daf8e16e2d0827a3d992ed23"
+      ]
+    },
+    {
+      "id": "bundle_limit",
+      "status": "unknown",
+      "finding": "REA console bundle analysis exceeded the caller 60-second budget; no successful console bundle evidence returned.",
+      "evidence": "logs/rea-console-bundle-limit.json"
+    },
+    {
+      "id": "out_of_scope",
+      "status": "not_tested",
+      "finding": "No paid or local model question answering, vector/hybrid retrieval, remote accounts, multi-user permissions, load/scale tests, marketplace, token integration, or entire-product parity was tested."
+    }
+  ],
+  "cleanup": {
+    "console_stopped": true,
+    "browser_profiles_removed": true,
+    "agent_configuration_changed": false,
+    "paid_calls": 0
+  },
+  "research_date": "2026-10-20",
+  "release_url": "https://github.com/alexeyban/EKOS/releases/tag/v1.1.0",
+  "archive_sha256": "d5bbac5578bb78c9e55e8d69fdc98788c8582fc4c13d0f1e42611bcd7400a153",
+  "portable_evidence_note": "Sanitized observation summaries and original command identifiers; vendor code/assets/executable and full raw logs are not included. Full raw log hashes permit checking against retained local research artifacts.",
+  "source_logs": {
+    "logs/object-evidence-baseline.json": {
+      "sha256": "b912e1f954995fa0fe205f05d20feb82ea4f89536c88f143a40b0fd079554785",
+      "command_ids": [
+        "object-evidence-baseline:01",
+        "object-evidence-baseline:02",
+        "object-evidence-baseline:03",
+        "object-evidence-baseline:04",
+        "object-evidence-baseline:05",
+        "object-evidence-baseline:06",
+        "object-evidence-baseline:07",
+        "object-evidence-baseline:08"
+      ]
+    },
+    "logs/initial-pipeline.json": {
+      "sha256": "b65ba91b9797cdb34cede46fb2ae21666f7485b3a5cdb9e1b7ff94a9a1b52b98",
+      "command_ids": [
+        "initial-pipeline:01",
+        "initial-pipeline:02",
+        "initial-pipeline:03",
+        "initial-pipeline:04",
+        "initial-pipeline:05",
+        "initial-pipeline:06",
+        "initial-pipeline:07",
+        "initial-pipeline:08",
+        "initial-pipeline:09"
+      ]
+    },
+    "logs/query-baseline.json": {
+      "sha256": "bd2e91cc89fad819d218dbcf8eefac2b3d547aaa0fc65479d14f0cf3d2ccf585",
+      "command_ids": [
+        "query-baseline:01",
+        "query-baseline:02",
+        "query-baseline:03",
+        "query-baseline:04",
+        "query-baseline:05",
+        "query-baseline:06",
+        "query-baseline:07",
+        "query-baseline:08",
+        "query-baseline:09",
+        "query-baseline:10",
+        "query-baseline:11"
+      ]
+    },
+    "logs/explicit-exclusions.json": {
+      "sha256": "b9b31f47a8c6a540804730853de4afa24d4b4915f53f24649e90aeed92c17549",
+      "command_ids": [
+        "explicit-exclusions:01",
+        "explicit-exclusions:02",
+        "explicit-exclusions:03",
+        "explicit-exclusions:04",
+        "explicit-exclusions:05",
+        "explicit-exclusions:06",
+        "explicit-exclusions:07",
+        "explicit-exclusions:08",
+        "explicit-exclusions:09"
+      ]
+    },
+    "logs/update-failure-history.json": {
+      "sha256": "dc86e29218a75d9ed67523c5cae49006c4dd3bbedd961cbe8fc14fdae37696d9",
+      "command_ids": [
+        "update-failure-history:01",
+        "update-failure-history:02",
+        "update-failure-history:03",
+        "update-failure-history:04",
+        "update-failure-history:05",
+        "update-failure-history:06",
+        "update-failure-history:07",
+        "update-failure-history:08",
+        "update-failure-history:09",
+        "update-failure-history:10",
+        "update-failure-history:11",
+        "update-failure-history:12",
+        "update-failure-history:13",
+        "update-failure-history:14",
+        "update-failure-history:15"
+      ]
+    },
+    "logs/history-diff-cleanup.json": {
+      "sha256": "00284d64a095582fada6f0e86431a2183cb77d5eef9f8bbe3392ac6a3dd5fc4e",
+      "command_ids": [
+        "history-diff-cleanup:01",
+        "history-diff-cleanup:02",
+        "history-diff-cleanup:03"
+      ]
+    }
+  },
+  "commands": [
+    {
+      "id": "object-evidence-baseline:01",
+      "argv": [
+        "ekos",
+        "query",
+        "object",
+        "9af7e5e6-f0dc-5066-ae40-8f05d45ce030"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "1ec4fa034c8794370d27b040c5b242bf0cc59b989ba8df2aca47aaa9c304de46",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "object-evidence-baseline:02",
+      "argv": [
+        "ekos",
+        "query",
+        "object",
+        "4cc35a59-4274-598e-ac9b-04c0a36ab03f"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "471b7b3d9d5ff38598ff21de03ff44dbc4bb92f9e3ba1e648d63ef90999f34c5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "object-evidence-baseline:03",
+      "argv": [
+        "ekos",
+        "query",
+        "object",
+        "5d2d960b-047b-5853-a091-6d56edee5c27"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "9524a0090c20b8e05a4e7de597875d3efcd19a540852bc24803fb358fc4d0a90",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "object-evidence-baseline:04",
+      "argv": [
+        "ekos",
+        "query",
+        "neighbourhood",
+        "9af7e5e6-f0dc-5066-ae40-8f05d45ce030",
+        "--depth",
+        "2"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "1376e7be809bc501a4e50d81062b75f13a5c3384566da5a0f17c8b6d4db4b638",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "object-evidence-baseline:05",
+      "argv": [
+        "ekos",
+        "graph",
+        "export",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "b04b5da71102befc4d2a6d789dbcc0d7353845bf7df7d9ead94f7b50b1847fd0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "object-evidence-baseline:06",
+      "argv": [
+        "ekos",
+        "ledger",
+        "audit",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "4cd3ba8e8e73982f9bfb1a5275fd0e3217676bf3b2ee57d2cf2f292a08658450",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "object-evidence-baseline:07",
+      "argv": [
+        "ekos",
+        "graph",
+        "export"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "0d0c17759189b2a4259e08b066a20ca74c059ce7bc7735f3a2d67a4db050a7db",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "object-evidence-baseline:08",
+      "argv": [
+        "ekos",
+        "freshness",
+        "--json"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "cd86add5d346244f8a6d3d5f586a93fcde002f148548910e59908be809c02393",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:01",
+      "argv": [
+        "ekos",
+        "project",
+        "add",
+        "behavior",
+        "--source",
+        "$RESEARCH/fixtures",
+        "--detect"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "188cdb4746b5046ae68889a6eb23b4f631c7a24344649f2e7492ce56bf066e89",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:02",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "config",
+        "preview-scan"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "c4fc9c3ca89648a1f98195bfcfc25db1d3108d287ee617d579bab8add754f9c0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:03",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "build"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "9ecd34fb1af32467b183a06827946f16f7202adfe0dd4b59af23b911cad0e6ee",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:04",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "recover"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "1aa4df7fa560b7c37c47d05b2e266a9be93cf7906f585cf68124af3998be1721",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:05",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "resolve"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "d5cbb53dd0881d8b42e46f4315137e2c01fd8be11aba65808690fd573413701c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:06",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "compile"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "8d1c95fb559abb2ca6f7a8897ea8369181f6c8a656d612da267e71be3b83feae",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:07",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "commit"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "fd9b5985507f276d60be821b5cf1b65e4be58e5fe6a67b2fe538dcdd436ee163",
+      "stderr_sha256": "0d6461ce1176098eee2f02db4fd3a3b30fc489b4ec2ae6cc807239bb6394b08c"
+    },
+    {
+      "id": "initial-pipeline:08",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "coverage",
+        "--json"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "ae33fc3bffb1cb193b4511234b1b2b05b018b12d0bee932c850d83176cb7f9dd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "initial-pipeline:09",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "status"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "bb716e637fd08bca918aa395ff4fd9bf7913e4b8b2ceecb6b9b9668723a8bfdc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:01",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "admit_task"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "731a164f51088a6d08b9450290983a98fcede1820df3daae578284e131b6ad0e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:02",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "queueTask"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "b05d54ad2d26ef73135190c9514238bb9a142fc2169410cf2412b0609ee0009e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:03",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "schedule_task"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "d119c1413f2215c5bfef6b4e66449b19020c239876815d9583f8d05901d180ca",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:04",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "ignored_secret_canary"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "5cca8989fa3afc2416f737593dcbae6224b019a82e2fec584217c92f2ac7e7ae",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:05",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "excluded_environment_canary"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "46597fa12ec61c0a8271c88727404c9f408d315ba867b4b2f3a7efab2ab7d2e1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:06",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "thirdPartyCanary"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "eaed3c6f393a1a6da7c1440aa03e7ec90314a8c7f6761c6fc62205796b3d7346",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:07",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "quota"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "e01c0c4f770768069663fe4fb309965a2bb15ba12dc1edb03d7efb33f61980a1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:08",
+      "argv": [
+        "ekos",
+        "graph",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "b8ba5b91bdd80897f85351943b6b34dd6a98271aa2dead35422647b782448b9b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:09",
+      "argv": [
+        "ekos",
+        "ekl",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "31d34eedb89cea6b8ddefca4e489eaddfc4b75947d6881bb9aea3ca9031e76f5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:10",
+      "argv": [
+        "ekos",
+        "freshness",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "d973d57d832dec8a7e79ad63ec6058bcb8d8ec23331378395b4c58a7493025b1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "query-baseline:11",
+      "argv": [
+        "ekos",
+        "ledger",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "2269050607050d79381b54b26167c13a395549568fa8359a2b47caa3d4e9d749",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:01",
+      "argv": [
+        "ekos",
+        "project",
+        "add",
+        "excluded",
+        "--source",
+        "$RESEARCH/fixtures",
+        "--detect"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "148672b07ec520185faece021fc6fd9470d26e264a85c61965b875fc783976cc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:02",
+      "argv": [
+        "ekos",
+        "config",
+        "validate"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "519699e1161b4adf70bef5d6ea4e03ad37ce5c106b4967bf55487bf6af111971",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:03",
+      "argv": [
+        "ekos",
+        "build"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "ec46561e442de91b68b29dfdc69a9deaf8ab9e7dc30fb349b68098c70b032cf9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:04",
+      "argv": [
+        "ekos",
+        "recover"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "e693f673b3c6ed7434c79f1ebbd3faa495ca7d677c4ba5d79535193f4ac72266",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:05",
+      "argv": [
+        "ekos",
+        "resolve"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "359943a5ca9d7cb8188760dd3255757bde348ab227abdefa6bf4ccd28811e162",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:06",
+      "argv": [
+        "ekos",
+        "compile"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "31cc02b91df8b4d9099db637bf47b05705df59e5b733f3038157eea0f4326b12",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:07",
+      "argv": [
+        "ekos",
+        "commit"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "6332a0f0334f871bfbea4af60ccfff7499ee44b2b863a2f9212faafb03f3d5ca",
+      "stderr_sha256": "3b7b09f253627a8992f2b7308da460bb215577bc9724220b073cc7c9a7f6bef4"
+    },
+    {
+      "id": "explicit-exclusions:08",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "ignored_secret_canary"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "6ca1bf3decbf7225a7bc17ff5171346bd2b69f96546370c03d95b58a6587587e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "explicit-exclusions:09",
+      "argv": [
+        "ekos",
+        "graph",
+        "export"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "d4bb5538bb65ece1164e435c65bd41deb15321da1177080d44110b3feccc4a51",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:01",
+      "argv": [
+        "ekos",
+        "freshness",
+        "--json"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "e55f31252b0df2402e41104f05581fbcc3963b10afc87f4ba1275631022303c7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:02",
+      "argv": [
+        "ekos",
+        "query",
+        "object",
+        "9af7e5e6-f0dc-5066-ae40-8f05d45ce030"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "0a820f98a89a67b68e13945fa186000fc7d59c017e46dea592c0f54f8d5ea0a8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:03",
+      "argv": [
+        "ekos",
+        "build"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "734fdd38df1413b09af568c8d0678d31e5d115d4e35f9ea399b462e8769de7f7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:04",
+      "argv": [
+        "ekos",
+        "recover"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "f5f0a9d46f96c1bf9f46511fbd2f535235a6ac20149e51d3637704325f0874c7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:05",
+      "argv": [
+        "ekos",
+        "resolve"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "cb4818b14ece2e0eb1d7067424b86a650159f8173d5ebeac7e42ca34449d95c2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:06",
+      "argv": [
+        "ekos",
+        "compile"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "3118d1c8d4389ff2da9bad610e9a262929c495dd17b05046eee4c6f225bb11ed",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:07",
+      "argv": [
+        "ekos",
+        "commit"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "72583bd5b53ca8ef849d7b136df41f81012cf2759dd90f5f07c2437088d414f0",
+      "stderr_sha256": "0d6461ce1176098eee2f02db4fd3a3b30fc489b4ec2ae6cc807239bb6394b08c"
+    },
+    {
+      "id": "update-failure-history:08",
+      "argv": [
+        "ekos",
+        "freshness",
+        "--json"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "b0e6f60bc8360f494c4622f12e60bfbe1222103b336ba425040c696ee7045594",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:09",
+      "argv": [
+        "ekos",
+        "coverage",
+        "--json"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "0430a2edaaa20634aa779e64b352ed529f5e9c2fa94c79a768622ae54bc1c5ad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:10",
+      "argv": [
+        "ekos",
+        "query",
+        "object",
+        "9af7e5e6-f0dc-5066-ae40-8f05d45ce030"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "df122b1be215d1510c639188c1eb5783b7f626486be356fa05c082496ac8a636",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:11",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "statusLabel"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "336bf4de14668164de2a09f1edc2e39770329136de26b6d9cc5a42bf8655c7d3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:12",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "malformed_python"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "ecc539ab555186372fb3ed258da4feecc3717bc2cab739c784ed172ac18c2c71",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:13",
+      "argv": [
+        "ekos",
+        "query",
+        "find",
+        "malformed_typescript"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "32f916bd5d792709ba7abb72552a094b280b6a0c30718b489e398935ae0815a0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:14",
+      "argv": [
+        "ekos",
+        "ledger",
+        "audit",
+        "9af7e5e6-f0dc-5066-ae40-8f05d45ce030",
+        "--json"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "660e4a2e1476ad37586da2679809b3b631b1386f889bca486f03ae9272e63c53",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "update-failure-history:15",
+      "argv": [
+        "ekos",
+        "graph",
+        "export"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "ea3fea37d6e73eaf37533d8ef4a419fb86da19a84289d7332430827ac15781ec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "history-diff-cleanup:01",
+      "argv": [
+        "ekos",
+        "--project",
+        "behavior",
+        "diff",
+        "--from",
+        "2026-10-20T07:04:16Z",
+        "--to",
+        "2026-10-20T07:05:12Z"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "8f7397459a219ac4b3aa96ae39faf3b98b840e7737fdaca6819b2b44ab4e8a64",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "history-diff-cleanup:02",
+      "argv": [
+        "ekos",
+        "console",
+        "stop"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "507e9d96d74effa730cb2c0a73a9fdd3a59ce4a3a1a0b75e14912561209dc78a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "history-diff-cleanup:03",
+      "argv": [
+        "ekos",
+        "console",
+        "status"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "b2fbe7c6c3377a0403b92b9e91a78c24d9c1e52039f3570726620639b8b119fc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "reproduction_checks": {
+    "recorded_commands": 40,
+    "command_failures": 0,
+    "deleted_symbol_still_searchable": true,
+    "coverage_false": true,
+    "named_parser_diagnostics": true
+  }
+}

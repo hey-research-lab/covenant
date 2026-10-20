@@ -48,6 +48,9 @@ use covenant_mcp::Content;
 use serde_json::Value;
 use uuid::Uuid;
 
+#[path = "../knowledge_cli.rs"]
+mod knowledge_cli;
+
 #[path = "../workspace_cli.rs"]
 mod workspace_cli;
 
@@ -56,6 +59,7 @@ covenant-compute — buy compute from the Covenant network, and manage the
 wallet that pays for it
 
 Usage:
+  covenant-compute knowledge <command>          compile and inspect source knowledge offline (knowledge --help)
   covenant-compute whoami                       this buyer's pubkey and home
   covenant-compute audit-skill                  read the bundled security-audit workflow (free, offline)
   covenant-compute audit-skill --list            list bundled audit documents and their hashes
@@ -248,6 +252,10 @@ async fn main() -> anyhow::Result<()> {
     if args.is_empty() {
         print!("{USAGE}");
         return Ok(());
+    }
+    if args.first().map(String::as_str) == Some("knowledge") {
+        args.remove(0);
+        return knowledge_cli::run(args, json_out).await;
     }
     // `<command> --help`/`-h` answers with usage and exits clean, before
     // any home, identity, or coordinator touch — the same contract the

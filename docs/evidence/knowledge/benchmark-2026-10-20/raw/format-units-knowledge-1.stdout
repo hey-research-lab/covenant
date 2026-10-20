@@ -1,0 +1,73 @@
+{
+  "limit": 50,
+  "results": [
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 65,
+        "end_line": 3,
+        "fragment": "function formatUnits(units) {\n  return `${units} units`;\n}",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "9cae558a4ea0c4e331bc9c1e8e0f6a8d003dbfe50fc5323e7453abd91d180fae",
+        "path": "web/format.js",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "98a43c57dd8f8d2d0b1b730bf3c5914577eec39bcb0bd7a484088315a04b2aac",
+        "start_byte": 7,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 65,
+        "end_line": 3,
+        "exported": true,
+        "id": "9cae558a4ea0c4e331bc9c1e8e0f6a8d003dbfe50fc5323e7453abd91d180fae",
+        "kind": "function",
+        "language": "javascript",
+        "name": "formatUnits",
+        "path": "web/format.js",
+        "signature": "function formatUnits(units) {",
+        "source_sha256": "98a43c57dd8f8d2d0b1b730bf3c5914577eec39bcb0bd7a484088315a04b2aac",
+        "start_byte": 7,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 66,
+        "end_line": 3,
+        "fragment": "export function formatUnits(units) {\n  return `${units} units`;\n}\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "7afaf07f034685b8ebf1285b89f58b47c20aef097d118916145cecf7dc307018",
+        "path": "web/format.js",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "98a43c57dd8f8d2d0b1b730bf3c5914577eec39bcb0bd7a484088315a04b2aac",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 66,
+        "end_line": 3,
+        "exported": false,
+        "id": "7afaf07f034685b8ebf1285b89f58b47c20aef097d118916145cecf7dc307018",
+        "kind": "file",
+        "language": "javascript",
+        "name": "web/format.js",
+        "path": "web/format.js",
+        "signature": "export function formatUnits(units) {",
+        "source_sha256": "98a43c57dd8f8d2d0b1b730bf3c5914577eec39bcb0bd7a484088315a04b2aac",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    }
+  ],
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "total": 2
+}

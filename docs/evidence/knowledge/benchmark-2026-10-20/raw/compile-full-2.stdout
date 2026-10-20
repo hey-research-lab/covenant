@@ -1,0 +1,27 @@
+{
+  "coverage": {
+    "excluded": 0,
+    "files": 9,
+    "languages": {
+      "javascript": 1,
+      "markdown": 1,
+      "python": 2,
+      "rust": 2,
+      "tsx": 1,
+      "typescript": 2
+    },
+    "objects": 36,
+    "partial": false,
+    "relationships": 41,
+    "resolved": 31,
+    "unresolved": 10
+  },
+  "diagnostics": [],
+  "project": {
+    "id": "2c6b608162017a55c76e6a2a5e0ed263fbead7bca7e9f497bf8a94359afe63b1",
+    "latest": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+    "root": "/private/tmp/covenant-knowledge-benchmark-h5_nk0py/source"
+  },
+  "reused_files": 0,
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90"
+}

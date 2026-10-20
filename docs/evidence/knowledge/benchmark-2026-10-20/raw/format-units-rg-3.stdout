@@ -1,0 +1,4 @@
+{"type":"begin","data":{"path":{"text":"./web/format.js"}}}
+{"type":"match","data":{"path":{"text":"./web/format.js"},"lines":{"text":"export function formatUnits(units) {\n"},"line_number":1,"absolute_offset":0,"submatches":[{"match":{"text":"formatUnits"},"start":16,"end":27}]}}
+{"type":"end","data":{"path":{"text":"./web/format.js"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":14292,"human":"0.000014s"},"searches":1,"searches_with_match":1,"bytes_searched":66,"bytes_printed":282,"matched_lines":1,"matches":1}}}
+{"data":{"elapsed_total":{"human":"0.001563s","nanos":1563292,"secs":0},"stats":{"bytes_printed":282,"bytes_searched":1813,"elapsed":{"human":"0.000052s","nanos":52459,"secs":0},"matched_lines":1,"matches":1,"searches":9,"searches_with_match":1}},"type":"summary"}

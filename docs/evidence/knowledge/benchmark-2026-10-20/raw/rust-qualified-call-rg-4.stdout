@@ -1,0 +1,4 @@
+{"type":"begin","data":{"path":{"text":"./rust/src/lib.rs"}}}
+{"type":"match","data":{"path":{"text":"./rust/src/lib.rs"},"lines":{"text":"    pricing::unit_price() * order.units\n"},"line_number":8,"absolute_offset":107,"submatches":[{"match":{"text":"pricing::unit_price"},"start":4,"end":23}]}}
+{"type":"end","data":{"path":{"text":"./rust/src/lib.rs"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":8708,"human":"0.000009s"},"searches":1,"searches_with_match":1,"bytes_searched":149,"bytes_printed":298,"matched_lines":1,"matches":1}}}
+{"data":{"elapsed_total":{"human":"0.001778s","nanos":1778250,"secs":0},"stats":{"bytes_printed":298,"bytes_searched":1813,"elapsed":{"human":"0.000179s","nanos":178918,"secs":0},"matched_lines":1,"matches":1,"searches":9,"searches_with_match":1}},"type":"summary"}

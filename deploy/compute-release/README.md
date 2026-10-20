@@ -52,6 +52,36 @@ Add the `export` line to your shell profile to keep it. Your buyer key controls
 your balance, and `covenant-compute` and `covenant-compute-mcp` both use it, so
 back up `~/.covenant-compute-mcp/identity.json`.
 
+## Knowledge implementation preview
+
+Builds from the knowledge implementation source include offline repository
+snapshots, source citations, six read-only MCP tools and a loopback viewer. This
+section does not announce a published knowledge release or network deployment;
+check that `covenant-compute knowledge --help` is present in the actual binary.
+No wallet, daemon or model key is needed for the local commands.
+
+From this unpacked folder:
+
+```sh
+./covenant-compute knowledge compile ./examples/knowledge --json
+# Use the project ID printed by compile:
+./covenant-compute knowledge query calculate_total --project PROJECT_ID
+./covenant-compute knowledge serve --project PROJECT_ID
+```
+
+The index defaults to `~/.covenant/knowledge`, outside the example source.
+The full guide is [docs/compute-knowledge.md](docs/compute-knowledge.md).
+The original examples, parser and font licenses, and recorded local evidence are
+included in the archive. To repeat its isolated offline acceptance check:
+
+```sh
+python3 tools/knowledge-package-smoke.py --package .
+```
+
+The smoke check copies the example to a temporary directory, validates source
+hashes and excerpts, verifies the snapshot, and exercises the project-bound MCP
+tools. It does not run the example source or purchase remote work.
+
 ## Security audit workflow
 
 Version 0.4.1 bundles Cloudflare's security-audit skill, including its six-phase

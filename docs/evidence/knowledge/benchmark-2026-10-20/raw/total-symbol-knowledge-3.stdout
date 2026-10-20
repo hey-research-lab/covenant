@@ -1,0 +1,502 @@
+{
+  "limit": 50,
+  "results": [
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 157,
+        "end_line": 4,
+        "fragment": "calculate_total(order)",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "856d669f461329829bb68844597230111bcb161c037811722b0f1011dc646d18",
+        "path": "web/OrderCard.tsx",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "e909d2406062e4ef0d5a73de4b1a4dc4ea3a1c9cbe748ddd3a27b083db5adc35",
+        "start_byte": 135,
+        "start_line": 4,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 157,
+        "end_line": 4,
+        "exported": false,
+        "id": "856d669f461329829bb68844597230111bcb161c037811722b0f1011dc646d18",
+        "kind": "call",
+        "language": "tsx",
+        "name": "calculate_total",
+        "path": "web/OrderCard.tsx",
+        "signature": "calculate_total(order)",
+        "source_sha256": "e909d2406062e4ef0d5a73de4b1a4dc4ea3a1c9cbe748ddd3a27b083db5adc35",
+        "start_byte": 135,
+        "start_line": 4
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 237,
+        "end_line": 13,
+        "fragment": "calculate_total(self.units)",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "0c9eef5250c603114987582f0290186cd1fad5922ed30053997a3070e6600622",
+        "path": "python/orders.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 210,
+        "start_line": 13,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 237,
+        "end_line": 13,
+        "exported": false,
+        "id": "0c9eef5250c603114987582f0290186cd1fad5922ed30053997a3070e6600622",
+        "kind": "call",
+        "language": "python",
+        "name": "calculate_total",
+        "path": "python/orders.py",
+        "signature": "calculate_total(self.units)",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 210,
+        "start_line": 13
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 99,
+        "end_line": 5,
+        "fragment": "def calculate_total(units):\n    return units * unit_price()",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "04ecdcfa657bc97925be90e319d0c0b868a04e3b75c188893f34382f0237698a",
+        "path": "python/orders.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 40,
+        "start_line": 4,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 99,
+        "end_line": 5,
+        "exported": false,
+        "id": "04ecdcfa657bc97925be90e319d0c0b868a04e3b75c188893f34382f0237698a",
+        "kind": "function",
+        "language": "python",
+        "name": "calculate_total",
+        "path": "python/orders.py",
+        "signature": "def calculate_total(units):",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 40,
+        "start_line": 4
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 178,
+        "end_line": 9,
+        "fragment": "function calculate_total(order: Order): number {\n  return order.units * unitPrice();\n}",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "f4f73783c38ea0c311ab06feebb700fd06dbe0532e28630561177f78d66c77fa",
+        "path": "web/orders.ts",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9aa5380007cd1cfa0617f352f69f1359a11c456b2a34e8f9d57f686d0b74f6",
+        "start_byte": 92,
+        "start_line": 7,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 178,
+        "end_line": 9,
+        "exported": true,
+        "id": "f4f73783c38ea0c311ab06feebb700fd06dbe0532e28630561177f78d66c77fa",
+        "kind": "function",
+        "language": "typescript",
+        "name": "calculate_total",
+        "path": "web/orders.ts",
+        "signature": "function calculate_total(order: Order): number {",
+        "source_sha256": "2a9aa5380007cd1cfa0617f352f69f1359a11c456b2a34e8f9d57f686d0b74f6",
+        "start_byte": 92,
+        "start_line": 7
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 148,
+        "end_line": 9,
+        "fragment": "pub fn calculate_total(order: &Order) -> u32 {\n    pricing::unit_price() * order.units\n}",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "c1023cacceb8c4df3e6dae246ac6302f1be551ceeff2f031603a6a77d8158ffe",
+        "path": "rust/src/lib.rs",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 60,
+        "start_line": 7,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 148,
+        "end_line": 9,
+        "exported": true,
+        "id": "c1023cacceb8c4df3e6dae246ac6302f1be551ceeff2f031603a6a77d8158ffe",
+        "kind": "function",
+        "language": "rust",
+        "name": "calculate_total",
+        "path": "rust/src/lib.rs",
+        "signature": "pub fn calculate_total(order: &Order) -> u32 {",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 60,
+        "start_line": 7
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 172,
+        "end_line": 5,
+        "fragment": "import { calculate_total, Order } from \"./orders\";\n\nexport function OrderCard({ order }: { order: Order }) {\n  return <article>Total: {calculate_total(order)}</article>;\n}\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "dc86f20597dd3b8fe7ed5b65c6e241be674f3c04d10beefc8cdcfce7c6e43614",
+        "path": "web/OrderCard.tsx",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "e909d2406062e4ef0d5a73de4b1a4dc4ea3a1c9cbe748ddd3a27b083db5adc35",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 172,
+        "end_line": 5,
+        "exported": false,
+        "id": "dc86f20597dd3b8fe7ed5b65c6e241be674f3c04d10beefc8cdcfce7c6e43614",
+        "kind": "file",
+        "language": "tsx",
+        "name": "web/OrderCard.tsx",
+        "path": "web/OrderCard.tsx",
+        "signature": "import { calculate_total, Order } from \"./orders\";",
+        "source_sha256": "e909d2406062e4ef0d5a73de4b1a4dc4ea3a1c9cbe748ddd3a27b083db5adc35",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 237,
+        "end_line": 13,
+        "fragment": "def total(self):\n        return calculate_total(self.units)",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "9a164539d3aafe7c2929d4b3820936af25f7d50c2da1af7832daf9c1141d9cef",
+        "path": "python/orders.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 178,
+        "start_line": 12,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 237,
+        "end_line": 13,
+        "exported": false,
+        "id": "9a164539d3aafe7c2929d4b3820936af25f7d50c2da1af7832daf9c1141d9cef",
+        "kind": "function",
+        "language": "python",
+        "name": "total",
+        "path": "python/orders.py",
+        "signature": "def total(self):",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 178,
+        "start_line": 12
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 238,
+        "end_line": 13,
+        "fragment": "from python.pricing import unit_price\n\n\ndef calculate_total(units):\n    return units * unit_price()\n\n\nclass Order:\n    def __init__(self, units):\n        self.units = units\n\n    def total(self):\n        return calculate_total(self.units)\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "ec1c747f96e1c0a8ee625bba0f3eda61786b0cc581c799a1a7bd77d945d8af0b",
+        "path": "python/orders.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 238,
+        "end_line": 13,
+        "exported": false,
+        "id": "ec1c747f96e1c0a8ee625bba0f3eda61786b0cc581c799a1a7bd77d945d8af0b",
+        "kind": "file",
+        "language": "python",
+        "name": "python/orders.py",
+        "path": "python/orders.py",
+        "signature": "from python.pricing import unit_price",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 171,
+        "end_line": 5,
+        "fragment": "function OrderCard({ order }: { order: Order }) {\n  return <article>Total: {calculate_total(order)}</article>;\n}",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "cb70fa191a31f225de989b40814b4ee89556e3f61226dc330243a33a919843f0",
+        "path": "web/OrderCard.tsx",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "e909d2406062e4ef0d5a73de4b1a4dc4ea3a1c9cbe748ddd3a27b083db5adc35",
+        "start_byte": 59,
+        "start_line": 3,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 171,
+        "end_line": 5,
+        "exported": true,
+        "id": "cb70fa191a31f225de989b40814b4ee89556e3f61226dc330243a33a919843f0",
+        "kind": "function",
+        "language": "tsx",
+        "name": "OrderCard",
+        "path": "web/OrderCard.tsx",
+        "signature": "function OrderCard({ order }: { order: Order }) {",
+        "source_sha256": "e909d2406062e4ef0d5a73de4b1a4dc4ea3a1c9cbe748ddd3a27b083db5adc35",
+        "start_byte": 59,
+        "start_line": 3
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 237,
+        "end_line": 13,
+        "fragment": "class Order:\n    def __init__(self, units):\n        self.units = units\n\n    def total(self):\n        return calculate_total(self.units)",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "c5531e6455239961ae8f5414b3b40e7eb9faa5602653b42b27b72108b1613fbf",
+        "path": "python/orders.py",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 102,
+        "start_line": 8,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 237,
+        "end_line": 13,
+        "exported": false,
+        "id": "c5531e6455239961ae8f5414b3b40e7eb9faa5602653b42b27b72108b1613fbf",
+        "kind": "class",
+        "language": "python",
+        "name": "Order",
+        "path": "python/orders.py",
+        "signature": "class Order:",
+        "source_sha256": "2a9e8a4501613ed665187bf414671e22b7c1efa962e179ad0885e5ca31a6d683",
+        "start_byte": 102,
+        "start_line": 8
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 179,
+        "end_line": 9,
+        "fragment": "import { unitPrice } from \"./pricing\";\n\nexport interface Order {\n  units: number;\n}\n\nexport function calculate_total(order: Order): number {\n  return order.units * unitPrice();\n}\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "fcb4f32eceeafab72ba95d9d5f7c1cb6a6d3820e4dafcd2c7ba50647ec57cec1",
+        "path": "web/orders.ts",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "2a9aa5380007cd1cfa0617f352f69f1359a11c456b2a34e8f9d57f686d0b74f6",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 179,
+        "end_line": 9,
+        "exported": false,
+        "id": "fcb4f32eceeafab72ba95d9d5f7c1cb6a6d3820e4dafcd2c7ba50647ec57cec1",
+        "kind": "file",
+        "language": "typescript",
+        "name": "web/orders.ts",
+        "path": "web/orders.ts",
+        "signature": "import { unitPrice } from \"./pricing\";",
+        "source_sha256": "2a9aa5380007cd1cfa0617f352f69f1359a11c456b2a34e8f9d57f686d0b74f6",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 149,
+        "end_line": 9,
+        "fragment": "pub mod pricing;\n\npub struct Order {\n    pub units: u32,\n}\n\npub fn calculate_total(order: &Order) -> u32 {\n    pricing::unit_price() * order.units\n}\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "14a1a3e79b4734f3abfa1ffc4ea80d9ec0579cb160178d2bf54dd338e83864c9",
+        "path": "rust/src/lib.rs",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 149,
+        "end_line": 9,
+        "exported": false,
+        "id": "14a1a3e79b4734f3abfa1ffc4ea80d9ec0579cb160178d2bf54dd338e83864c9",
+        "kind": "file",
+        "language": "rust",
+        "name": "rust/src/lib.rs",
+        "path": "rust/src/lib.rs",
+        "signature": "pub mod pricing;",
+        "source_sha256": "0efc3557871dc71738ca4bb82b2350c898046a79c0e5c34392aaa5c51b38ae6d",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 660,
+        "end_line": 17,
+        "fragment": "## Try it\n\n    covenant-compute knowledge compile examples/knowledge --json\n    cd examples/knowledge\n    covenant-compute knowledge query calculate_total --json\n    covenant-compute knowledge status --json\n\nUse the returned project ID with `knowledge mcp --project ID` or\n`knowledge serve --project ID`. The index lives outside the repository.\nThe source snapshot preserves the bytes captured when it was compiled.\n\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "73f615f0a8609bfa2f4907f00abd648afe9970fd2b1f647beaa7123f5f0074eb",
+        "path": "README.md",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 243,
+        "start_line": 7,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 660,
+        "end_line": 17,
+        "exported": false,
+        "id": "73f615f0a8609bfa2f4907f00abd648afe9970fd2b1f647beaa7123f5f0074eb",
+        "kind": "heading",
+        "language": "markdown",
+        "name": "Try it",
+        "path": "README.md",
+        "signature": "## Try it",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 243,
+        "start_line": 7
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 904,
+        "end_line": 22,
+        "fragment": "# Knowledge example\n\nAn original, offline example for Covenant Compute's knowledge compiler.\nThe Rust, Python, JavaScript and TypeScript files demonstrate declarations,\nmodule dependencies and source citations. The code need not be executed.\n\n## Try it\n\n    covenant-compute knowledge compile examples/knowledge --json\n    cd examples/knowledge\n    covenant-compute knowledge query calculate_total --json\n    covenant-compute knowledge status --json\n\nUse the returned project ID with `knowledge mcp --project ID` or\n`knowledge serve --project ID`. The index lives outside the repository.\nThe source snapshot preserves the bytes captured when it was compiled.\n\n## Limits\n\nStatic module relationships and call candidates describe source observations.\nDynamic dispatch, external package resolution and runtime behavior are not\nevaluated. No model key, wallet, code execution or network service is required.\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "148bf04b2de63fb37a33d02b19a04f433a1ed8337d8302d233c9639100cf207d",
+        "path": "README.md",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 904,
+        "end_line": 22,
+        "exported": false,
+        "id": "148bf04b2de63fb37a33d02b19a04f433a1ed8337d8302d233c9639100cf207d",
+        "kind": "file",
+        "language": "markdown",
+        "name": "README.md",
+        "path": "README.md",
+        "signature": "# Knowledge example",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    },
+    {
+      "evidence": {
+        "dirty": false,
+        "end_byte": 904,
+        "end_line": 22,
+        "fragment": "# Knowledge example\n\nAn original, offline example for Covenant Compute's knowledge compiler.\nThe Rust, Python, JavaScript and TypeScript files demonstrate declarations,\nmodule dependencies and source citations. The code need not be executed.\n\n## Try it\n\n    covenant-compute knowledge compile examples/knowledge --json\n    cd examples/knowledge\n    covenant-compute knowledge query calculate_total --json\n    covenant-compute knowledge status --json\n\nUse the returned project ID with `knowledge mcp --project ID` or\n`knowledge serve --project ID`. The index lives outside the repository.\nThe source snapshot preserves the bytes captured when it was compiled.\n\n## Limits\n\nStatic module relationships and call candidates describe source observations.\nDynamic dispatch, external package resolution and runtime behavior are not\nevaluated. No model key, wallet, code execution or network service is required.\n",
+        "limitations": [
+          "Static source observation; does not prove runtime behavior or semantic correctness."
+        ],
+        "object_id": "41a363e53be36029e5aa37fff6688717bdb12177c17539e793839021485f578c",
+        "path": "README.md",
+        "revision": null,
+        "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1,
+        "truncated": false
+      },
+      "object": {
+        "end_byte": 904,
+        "end_line": 22,
+        "exported": false,
+        "id": "41a363e53be36029e5aa37fff6688717bdb12177c17539e793839021485f578c",
+        "kind": "heading",
+        "language": "markdown",
+        "name": "Knowledge example",
+        "path": "README.md",
+        "signature": "# Knowledge example",
+        "source_sha256": "16ab1dfd337e14dd896ee9111bf90fbee41571a92f7d4dd9a2c690db1d1af569",
+        "start_byte": 0,
+        "start_line": 1
+      }
+    }
+  ],
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "total": 15
+}

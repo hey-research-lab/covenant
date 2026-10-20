@@ -1,0 +1,4 @@
+{"type":"begin","data":{"path":{"text":"./README.md"}}}
+{"type":"match","data":{"path":{"text":"./README.md"},"lines":{"text":"evaluated. No model key, wallet, code execution or network service is required.\n"},"line_number":22,"absolute_offset":824,"submatches":[{"match":{"text":"No model key"},"start":11,"end":23}]}}
+{"type":"end","data":{"path":{"text":"./README.md"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":23291,"human":"0.000023s"},"searches":1,"searches_with_match":1,"bytes_searched":904,"bytes_printed":321,"matched_lines":1,"matches":1}}}
+{"data":{"elapsed_total":{"human":"0.002956s","nanos":2956084,"secs":0},"stats":{"bytes_printed":321,"bytes_searched":1813,"elapsed":{"human":"0.000051s","nanos":50623,"secs":0},"matched_lines":1,"matches":1,"searches":9,"searches_with_match":1}},"type":"summary"}

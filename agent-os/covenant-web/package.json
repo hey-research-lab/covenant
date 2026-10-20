@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:knowledge-proxy": "node scripts/check-knowledge-proxy.mjs"
   },
   "dependencies": {
     "highlight.js": "^11.11.1",

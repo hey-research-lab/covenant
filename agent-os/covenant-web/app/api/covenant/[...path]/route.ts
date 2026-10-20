@@ -283,8 +283,33 @@ async function forward(
   }
 
   const pathKey = path.join("/");
+  // Source knowledge belongs to a local, project-bound session. This proxy
+  // forwards an operator token and must never become a knowledge ingress,
+  // including when demo mode is disabled. A future private adapter needs its
+  // own authenticated project boundary before this exclusion can change.
+  let decodedSegments: string[];
+  try {
+    // Next decodes route parameters; account for another decoding step at the
+    // upstream router so percent-encoded separators cannot bypass the deny.
+    decodedSegments = path.flatMap((segment) => decodeURIComponent(segment).split(/[\\/]/));
+  } catch {
+    return denied("invalid path", 400);
+  }
+  if (decodedSegments.some((segment) => /^(?:knowledge|compute[.:]knowledge)/i.test(segment))) {
+    return denied("Knowledge is available only through the private local viewer.");
+  }
   const isWrite = request.method !== "GET" && request.method !== "HEAD";
   const rawBody = isWrite ? await request.text() : undefined;
+  if (pathKey === "tools/call" && rawBody) {
+    try {
+      const name: unknown = JSON.parse(rawBody).name;
+      if (typeof name === "string" && /^(?:knowledge|compute[.:]knowledge)(?:[.:]|$)/i.test(name)) {
+        return denied("Knowledge tools require a private project-bound session.");
+      }
+    } catch {
+      return denied("invalid request body", 400);
+    }
+  }
 
   if (DEMO_MODE) {
     if (DESTRUCTIVE_PATHS.has(pathKey)) {

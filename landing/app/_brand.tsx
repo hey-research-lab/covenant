@@ -28,6 +28,7 @@ export const NAV_LINKS = [
 ];
 
 export const FOOTER_LINKS = [
+  { label: "Compute Knowledge (preview)", href: "/compute-knowledge", external: false as const },
   { label: "FAQ", href: "/faq", external: false as const },
   { label: "Changelog", href: "/changelog", external: false as const },
   { label: "Partners", href: "/partners", external: false as const },

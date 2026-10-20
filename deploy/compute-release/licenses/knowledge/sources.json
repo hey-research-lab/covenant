@@ -1,0 +1,78 @@
+{
+  "format_version": 1,
+  "notice": "Exact upstream license bytes for the pinned knowledge parser dependencies and embedded fonts.",
+  "licenses": [
+    {
+      "package": "tree-sitter",
+      "version": "0.25.10",
+      "license": "MIT",
+      "upstream": "https://github.com/tree-sitter/tree-sitter",
+      "revision": "da6fe9beb4f7f67beb75914ca8e0d48ae48d6406",
+      "source_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter/da6fe9beb4f7f67beb75914ca8e0d48ae48d6406/LICENSE",
+      "file": "tree-sitter-0.25.10-LICENSE.txt",
+      "sha256": "5f9cf9fb6acb1972b35ae29119ce563bb60ec097656bc4b69b9bac2d04c7a147"
+    },
+    {
+      "package": "tree-sitter-rust",
+      "version": "0.24.2",
+      "license": "MIT",
+      "upstream": "https://github.com/tree-sitter/tree-sitter-rust",
+      "revision": "e2bee853694a1d3e0f6ef308fe3674542fec95d7",
+      "source_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter-rust/e2bee853694a1d3e0f6ef308fe3674542fec95d7/LICENSE",
+      "file": "tree-sitter-rust-0.24.2-LICENSE.txt",
+      "sha256": "31d5b6f4243d5c7c6e1c4ebbbb9f6407bd1457a08bcc4f706521710341acba36"
+    },
+    {
+      "package": "tree-sitter-javascript",
+      "version": "0.25.0",
+      "license": "MIT",
+      "upstream": "https://github.com/tree-sitter/tree-sitter-javascript",
+      "revision": "44c892e0be055ac465d5eeddae6d3e194424e7de",
+      "source_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter-javascript/44c892e0be055ac465d5eeddae6d3e194424e7de/LICENSE",
+      "file": "tree-sitter-javascript-0.25.0-LICENSE.txt",
+      "sha256": "2e0110e07abef7c2548b26ec9d6969775617ca539a0dc8dbeeb14d6452c711d1"
+    },
+    {
+      "package": "tree-sitter-typescript",
+      "version": "0.23.2",
+      "license": "MIT",
+      "upstream": "https://github.com/tree-sitter/tree-sitter-typescript",
+      "revision": "f975a621f4e7f532fe322e13c4f79495e0a7b2e7",
+      "source_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter-typescript/f975a621f4e7f532fe322e13c4f79495e0a7b2e7/LICENSE",
+      "file": "tree-sitter-typescript-0.23.2-LICENSE.txt",
+      "sha256": "49bf33cf78ef5897e4e161ce1517df7de1ae5042a65b6bcfd44401e0fc606559"
+    },
+    {
+      "package": "tree-sitter-python",
+      "version": "0.25.0",
+      "license": "MIT",
+      "upstream": "https://github.com/tree-sitter/tree-sitter-python",
+      "revision": "293fdc02038ee2bf0e2e206711b69c90ac0d413f",
+      "source_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter-python/293fdc02038ee2bf0e2e206711b69c90ac0d413f/LICENSE",
+      "file": "tree-sitter-python-0.25.0-LICENSE.txt",
+      "sha256": "d724405ce238a22c0d35769c5a36b386ad5958192efe8bbb304fb2896254575f"
+    },
+    {
+      "package": "tree-sitter Unicode data",
+      "version": "0.25.10",
+      "license": "Unicode and included third-party notices",
+      "file": "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+      "sha256": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d",
+      "source_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter/da6fe9beb4f7f67beb75914ca8e0d48ae48d6406/lib/src/unicode/LICENSE"
+    },
+    {
+      "package": "Archivo",
+      "license": "SIL OFL 1.1",
+      "file": "OFL-Archivo.txt",
+      "sha256": "108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b",
+      "source": "Original font license embedded alongside the viewer font asset."
+    },
+    {
+      "package": "JetBrainsMono",
+      "license": "SIL OFL 1.1",
+      "file": "OFL-JetBrainsMono.txt",
+      "sha256": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d",
+      "source": "Original font license embedded alongside the viewer font asset."
+    }
+  ]
+}

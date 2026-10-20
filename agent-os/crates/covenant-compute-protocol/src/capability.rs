@@ -459,13 +459,20 @@ fn validate_label(what: &str, value: &str) -> Result<(), ProtocolError> {
 /// whatever `:latest` resolves to, so matching those would route jobs a
 /// node must refuse.
 pub fn canonical_model(reference: &str) -> &str {
+    // Compiler contracts contain immutable image identity. Capacity rows must
+    // retain the same exact name used by admission and matching.
+    if reference.starts_with(crate::knowledge::KNOWLEDGE_MODEL_PREFIX) {
+        return reference;
+    }
     reference.strip_suffix(":latest").unwrap_or(reference)
 }
 
 /// Match an advertised model without widening versioned execution contracts to
 /// a legacy wildcard. Native empty checks also require an exact image label.
 pub fn model_matches(served: &str, required: &str) -> bool {
-    if required.starts_with(crate::NATIVE_EMPTY_CHECK_MODEL_PREFIX) {
+    if required.starts_with(crate::NATIVE_EMPTY_CHECK_MODEL_PREFIX)
+        || required.starts_with(crate::knowledge::KNOWLEDGE_MODEL_PREFIX)
+    {
         return served == required;
     }
     (served == "any" && !required.starts_with("kani-v1:") && required != "claude-code:kani-v1")

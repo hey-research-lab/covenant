@@ -13,6 +13,8 @@
 
 #![deny(unsafe_code)]
 
+pub mod knowledge_remote;
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;

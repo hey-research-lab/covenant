@@ -1,0 +1,8 @@
+{"type":"begin","data":{"path":{"text":"./web/orders.ts"}}}
+{"type":"match","data":{"path":{"text":"./web/orders.ts"},"lines":{"text":"import { unitPrice } from \"./pricing\";\n"},"line_number":1,"absolute_offset":0,"submatches":[{"match":{"text":"unitPrice"},"start":9,"end":18}]}}
+{"type":"match","data":{"path":{"text":"./web/orders.ts"},"lines":{"text":"  return order.units * unitPrice();\n"},"line_number":8,"absolute_offset":141,"submatches":[{"match":{"text":"unitPrice"},"start":23,"end":32}]}}
+{"type":"end","data":{"path":{"text":"./web/orders.ts"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":9458,"human":"0.000009s"},"searches":1,"searches_with_match":1,"bytes_searched":179,"bytes_printed":504,"matched_lines":2,"matches":2}}}
+{"type":"begin","data":{"path":{"text":"./web/pricing.ts"}}}
+{"type":"match","data":{"path":{"text":"./web/pricing.ts"},"lines":{"text":"export const unitPrice = () => 12;\n"},"line_number":1,"absolute_offset":0,"submatches":[{"match":{"text":"unitPrice"},"start":13,"end":22}]}}
+{"type":"end","data":{"path":{"text":"./web/pricing.ts"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":3208,"human":"0.000003s"},"searches":1,"searches_with_match":1,"bytes_searched":35,"bytes_printed":280,"matched_lines":1,"matches":1}}}
+{"data":{"elapsed_total":{"human":"0.002882s","nanos":2882458,"secs":0},"stats":{"bytes_printed":784,"bytes_searched":1813,"elapsed":{"human":"0.000033s","nanos":32875,"secs":0},"matched_lines":3,"matches":3,"searches":9,"searches_with_match":2}},"type":"summary"}

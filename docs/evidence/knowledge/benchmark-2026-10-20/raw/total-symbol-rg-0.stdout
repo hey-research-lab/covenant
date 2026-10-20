@@ -1,0 +1,18 @@
+{"type":"begin","data":{"path":{"text":"./web/OrderCard.tsx"}}}
+{"type":"match","data":{"path":{"text":"./web/OrderCard.tsx"},"lines":{"text":"import { calculate_total, Order } from \"./orders\";\n"},"line_number":1,"absolute_offset":0,"submatches":[{"match":{"text":"calculate_total"},"start":9,"end":24}]}}
+{"type":"match","data":{"path":{"text":"./web/OrderCard.tsx"},"lines":{"text":"  return <article>Total: {calculate_total(order)}</article>;\n"},"line_number":4,"absolute_offset":109,"submatches":[{"match":{"text":"calculate_total"},"start":26,"end":41}]}}
+{"type":"end","data":{"path":{"text":"./web/OrderCard.tsx"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":213583,"human":"0.000214s"},"searches":1,"searches_with_match":1,"bytes_searched":172,"bytes_printed":565,"matched_lines":2,"matches":2}}}
+{"type":"begin","data":{"path":{"text":"./README.md"}}}
+{"type":"match","data":{"path":{"text":"./README.md"},"lines":{"text":"    covenant-compute knowledge query calculate_total --json\n"},"line_number":11,"absolute_offset":345,"submatches":[{"match":{"text":"calculate_total"},"start":37,"end":52}]}}
+{"type":"end","data":{"path":{"text":"./README.md"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":268125,"human":"0.000268s"},"searches":1,"searches_with_match":1,"bytes_searched":904,"bytes_printed":304,"matched_lines":1,"matches":1}}}
+{"type":"begin","data":{"path":{"text":"./web/orders.ts"}}}
+{"type":"match","data":{"path":{"text":"./web/orders.ts"},"lines":{"text":"export function calculate_total(order: Order): number {\n"},"line_number":7,"absolute_offset":85,"submatches":[{"match":{"text":"calculate_total"},"start":16,"end":31}]}}
+{"type":"end","data":{"path":{"text":"./web/orders.ts"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":157833,"human":"0.000158s"},"searches":1,"searches_with_match":1,"bytes_searched":179,"bytes_printed":306,"matched_lines":1,"matches":1}}}
+{"type":"begin","data":{"path":{"text":"./python/orders.py"}}}
+{"type":"match","data":{"path":{"text":"./python/orders.py"},"lines":{"text":"def calculate_total(units):\n"},"line_number":4,"absolute_offset":40,"submatches":[{"match":{"text":"calculate_total"},"start":4,"end":19}]}}
+{"type":"match","data":{"path":{"text":"./python/orders.py"},"lines":{"text":"        return calculate_total(self.units)\n"},"line_number":13,"absolute_offset":195,"submatches":[{"match":{"text":"calculate_total"},"start":15,"end":30}]}}
+{"type":"end","data":{"path":{"text":"./python/orders.py"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":36542,"human":"0.000037s"},"searches":1,"searches_with_match":1,"bytes_searched":238,"bytes_printed":521,"matched_lines":2,"matches":2}}}
+{"type":"begin","data":{"path":{"text":"./rust/src/lib.rs"}}}
+{"type":"match","data":{"path":{"text":"./rust/src/lib.rs"},"lines":{"text":"pub fn calculate_total(order: &Order) -> u32 {\n"},"line_number":7,"absolute_offset":60,"submatches":[{"match":{"text":"calculate_total"},"start":7,"end":22}]}}
+{"type":"end","data":{"path":{"text":"./rust/src/lib.rs"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":115542,"human":"0.000116s"},"searches":1,"searches_with_match":1,"bytes_searched":149,"bytes_printed":300,"matched_lines":1,"matches":1}}}
+{"data":{"elapsed_total":{"human":"0.006667s","nanos":6666583,"secs":0},"stats":{"bytes_printed":1996,"bytes_searched":1813,"elapsed":{"human":"0.000869s","nanos":868959,"secs":0},"matched_lines":7,"matches":7,"searches":9,"searches_with_match":5}},"type":"summary"}

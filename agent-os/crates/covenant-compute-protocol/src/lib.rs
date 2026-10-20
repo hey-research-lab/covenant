@@ -24,6 +24,7 @@ mod escrow;
 mod fees;
 mod generation;
 mod kani;
+pub mod knowledge;
 mod tariff;
 pub use tariff::{
     parse_tariff_input, tariff_input, InferenceTariff, InferenceTariffOffer, InferenceTariffQuote,

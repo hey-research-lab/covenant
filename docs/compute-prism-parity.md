@@ -39,6 +39,16 @@ Packages 1 and 2 preserve Solana USDC settlement, CVNT staking, admission and
 existing fees.
 Provider market sampling is read-only and cannot create rentals or move funds.
 
+**Independent Knowledge candidate, 2026-10-20:** the `codex/compute-knowledge`
+branch starts from deployment source `72f66142f407690024c6a0ca4a3bdaf148ef8766`.
+It adds original local source compilation, immutable citations, read-only MCP,
+an embedded explorer, and a typed public-source remote compilation candidate.
+This work is separate from the numbered Prism adoption packages below and does
+not change their acceptance status. The [Knowledge validation record](compute-knowledge-validation.md)
+separates local tests, package checks, real container execution, funded acceptance,
+deployment and publication. No Knowledge operator or paid service is activated
+by this candidate.
+
 | # | Earliest upstream change | Local implementation | Local validation | Production evidence |
 |---|---|---|---|---|
 | 1 | Aug 12 [GPU prices](https://github.com/prismnetwork-tech/prism/pull/142) | Durable hourly provider samples, provisioning quotes, bound settled rates, public page/API | 1,395 affected-crate tests + 280 protocol tests; local provider/restart rehearsal; renderer and docs checks | Live 2026-10-17; public image pulls, provider samples and restart acceptance verified |

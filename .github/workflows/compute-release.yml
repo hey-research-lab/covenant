@@ -12,7 +12,14 @@ on:
       - ".github/workflows/compute-release.yml"
       - "deploy/compute-release/**"
       - "agent-os/Cargo.lock"
+      - "agent-os/crates/covenant-knowledge/**"
+      - "agent-os/crates/covenant-compute-buyer/**"
       - "agent-os/crates/covenant-compute-lease-signer/Cargo.lock"
+      - "examples/knowledge/**"
+      - "docs/compute-knowledge*.md"
+      - "docs/evidence/knowledge/**"
+      - "scripts/knowledge-package-smoke.py"
+      - "NOTICE.md"
       - "rust-toolchain.toml"
 
 concurrency:

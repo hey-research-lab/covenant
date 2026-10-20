@@ -1,0 +1,4 @@
+{"type":"begin","data":{"path":{"text":"./README.md"}}}
+{"type":"match","data":{"path":{"text":"./README.md"},"lines":{"text":"The source snapshot preserves the bytes captured when it was compiled.\n"},"line_number":16,"absolute_offset":588,"submatches":[{"match":{"text":"The source snapshot preserves the bytes"},"start":0,"end":39}]}}
+{"type":"end","data":{"path":{"text":"./README.md"},"binary_offset":null,"stats":{"elapsed":{"secs":0,"nanos":13959,"human":"0.000014s"},"searches":1,"searches_with_match":1,"bytes_searched":904,"bytes_printed":338,"matched_lines":1,"matches":1}}}
+{"data":{"elapsed_total":{"human":"0.002458s","nanos":2457708,"secs":0},"stats":{"bytes_printed":338,"bytes_searched":1813,"elapsed":{"human":"0.000029s","nanos":28501,"secs":0},"matched_lines":1,"matches":1,"searches":9,"searches_with_match":1}},"type":"summary"}

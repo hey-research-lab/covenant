@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer">
+<title>Knowledge · Covenant Compute</title>
+<link rel="stylesheet" href="style.css"><script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to knowledge</a>
+<div class="shell">
+<aside class="sidebar">
+<a class="lockup" href="./" aria-label="Covenant Compute knowledge home"><svg viewBox="0 0 840 1050" aria-hidden="true"><g fill="currentColor"><path d="M248 0h554a38 38 0 0 1 38 38v134a38 38 0 0 1-38 38H248a38 38 0 0 0-38 38v554a38 38 0 0 0 38 38h554a38 38 0 0 1 38 38v134a38 38 0 0 1-38 38H248a38 38 0 0 1-38-38V878a38 38 0 0 0-38-38H38a38 38 0 0 1-38-38V248a38 38 0 0 1 38-38h134a38 38 0 0 0 38-38V38a38 38 0 0 1 38-38Z"/><path d="M432 385h186a47 47 0 0 1 47 47v186a47 47 0 0 1-47 47H432a47 47 0 0 1-47-47V432a47 47 0 0 1 47-47Z"/></g></svg><span>Covenant<span class="descriptor">Compute</span></span></a>
+<div class="project-label"><span class="eyebrow">Local project</span><strong id="project-name">Loading project</strong><span class="mono muted" id="project-id"></span></div>
+<nav aria-label="Knowledge views"><button class="nav active" data-view="overview" aria-current="page"><span>01</span>Overview</button><button class="nav" data-view="search"><span>02</span>Search sources</button><button class="nav" data-view="dependencies"><span>03</span>Dependencies</button><button class="nav" data-view="changes"><span>04</span>Snapshot changes</button></nav>
+<div class="local-note"><span class="status-dot"></span>Local · Read only<p>This session is bound to one project. Queries do not buy inference or send source to a model.</p></div>
+</aside>
+<main id="main" tabindex="-1">
+<header class="topbar"><span class="eyebrow">Compute / Knowledge</span><button id="refresh" class="quiet">Refresh snapshot</button></header>
+<div id="error" class="notice error" role="alert" hidden></div>
+<section class="heading"><p class="eyebrow" id="view-kicker">Inspect the source</p><h1 id="view-title">Knowledge, with evidence.</h1><p id="view-description">Explore the repository snapshot behind your agent’s context.</p></section>
+<section id="overview" class="view">
+<div class="metrics" id="metrics" aria-label="Snapshot statistics"></div>
+<div class="overview-grid"><article class="panel snapshot-panel"><div class="panel-heading"><h2>Current snapshot</h2><span class="tag" id="snapshot-state">Loading</span></div><dl id="snapshot-details"></dl><div class="panel-action"><button id="verify" class="button secondary">Verify stored evidence</button><span id="verify-result" role="status"></span></div></article><article class="panel flow-panel"><span class="eyebrow">How to read this</span><h2>Source → evidence → context</h2><div class="flow" aria-hidden="true"><span class="plane violet">Source</span><i></i><span class="plane blue">Snapshot</span><i></i><span class="plane mint">Evidence</span></div><p>Search a symbol or phrase, inspect its exact source, then follow the relationships found by the compiler.</p><p class="muted">Citations identify where a result came from. They do not prove that the result is correct or that every dependency was discovered.</p></article></div>
+<article class="panel"><div class="panel-heading"><h2>Coverage &amp; diagnostics</h2><span class="eyebrow">Explicit limits</span></div><div id="coverage"></div></article>
+</section>
+<section id="search" class="view" hidden>
+<form id="search-form" class="search-form"><label class="sr-only" for="query">Search source text or symbols</label><input id="query" type="search" maxlength="2048" placeholder="Search a symbol, file or source phrase…" autocomplete="off"><button class="button" type="submit">Search sources <span aria-hidden="true">↗</span></button></form>
+<div class="result-meta" id="search-meta" role="status">Search the compiled snapshot. No model required.</div><div class="inspection"><div id="results" class="results"><div class="empty"><span class="eyebrow">Start with the source</span><h2>What are you looking for?</h2><p>Search a function, schema name or phrase from the repository.</p></div></div><aside id="evidence" class="panel evidence" aria-label="Selected source evidence"><div class="empty"><h2>Inspect a result</h2><p>Select a search result to read its stored source evidence.</p></div></aside></div>
+</section>
+<section id="dependencies" class="view" hidden>
+<form id="dependency-form" class="search-form"><label class="sr-only" for="object-id">Object ID</label><input id="object-id" maxlength="512" placeholder="Paste an object ID, or open a search result"><label class="sr-only" for="direction">Direction</label><select id="direction"><option value="both">Both directions</option><option value="outgoing">Outgoing</option><option value="incoming">Incoming</option></select><button class="button" type="submit">Trace relationships</button></form><p class="muted">Observed relationships from this snapshot. Unresolved references remain visible; an empty trace is not proof of no dependencies.</p><div id="dependency-results" class="panel"><div class="empty"><h2>Follow a relationship</h2><p>Start from a source object to inspect what it connects to.</p></div></div>
+</section>
+<section id="changes" class="view" hidden>
+<form id="changes-form" class="search-form"><div class="field"><label for="older">Older snapshot</label><select id="older" required></select></div><span class="arrow" aria-hidden="true">→</span><div class="field"><label for="newer">Newer snapshot</label><select id="newer" required></select></div><button class="button" type="submit">Compare snapshots</button></form><div id="changes-results" class="panel"><div class="empty"><h2>See what changed</h2><p>Compile the repository again after an edit to compare two recorded snapshots.</p></div></div>
+</section>
+<footer><span>Covenant Compute · <a href="archivo-license.txt">Archivo</a> / <a href="mono-license.txt">JetBrains Mono</a></span><span id="snapshot-footer">Loading local evidence</span></footer>
+</main></div>
+</body></html>

@@ -50,9 +50,15 @@ The candidate now has a distinct **0.5.0** version, with the public installer
 still pinned to the existing 0.4.1 release. Its native Apple Silicon archive and
 fresh installed Knowledge workflow passed the 19 offline checks, including 18
 exact citations and all six MCP reads. The release path now retains examples,
-guides, licenses and build metadata after installation. Final source provenance,
-installer acceptance, four-platform CI and signing remain separately recorded
-in the [shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md).
+guides, licenses and build metadata after installation. The
+[final native acceptance record](evidence/knowledge/release-candidate-0.5.0/report.md)
+identifies clean source commit `3d4499211fabec97da0ee918dc281bd3a4226758`,
+the exact archive and binary hashes, and 11 installer checks plus destination
+conflict refusal. Four-platform CI and signing remain separate gates in the
+[shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md).
+Read-only GitHub checks found that the available API connections have pull
+access only; dispatch, signing and public release require a repository
+collaborator.
 
 The production Docker executor subsequently passed the
 [real-container HTTP acceptance](evidence/knowledge/docker-http-acceptance-2026-10-20.json):
@@ -64,6 +70,14 @@ passed all 11 isolation/cleanup checks. See
 for the installed Linux/ARM64 image digest and source input hashes. Funding,
 payout and public-source verification in the HTTP fixture are substituted;
 no paid acceptance is claimed.
+
+The byte-identical 0.5.0 buyer also completed a
+[public-source preflight](evidence/knowledge/public-source-preflight-2026-10-20/report.md)
+against a pinned public Python repository: 50 selected files and 294,697 bytes
+of normalized source JSON. It then refused before signing because no operator
+advertised the exact accepted image digest. This establishes the observed
+zero-spend refusal and, from the reviewed call order, completion of anonymous
+source verification; it is not a successful quote or remote job.
 
 The central website graph was updated to square glass nodes. Its production
 build and desktop/mobile layout checks passed; campaign exports retain exact
@@ -92,8 +106,8 @@ brand fonts and the official mark at 1080p and 4K composition sizes.
 | Gate | Status |
 |---|---|
 | Local compiler and interfaces | Implemented; relevant suites and responsive viewer checks passed |
-| Local package candidate | Version 0.5.0 native archive and installed Knowledge workflow checked; see the [shipping checklist](../deploy/compute-release/KNOWLEDGE_RELEASE.md) for final provenance and platform gates |
-| Signed public macOS/Linux release | Not published; existing release workflow remains the publishing path |
+| Local package candidate | Version 0.5.0 Apple Silicon archive from clean commit 3d4499211 passed extracted, installed and installer checks; [exact artifact evidence](evidence/knowledge/release-candidate-0.5.0/report.md) |
+| Signed public macOS/Linux release | Four-platform CI/signing and public installer acceptance pending repository collaborator access; no tag or release published |
 | Actual OCI compiler image | Linux/ARM64 Docker build, real executor/receipt/import/replay and isolation/lifecycle checks passed; candidate image remains local |
 | Public operator and routing rollout | Not deployed |
 | Installed client paid acceptance | Not performed; [budget proposed](compute-knowledge-paid-acceptance-budget.md), no spending approved or performed; live exact capability remains required |

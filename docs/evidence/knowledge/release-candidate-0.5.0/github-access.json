@@ -1,0 +1,16 @@
+{
+  "repository": "open-covenant/covenant",
+  "observation": "2026-10-20",
+  "checked": "read-only GET repository permissions via connected GitHub and configured git credential helper",
+  "permissions": {
+    "admin": false,
+    "maintain": false,
+    "push": false,
+    "triage": false,
+    "pull": true
+  },
+  "actions_dispatch_attempted": false,
+  "release_tag_created": false,
+  "public_release_created": false,
+  "remaining_gate": "Repository collaborator must run four-platform compute-release validation and approved signing/publication; no alternate account or permission bypass attempted."
+}

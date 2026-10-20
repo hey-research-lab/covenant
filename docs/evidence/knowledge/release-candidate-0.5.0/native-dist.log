@@ -1,0 +1,90 @@
+   Compiling covenant-compute-node v0.5.0 ($CHECKOUT/agent-os/crates/covenant-compute-node)
+    Finished `release` profile [optimized] target(s) in 15.07s
+    Finished `release` profile [optimized] target(s) in 0.39s
+{
+  "result": "pass",
+  "mode": "unpacked-package",
+  "buyer_version": "covenant-compute 0.5.0",
+  "binary_sha256": "16d5a702cbe298580a130f2707e84ff8e2bb9fc6a423ee31aa07306b423a74bf",
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "example_files": 9,
+  "verified_citations": 18,
+  "license_files": [
+    "tree-sitter-0.25.10-LICENSE.txt",
+    "tree-sitter-rust-0.24.2-LICENSE.txt",
+    "tree-sitter-javascript-0.25.0-LICENSE.txt",
+    "tree-sitter-typescript-0.23.2-LICENSE.txt",
+    "tree-sitter-python-0.25.0-LICENSE.txt",
+    "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+    "OFL-Archivo.txt",
+    "OFL-JetBrainsMono.txt"
+  ],
+  "checks": [
+    "packaged-licenses",
+    "original-example-files",
+    "offline-help",
+    "offline-compile",
+    "status",
+    "multi-language-search",
+    "exact-source-citations",
+    "show",
+    "snapshot-verification",
+    "incremental-cache",
+    "mcp-initialize",
+    "mcp-notifications",
+    "mcp-six-read-only-tools",
+    "mcp-all-six-reads",
+    "mcp-citations",
+    "mcp-no-mutation",
+    "mcp-project-boundary",
+    "source-unchanged",
+    "no-buyer-identity"
+  ],
+  "scope": "Offline local artifact checks. No source execution, purchase, release or deployment."
+}
+Installed 0.5.0 in $TEMP/installed/bin
+Examples, guides and licenses: $TEMP/installed/share/covenant-compute/0.5.0
+Local Knowledge requires no coordinator or wallet. Start with:
+  $TEMP/installed/bin/covenant-compute knowledge compile $TEMP/installed/share/covenant-compute/0.5.0/examples/knowledge
+{
+  "result": "pass",
+  "mode": "development-binary",
+  "buyer_version": "covenant-compute 0.5.0",
+  "binary_sha256": "16d5a702cbe298580a130f2707e84ff8e2bb9fc6a423ee31aa07306b423a74bf",
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "example_files": 9,
+  "verified_citations": 18,
+  "license_files": [
+    "tree-sitter-0.25.10-LICENSE.txt",
+    "tree-sitter-rust-0.24.2-LICENSE.txt",
+    "tree-sitter-javascript-0.25.0-LICENSE.txt",
+    "tree-sitter-typescript-0.23.2-LICENSE.txt",
+    "tree-sitter-python-0.25.0-LICENSE.txt",
+    "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+    "OFL-Archivo.txt",
+    "OFL-JetBrainsMono.txt"
+  ],
+  "checks": [
+    "packaged-licenses",
+    "original-example-files",
+    "offline-help",
+    "offline-compile",
+    "status",
+    "multi-language-search",
+    "exact-source-citations",
+    "show",
+    "snapshot-verification",
+    "incremental-cache",
+    "mcp-initialize",
+    "mcp-notifications",
+    "mcp-six-read-only-tools",
+    "mcp-all-six-reads",
+    "mcp-citations",
+    "mcp-no-mutation",
+    "mcp-project-boundary",
+    "source-unchanged",
+    "no-buyer-identity"
+  ],
+  "scope": "Offline local artifact checks. No source execution, purchase, release or deployment."
+}
+$CHECKOUT/dist/covenant-compute-darwin-arm64.tar.gz

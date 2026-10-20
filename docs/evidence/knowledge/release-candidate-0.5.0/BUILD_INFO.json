@@ -1,0 +1,19 @@
+{
+  "schema": "covenant.compute.release-build.v1",
+  "version": "0.5.0",
+  "target": "aarch64-apple-darwin",
+  "source_revision": "3d4499211fabec97da0ee918dc281bd3a4226758",
+  "tracked_source_dirty": false,
+  "built_at": "2026-10-20T16:08:25.726803+00:00",
+  "binary_sha256": {
+    "covenant-compute": "16d5a702cbe298580a130f2707e84ff8e2bb9fc6a423ee31aa07306b423a74bf",
+    "covenant-compute-mcp": "7a16ee994d4e1cfbf4e1e709da649369701bba15ca8ab0a77ebe24754413829e",
+    "covenant-compute-node": "4b4af14b16a83a799af0c2546564c7d119f30e5ed2cc141c20c188c9745b801c",
+    "covenant-compute-stake": "615c530c907ffa2df20f35b4417d3b9baf60ed98fb50e5d1911358ad9cf44573"
+  },
+  "lockfile_sha256": {
+    "agent-os/Cargo.lock": "ecb2a490d0c4630c66875d5ddc6a3da553ee91e21af379f3d0366e5157d460ad",
+    "agent-os/crates/covenant-compute-lease-signer/Cargo.lock": "f2e28e620f9a7ccd9c2682ef6eb521c080c1bea36af5867c64a2ae84919b3993"
+  },
+  "signature": "Signing and GitHub provenance are separate release-workflow outputs."
+}

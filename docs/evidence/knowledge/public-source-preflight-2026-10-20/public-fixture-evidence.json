@@ -1,0 +1,365 @@
+{
+  "schema": "covenant.knowledge.installed-public-source-dry-run.v1",
+  "status": "PUBLIC_SOURCE_VERIFIED_NO_EXACT_OPERATOR_NOT_PAID_ACCEPTANCE",
+  "observed_at": "2026-10-20T16:08:12.910122+00:00",
+  "artifact": {
+    "version": "covenant-compute 0.5.0",
+    "binary_sha256": "16d5a702cbe298580a130f2707e84ff8e2bb9fc6a423ee31aa07306b423a74bf",
+    "archive_sha256": "ecf0bdaa46b13c25e0603a314511850d90bcae0aea0ca77b87b2f87f84621858",
+    "archive_name": "covenant-compute-darwin-arm64.tar.gz",
+    "qualification": "Packaged 0.5.0 candidate built before the final source-anchor rebuild; this record identifies the exact tested bytes.",
+    "final_candidate_equivalence": {
+      "buyer_binary_identical": true,
+      "source_revision": "3d4499211fabec97da0ee918dc281bd3a4226758",
+      "archive_sha256": "8ad75e576ce5e52931cc147f5397fd9e9f1362618b9dc0ecd8b2b2c81c3cbd60",
+      "note": "The final archive has different documentation and build metadata; its buyer executable is byte-identical to the executable used for this public-source dry run."
+    }
+  },
+  "repository": {
+    "url": "https://github.com/pallets/itsdangerous",
+    "commit": "672971d66a2ef9f85151e53283113f33d642dabd",
+    "commit_url": "https://github.com/pallets/itsdangerous/commit/672971d66a2ef9f85151e53283113f33d642dabd",
+    "metadata_url": "https://api.github.com/repos/pallets/itsdangerous",
+    "metadata_observed_at": "2026-10-20T16:09:42.081606+00:00",
+    "metadata_sha256": "d499edb60682eeb02b71b8a1c0eb530c80ec8fdce40892c906155837e0807cf7",
+    "public": true,
+    "archived": false,
+    "license_spdx": "BSD-3-Clause",
+    "last_push_observed": "2025-06-14T20:35:46Z",
+    "selection": "Established public Python library; entire repository root fits the input limit. No repository code, scripts, hooks, dependencies or workflows executed."
+  },
+  "source": {
+    "file_count": 50,
+    "selected_source_content_bytes": 282547,
+    "normalized_source_json_bytes": 294697,
+    "normalized_source_sha256": "9ce84a3e81b11f03398a63a9e0e2ade69618354c10e6fe25946db6f45baeba42",
+    "local_snapshot_json_bytes": 1424760,
+    "files": [
+      {
+        "path": ".devcontainer/devcontainer.json",
+        "bytes": 441,
+        "sha256": "74f782d25a4e608c73d9a641abb3b9cdae30a758f4e9dee2f1a8baa3bd0a0cce"
+      },
+      {
+        "path": ".devcontainer/on-create-command.sh",
+        "bytes": 445,
+        "sha256": "fbed3ead63b6642602b47155713f4ff540f6daffd5d5018ad8d37c2916267ac2"
+      },
+      {
+        "path": ".editorconfig",
+        "bytes": 233,
+        "sha256": "f45c88dc00e3e9f273cc30b2f139ee880ef27a6a404ca4d2fd7f0e96f9ec0f9c"
+      },
+      {
+        "path": ".github/ISSUE_TEMPLATE/bug-report.md",
+        "bytes": 643,
+        "sha256": "9402cd8b5222631aefe31b66e73ca54bc62baefe69dfb0512a9102efba3a5555"
+      },
+      {
+        "path": ".github/ISSUE_TEMPLATE/config.yml",
+        "bytes": 339,
+        "sha256": "3936cb40ad3769b9521573765ba26d46789411b229d45aa35e8c4a769eceb9f6"
+      },
+      {
+        "path": ".github/ISSUE_TEMPLATE/feature-request.md",
+        "bytes": 430,
+        "sha256": "e72c8240e8a5cb5ff5d8172d6587032f9991c4188f376a6779aaa9d9b4f1c9a9"
+      },
+      {
+        "path": ".github/pull_request_template.md",
+        "bytes": 822,
+        "sha256": "f92d7fa6366d19dfed8f7b49e753c506c39bb17e23f0908da9dea408f0f07800"
+      },
+      {
+        "path": ".github/workflows/lock.yaml",
+        "bytes": 682,
+        "sha256": "1539cb23c54fc10e2b49a3a69c9df9d30ecd768351e9f24193e2d32213f78618"
+      },
+      {
+        "path": ".github/workflows/pre-commit.yaml",
+        "bytes": 983,
+        "sha256": "c007f2077f67a5f586b43da92803b84331b1577939e1260e3befd1853831ac91"
+      },
+      {
+        "path": ".github/workflows/publish.yaml",
+        "bytes": 1568,
+        "sha256": "727d2bb39a3dd7e11d1e1fe8d89e73af796b947ba319c44809c1314b3c9e2f49"
+      },
+      {
+        "path": ".github/workflows/tests.yaml",
+        "bytes": 1794,
+        "sha256": "cef97289c959cc35c4275d3ce76d68209bb1c10551b51026de5b9a7a0c0c93ed"
+      },
+      {
+        "path": ".gitignore",
+        "bytes": 74,
+        "sha256": "a23e3badc7c5092fd3529fbe465c342a97a309ad2a2f74b5f795732d5b8169d8"
+      },
+      {
+        "path": ".pre-commit-config.yaml",
+        "bytes": 629,
+        "sha256": "eac004d54f2316594a56684148e2d70c348d3bdf8b905db6d02f33257b20bca6"
+      },
+      {
+        "path": ".readthedocs.yaml",
+        "bytes": 242,
+        "sha256": "86214302cbc2ec1e25b78876a17947b130c43e08185cae6c67f0c9eb1d9eb9c4"
+      },
+      {
+        "path": "CHANGES.rst",
+        "bytes": 8069,
+        "sha256": "6e7ed66fdf99ad67ef149e56dae3f491d759c907238d440ceaa5c79e52dfb7e8"
+      },
+      {
+        "path": "LICENSE.txt",
+        "bytes": 1475,
+        "sha256": "63af09891b6be8ad1a4252ed43af0f4efba7fc948e228367bed7f3c5ae0b09d7"
+      },
+      {
+        "path": "README.md",
+        "bytes": 1529,
+        "sha256": "a3e791c4af02a2575518d650c01775f63fe152526b3798064ab64d244c1c6208"
+      },
+      {
+        "path": "docs/Makefile",
+        "bytes": 581,
+        "sha256": "ffa975e0794eed8baca37b894e2cf2e689c354cd8ea5980dc2c80b18f96ac37b"
+      },
+      {
+        "path": "docs/_static/itsdangerous-icon.svg",
+        "bytes": 3468,
+        "sha256": "d944096257267de56af1c783c45969c7667cdff0b5b4e18fa79b6c8e6d8c5000"
+      },
+      {
+        "path": "docs/_static/itsdangerous-logo.svg",
+        "bytes": 6435,
+        "sha256": "29b34db4b52be13b0a94d6e858918c29c25444a76a669da48e6d3a56d07e5bc2"
+      },
+      {
+        "path": "docs/_static/itsdangerous-name.svg",
+        "bytes": 11106,
+        "sha256": "1bd19be0ac1d9b3b17919afa304affc1336e74ba7d0128bbb18e5658509dd20b"
+      },
+      {
+        "path": "docs/changes.rst",
+        "bytes": 45,
+        "sha256": "94c7e3657f8795af8f66d20fb6208f83df46bce9cab9b82d2c16ad961a87f7e0"
+      },
+      {
+        "path": "docs/concepts.rst",
+        "bytes": 5230,
+        "sha256": "6d042175f626cbc4b4e23fcb8eba7f15727f387f7afcd20c2a32c3f7db14e095"
+      },
+      {
+        "path": "docs/conf.py",
+        "bytes": 1960,
+        "sha256": "0fc5fcd521cb848b626459adfdd9561cc4f6c6fef0a2252053f6f1d9a1000f78"
+      },
+      {
+        "path": "docs/encoding.rst",
+        "bytes": 139,
+        "sha256": "6ba9be2255834de862aa33ad234ba65f47c52e459c7b0ae8deee60924c923ff2"
+      },
+      {
+        "path": "docs/exceptions.rst",
+        "bytes": 332,
+        "sha256": "c6d9476f5d1f039a7e2524872073d1c19e98e5336b3d61b7235c00a91b13968b"
+      },
+      {
+        "path": "docs/index.rst",
+        "bytes": 1616,
+        "sha256": "8b46291c6f0e2d903c45bf1d8a3b387bc073c2789759a46acc52e967d59959e3"
+      },
+      {
+        "path": "docs/license.rst",
+        "bytes": 98,
+        "sha256": "1e07e9c25f2618a040560b70e63f42259eab24e558d0f3532e6163d751cb4eea"
+      },
+      {
+        "path": "docs/make.bat",
+        "bytes": 752,
+        "sha256": "89a52884548ce62dd8ea6f58710e767ce865c08d47faeb3c79e0cec8b6174e77"
+      },
+      {
+        "path": "docs/serializer.rst",
+        "bytes": 3485,
+        "sha256": "5bd1b914ee53d300abd18b3a9b7b0b81ff39d787c0ff8d8c8008500126a339e5"
+      },
+      {
+        "path": "docs/signer.rst",
+        "bytes": 1263,
+        "sha256": "37402951e0ddc75a8dd3019d9d1f9bbc2425f0bbf5b270838d1a9d9dcdf7366f"
+      },
+      {
+        "path": "docs/timed.rst",
+        "bytes": 689,
+        "sha256": "6ec021e674528785b208a68c150022a07a2c36dedf5cbe0c1a50250cc7b34d6b"
+      },
+      {
+        "path": "docs/url_safe.rst",
+        "bytes": 615,
+        "sha256": "2cf2c8d47eab05cf8e19f703c49cf2764e0142aa2d094680d3057c02fee17dbf"
+      },
+      {
+        "path": "pyproject.toml",
+        "bytes": 4444,
+        "sha256": "201c20759a79bd30b8fcb38ce5539ed1dc28ff2b39d4f9742a6a54d696033a79"
+      },
+      {
+        "path": "src/itsdangerous/__init__.py",
+        "bytes": 853,
+        "sha256": "cd4e17bf6c055e1d4e6fb30c5d51406365ccb0d5e2bb0f65b446a9208996a9a0"
+      },
+      {
+        "path": "src/itsdangerous/_json.py",
+        "bytes": 473,
+        "sha256": "c0f4069a07b6c99f77dbc107285ea069d19ec866022502b1b54fa22ca13a5270"
+      },
+      {
+        "path": "src/itsdangerous/encoding.py",
+        "bytes": 1409,
+        "sha256": "c304f3e6aff7ccb71a01dba793afef4a84adc06a9859edf4ed997f53ceda4453"
+      },
+      {
+        "path": "src/itsdangerous/exc.py",
+        "bytes": 3201,
+        "sha256": "46bddec68d0c44511c3d996dc1e7322b5e955756c4d8af7f175f9dfa58dc527e"
+      },
+      {
+        "path": "src/itsdangerous/py.typed",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "src/itsdangerous/serializer.py",
+        "bytes": 15563,
+        "sha256": "6d6f1687897c7e3ac6eeff5bfd6794df90e299feedcc6aae3faa0e53ffe925e8"
+      },
+      {
+        "path": "src/itsdangerous/signer.py",
+        "bytes": 9647,
+        "sha256": "60ed0257b341bc703a8f9e3d4441c91548d4a23c36a47ab0714a509d4ef23584"
+      },
+      {
+        "path": "src/itsdangerous/timed.py",
+        "bytes": 8087,
+        "sha256": "3afbf6050e8b73605931d1e516f374835456979e4319c098bfe5f284f120c6c5"
+      },
+      {
+        "path": "src/itsdangerous/url_safe.py",
+        "bytes": 2505,
+        "sha256": "6b3e1ee5f5e2fefb3e61b5a3f186709f8c2254a7de0fef8610a453e547aee0fe"
+      },
+      {
+        "path": "tests/test_itsdangerous/__init__.py",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/test_itsdangerous/test_encoding.py",
+        "bytes": 1004,
+        "sha256": "af71dbee0825fc8ae947b6c789b05f2331afe60efae2aee5145727446385c3f0"
+      },
+      {
+        "path": "tests/test_itsdangerous/test_serializer.py",
+        "bytes": 6826,
+        "sha256": "12a6583952e31a13edf870baf6517a8bf5403c7f072e08d7aaaccce64ab2c00a"
+      },
+      {
+        "path": "tests/test_itsdangerous/test_signer.py",
+        "bytes": 3435,
+        "sha256": "219c2a399adc874f14534d1311e950c1e29b2c7d05d037770701b2af258b97a2"
+      },
+      {
+        "path": "tests/test_itsdangerous/test_timed.py",
+        "bytes": 3807,
+        "sha256": "b75531b8901d48a6d7a5c4bbbb2342f02f6ef022185840121f7705c1e907979a"
+      },
+      {
+        "path": "tests/test_itsdangerous/test_url_safe.py",
+        "bytes": 793,
+        "sha256": "64d2afc9ab467f209549841f0d87125243d646e011c725818eda8e75ad4d830d"
+      },
+      {
+        "path": "uv.lock",
+        "bytes": 162288,
+        "sha256": "a2660b9ebe70659cf94cc9b93adb9ca630b2af1fe358ea8ce0e480b127e297ec"
+      }
+    ],
+    "source_git": {
+      "revision": "672971d66a2ef9f85151e53283113f33d642dabd",
+      "dirty": false
+    },
+    "source_config": {
+      "max_files": 20000,
+      "max_file_bytes": 1048576,
+      "max_total_bytes": 67108864
+    }
+  },
+  "source_measurement_method": "Read the SourceSet from the installed CLI local compile snapshot, clear capture diagnostics as prepare_request does, and serialize compact sorted-key UTF-8 JSON. The refused remote dry-run itself prints no source size or digest.",
+  "local_compile": {
+    "exit_code": 0,
+    "snapshot_id": "460181928b11eda628c6b764d82b977ec1da52ee65fc53b587a350b4721bd3d2",
+    "coverage": {
+      "excluded": 0,
+      "files": 50,
+      "languages": {
+        "markdown": 4,
+        "python": 15,
+        "text": 31
+      },
+      "objects": 1378,
+      "partial": false,
+      "relationships": 2628,
+      "resolved": 1374,
+      "unresolved": 1254
+    }
+  },
+  "dry_run": {
+    "started_at": "2026-10-20T16:07:59.897482+00:00",
+    "completed_at": "2026-10-20T16:08:12.910122+00:00",
+    "duration_seconds": 13.013,
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Error: no operator serves this exact pinned knowledge compiler; nothing was submitted\n",
+    "compiler_image_sha256": "d011ce03baa42e825e345bd028c4b9af82e210535958c4ce5b49eb8a0503745c",
+    "coordinator": "https://compute-api.opencovenant.org",
+    "dry_run": true,
+    "idempotency_key_supplied": false
+  },
+  "code_path_review": {
+    "order": [
+      "capture pinned Git root",
+      "load isolated disposable identity",
+      "normalize and validate source",
+      "anonymous GitHub repository metadata and byte comparison for every selected file",
+      "anonymous coordinator capacity read",
+      "refuse because exact compiler capability is absent"
+    ],
+    "dry_run_returns_before_sign_envelope_and_purchase_book": true,
+    "public_byte_verification_evidence": "The observed exact-operator refusal occurs only after verify_public_source returns successfully in the dry_run branch. This is a code-path inference from the actual CLI result, not captured HTTP traffic.",
+    "sources": [
+      "agent-os/crates/covenant-compute-buyer/src/knowledge_cli.rs#remote_compile",
+      "agent-os/crates/covenant-compute-buyer/src/knowledge_remote.rs#compile_remote_with",
+      "agent-os/crates/covenant-compute-buyer/src/knowledge_remote.rs#verify_public_source",
+      "agent-os/crates/covenant-compute-buyer/src/lib.rs#capacity_filtered"
+    ]
+  },
+  "actions": {
+    "signed_requests": 0,
+    "purchase_submissions": 0,
+    "funding_transfers": 0,
+    "existing_buyer_accessed": false,
+    "temporary_identity_created": true,
+    "temporary_identity_deleted_after_test": true,
+    "purchase_journal_created": false,
+    "budget_journal_created": false,
+    "source_code_executed": false
+  },
+  "limitations": [
+    "No quote exists for this exact compiler image at observation time.",
+    "No remote compiler execution, funding, receipt, replay, settlement or paid acceptance occurred.",
+    "The fixture exercises Python and Markdown plus text fallback; it is not all-language behavioral acceptance.",
+    "A future run must recheck the exact image, source commit, operator capacity and approved financial state."
+  ]
+}

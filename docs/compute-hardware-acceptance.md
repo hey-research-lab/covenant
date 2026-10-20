@@ -27,7 +27,7 @@ Historical broker configuration contains `COVENANT_VAST_API_KEY`,
 `COVENANT_VAST_MAX_HOURLY_MICROS`. Their presence is not a new authorization or a
 fresh account/balance check.
 
-No usable Phala/GCP/Azure/AWS credential was established by this investigation.
+The initial read-only investigation established no usable Phala/GCP/Azure/AWS API credential.
 The standard local Phala, GCP, Azure and AWS configuration directories were
 absent, and the inspected Compute release environment files supplied no new
 provider connection. This was a scoped check, not an exhaustive credential
@@ -39,11 +39,11 @@ belongs in this document or the repository.
 
 | Candidate | Documented capability | Remaining incompatibility |
 | --- | --- | --- |
-| Phala `tdx.small`, 1 vCPU / 2 GB RAM | Intel TDX and dstack workload measurements; programmatic custom-data quotes | No authenticated account, confirmed inventory, accepted production guest profile, Covenant lifecycle adapter, or accepted SSH transport |
+| Phala `tdx.small`, 1 vCPU / 2 GB RAM | Intel TDX and dstack workload measurements; programmatic custom-data quotes | Signed-in account and production OS availability subsequently confirmed below; accepted guest profile, lifecycle adapter and SSH transport remain pending |
 | GCP `c3-standard-4` in `us-central1-a` | Supported Intel TDX configuration; raw hardware challenge quotes available | Stock GCP boot measurements and event logs do not satisfy the current dstack-specific policy; no connected project, billing/quota confirmation, or adapter |
 | GCP N2D with Milan and SEV-SNP in a supported zone | Raw AMD hardware reports available | Current imported SNP policy is Genoa-specific and pins a particular Kata guest plus workload `host_data`; a separate reviewed platform/image design is required |
 
-These are documented offerings, not reserved or confirmed capacity. The
+The initial comparison used documented offerings, not reserved capacity. The
 documented unauthenticated Phala instance-types request returned HTTP 403 during
 research, so actual inventory remains unconfirmed. Do not infer availability
 from the pricing page or substitute a non-confidential VM when capacity is
@@ -222,3 +222,45 @@ acceptance gates by themselves.
 Only after evidence review may a separate code/release change raise the served
 ceiling for the specifically accepted profile. Keep other operators, GPU
 claims and unaccepted guest profiles at their existing trust level.
+
+## Signed-in account qualification (2026-10-20)
+
+The user confirmed an existing Phala account and requested a new Covenant
+Compute node. Its authenticated deployment form offers production
+`dstack-0.6.1` on `prod5` in US West. The selected preview is a small TDX
+instance with 1 vCPU, 2 GB RAM, 20 GB storage, Phala KMS and ZFS. It quotes
+**$0.06074/hour**, or **$44.34/month** if kept running. This account preview
+supersedes the earlier public estimate for this configuration; it is not a
+resource reservation or final billing evidence.
+
+The user created `covenant-compute-attestation`; its boot completed and the
+instance gateway served the default Phala Next.js starter. The existing CVM is
+`32ed28e4-0a6f-4dff-a9bf-ba84c38d6e9f`, app
+`d5f0ef708c68c52916a7b0da313ae416eb0b980d`, instance
+`fc551bcb5f96283763f42da3578805ec7e2ecfe3` on
+`dstack-pha-prod5.phala.network`. Reuse this identity; do not create a duplicate.
+The starter is unsuitable for lease/key binding and still needs the reviewed
+Covenant service image. Running the starter is not hardware acceptance or
+registered Covenant Compute capacity.
+
+The supplied clipboard credential was saved privately as requested,
+but the management API rejected it with HTTP 401; a Cloud management API token
+is still required for the API lifecycle path. The signed-in browser provides
+configuration visibility without that token.
+
+The available production OS also exposes an implementation gap: dstack 0.6.1
+uses V2 event/VM-configuration bindings. The imported verifier currently pins a
+historical V1 profile. Production image measurements and V2 log verification
+must be independently qualified, with strict vendor TCB/advisory policy retained,
+before any stronger trust can be served.
+
+The starter's public `Info` response reports production OS hash
+`ec43cb8c5e04b6bb6c53b33b16076a01d83d01f7f4b703f2f78a0d947d6247e6`
+and a lite TDX measurement document. Its embedded checksum manifest and
+measurement CBOR were compared byte-for-byte with the official
+`mkosi-os-v0.6.1` archive, whose SHA-256 is
+`7583f51c717011b8086c2dd4d1e73fbbe7bf2d6d2420b90858d538c26efcca41`.
+The manifest hash matches the pinned OS hash. This qualifies the source
+material, not the running quote: independent launch replay and signature/TCB
+verification are still required. The actual boot reports ext4 storage,
+superseding the earlier deployment form's ZFS preview.

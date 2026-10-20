@@ -53,6 +53,8 @@ fn events() -> Vec<TdxEvent> {
             name: entry["event"].as_str().unwrap().to_string(),
             digest: hex::decode(entry["digest"].as_str().unwrap()).unwrap(),
             payload: hex::decode(entry["event_payload"].as_str().unwrap()).unwrap(),
+            version: 1,
+            preimage: None,
         })
         .collect()
 }

@@ -7,7 +7,7 @@ use p384::elliptic_curve::subtle::{Choice, ConstantTimeEq};
 use serde::Deserialize;
 
 use crate::snp::ProductLine;
-use crate::tdx::{TdxLaunchIdentity, TdxMeasurementSet};
+use crate::tdx::{TdxLaunchIdentity, TdxMeasurementSet, TdxRuntimeProfile};
 
 /// Reference measurements are compiled in rather than fetched, so a verdict
 /// cannot be widened by anything an operator can reach at runtime.
@@ -384,6 +384,18 @@ struct TdxLaunchEntry {
     rtmr0: String,
     rtmr1: String,
     rtmr2: String,
+    #[serde(default)]
+    runtime_profile: TdxRuntimeProfileName,
+    os_image_hash: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+enum TdxRuntimeProfileName {
+    #[default]
+    #[serde(rename = "legacy_mr_kms")]
+    LegacyMrKms,
+    #[serde(rename = "dstack_0_6_1")]
+    Dstack061,
 }
 
 /// Unlike the SNP loader this one accepts an empty file: an empty set refuses
@@ -412,14 +424,25 @@ pub(crate) fn tdx_launch_measurements() -> &'static TdxMeasurementSet {
         let identities = file
             .launch_measurements
             .iter()
-            .map(|entry| TdxLaunchIdentity {
-                mr_td: digest("mr_td", &entry.image_version, &entry.mr_td),
-                rtmr0: digest("rtmr0", &entry.image_version, &entry.rtmr0),
-                rtmr1: digest("rtmr1", &entry.image_version, &entry.rtmr1),
-                rtmr2: digest("rtmr2", &entry.image_version, &entry.rtmr2),
+            .map(|entry| {
+                let profile = match entry.runtime_profile {
+                    TdxRuntimeProfileName::LegacyMrKms => TdxRuntimeProfile::LegacyMrKms,
+                    TdxRuntimeProfileName::Dstack061 => TdxRuntimeProfile::Dstack061 {
+                        os_image_hash: entry.os_image_hash.as_ref()
+                            .and_then(|s| hex::decode(s).ok())
+                            .and_then(|bytes| bytes.try_into().ok())
+                            .expect("dstack 0.6.1 launch identity requires a 32-byte OS image hash"),
+                    },
+                };
+                (TdxLaunchIdentity {
+                    mr_td: digest("mr_td", &entry.image_version, &entry.mr_td),
+                    rtmr0: digest("rtmr0", &entry.image_version, &entry.rtmr0),
+                    rtmr1: digest("rtmr1", &entry.image_version, &entry.rtmr1),
+                    rtmr2: digest("rtmr2", &entry.image_version, &entry.rtmr2),
+                }, profile)
             })
             .collect();
-        TdxMeasurementSet::new(identities)
+        TdxMeasurementSet::with_profiles(identities)
     })
 }
 
@@ -438,6 +461,39 @@ mod tests {
     #[test]
     fn the_tdx_reference_parses_and_is_not_empty() {
         assert!(!tdx_launch_measurements().is_empty());
+    }
+
+    #[test]
+    fn production_tdx_reference_uses_its_pinned_os_runtime_profile() {
+        let file: TdxLaunchFile = serde_json::from_str(TDX_LAUNCH_MEASUREMENTS).unwrap();
+        let production: Vec<_> = file
+            .launch_measurements
+            .iter()
+            .filter(|entry| matches!(entry.runtime_profile, TdxRuntimeProfileName::Dstack061))
+            .collect();
+        assert!(!production.is_empty());
+        for entry in production {
+            let decode =
+                |hexed: &str| -> [u8; 48] { hex::decode(hexed).unwrap().try_into().unwrap() };
+            let mut report = crate::tdx::TdReport {
+                mr_td: decode(&entry.mr_td),
+                rtmr0: decode(&entry.rtmr0),
+                rtmr1: decode(&entry.rtmr1),
+                rtmr2: decode(&entry.rtmr2),
+                rtmr3: [0; 48],
+                report_data: [0; 64],
+            };
+            let os_image_hash = hex::decode(entry.os_image_hash.as_ref().unwrap())
+                .unwrap()
+                .try_into()
+                .unwrap();
+            assert_eq!(
+                tdx_launch_measurements().runtime_profile(&report),
+                Some(TdxRuntimeProfile::Dstack061 { os_image_hash })
+            );
+            report.rtmr2[0] ^= 1;
+            assert_eq!(tdx_launch_measurements().runtime_profile(&report), None);
+        }
     }
 
     #[test]

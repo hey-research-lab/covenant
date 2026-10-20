@@ -50,7 +50,7 @@ pub use tdx::TdxLaunchIdentity;
 /// can be told apart from one this build would issue today.
 pub const VERIFIER_VERSION: &str = "nvidia-gpu/1";
 pub const SNP_VERIFIER_VERSION: &str = "sev-snp-guest/1";
-pub const TDX_VERIFIER_VERSION: &str = "intel-tdx-guest/1";
+pub const TDX_VERIFIER_VERSION: &str = "intel-tdx-guest/2";
 pub const NVIDIA_CC_VERIFIER_VERSION: &str = "nvidia-cc/1";
 
 /// A device report proves which GPU signed it and what firmware that GPU runs.
@@ -306,11 +306,11 @@ pub fn verify_tdx_attestation(
         return Err(VerificationError::TdxReportDataMismatch);
     }
 
-    if !policy.tdx_measurements().accepts(&report) {
-        return Err(VerificationError::TdxUnknownLaunchMeasurement);
-    }
-
-    let bindings = tdx::verify_tdx_event_log(&report, events)?;
+    let profile = policy
+        .tdx_measurements()
+        .runtime_profile(&report)
+        .ok_or(VerificationError::TdxUnknownLaunchMeasurement)?;
+    let bindings = tdx::verify_tdx_event_log(&report, events, profile)?;
     if !bool::from(bindings.compose_hash.ct_eq(&expected.compose_hash)) {
         return Err(VerificationError::TdxComposeHashMismatch);
     }
@@ -515,10 +515,11 @@ pub fn verify_tdx_lease_attestation(
     if !bool::from(report.report_data.ct_eq(expected_report_data)) {
         return Err(VerificationError::TdxReportDataMismatch);
     }
-    if !policy.tdx_measurements().accepts(&report) {
-        return Err(VerificationError::TdxUnknownLaunchMeasurement);
-    }
-    let bindings = tdx::verify_tdx_event_log(&report, events)?;
+    let profile = policy
+        .tdx_measurements()
+        .runtime_profile(&report)
+        .ok_or(VerificationError::TdxUnknownLaunchMeasurement)?;
+    let bindings = tdx::verify_tdx_event_log(&report, events, profile)?;
     if !bool::from(bindings.compose_hash.ct_eq(expected_compose_hash)) {
         return Err(VerificationError::TdxComposeHashMismatch);
     }

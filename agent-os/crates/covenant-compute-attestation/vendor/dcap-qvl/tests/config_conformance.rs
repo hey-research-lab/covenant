@@ -65,8 +65,8 @@ pub fn assert_config_conforms<C: Config>() {
             <DefaultConfig as Config>::SigEncoder::encode_ecdsa_sig(&r, &s)
                 .expect("default encode"),
             "encode_ecdsa_sig output mismatch for r={:02x?} s={:02x?}",
-            &r,
-            &s,
+            r,
+            s,
         );
     }
 }

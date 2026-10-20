@@ -212,6 +212,19 @@ pub struct TdxEventEntry {
     pub digest: String,
     /// Hex; empty for events that carry no payload.
     pub event_payload: String,
+    /// dstack omits this field for V1. V2 uses a canonical JSON digest preimage.
+    #[serde(default = "tdx_event_version", skip_serializing_if = "is_tdx_event_v1")]
+    pub version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preimage: Option<String>,
+}
+
+fn tdx_event_version() -> u32 {
+    1
+}
+
+fn is_tdx_event_v1(version: &u32) -> bool {
+    *version == 1
 }
 
 pub fn attestation_report_nonce(

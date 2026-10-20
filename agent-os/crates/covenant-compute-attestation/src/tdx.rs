@@ -12,13 +12,14 @@
 //! boot-time registers (`RTMR0..2`) the way the reference set expects, and the
 //! guest bound our challenge into `REPORT_DATA`. What it does not prove: who
 //! is running the host, what has been extended into `RTMR3` at runtime, or
-//! anything about a GPU. Runtime-register replay and NVIDIA CC evidence are
-//! separate checks with their own reference material; until they exist, TDX
-//! evidence stops at Attested exactly like a SEV-SNP report does.
+//! anything about a GPU. Runtime-register replay below is a separate check;
+//! NVIDIA CC evidence requires its own reference material. TDX evidence alone
+//! stops at Attested exactly like a SEV-SNP report does.
 
 use dcap_qvl::QuoteCollateralV3;
 use dcap_qvl::verify::verify as dcap_verify;
-use p384::elliptic_curve::subtle::{Choice, ConstantTimeEq};
+use p384::elliptic_curve::subtle::ConstantTimeEq;
+use serde::Deserialize;
 use sha2::{Digest, Sha384};
 
 use crate::VerificationError;
@@ -55,26 +56,49 @@ pub struct TdxLaunchIdentity {
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TdxMeasurementSet {
-    identities: Vec<TdxLaunchIdentity>,
+    identities: Vec<(TdxLaunchIdentity, TdxRuntimeProfile)>,
+}
+
+/// Runtime semantics belong to the independently pinned launch identity.
+/// Event version alone does not identify an OS: dstack 0.6.1 supports V1 and V2.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TdxRuntimeProfile {
+    LegacyMrKms,
+    Dstack061 { os_image_hash: [u8; 32] },
 }
 
 impl TdxMeasurementSet {
+    #[cfg(any(test, feature = "test-vectors"))]
     pub(crate) fn new(identities: Vec<TdxLaunchIdentity>) -> Self {
+        Self {
+            identities: identities
+                .into_iter()
+                .map(|identity| (identity, TdxRuntimeProfile::LegacyMrKms))
+                .collect(),
+        }
+    }
+
+    pub(crate) fn with_profiles(identities: Vec<(TdxLaunchIdentity, TdxRuntimeProfile)>) -> Self {
         Self { identities }
     }
 
     /// Whether the report names a launch identity in the set. Every entry is
     /// compared in full so the answer does not leak which one matched, or how
     /// close a mismatch came, through timing.
-    pub(crate) fn accepts(&self, report: &TdReport) -> bool {
-        let mut hit = Choice::from(0u8);
-        for identity in &self.identities {
-            hit |= identity.mr_td.ct_eq(&report.mr_td)
+    pub(crate) fn runtime_profile(&self, report: &TdReport) -> Option<TdxRuntimeProfile> {
+        let mut selected = None;
+        let mut conflict = false;
+        for (identity, profile) in &self.identities {
+            let hit = identity.mr_td.ct_eq(&report.mr_td)
                 & identity.rtmr0.ct_eq(&report.rtmr0)
                 & identity.rtmr1.ct_eq(&report.rtmr1)
                 & identity.rtmr2.ct_eq(&report.rtmr2);
+            if bool::from(hit) {
+                conflict |= selected.is_some_and(|previous| previous != *profile);
+                selected = Some(*profile);
+            }
         }
-        bool::from(hit)
+        if conflict { None } else { selected }
     }
 
     #[cfg(test)]
@@ -83,15 +107,18 @@ impl TdxMeasurementSet {
     }
 }
 
+#[cfg(test)]
+#[path = "tdx_tests.rs"]
+mod tests;
+
 /// One entry of a dstack event log, as the guest agent reports it.
 ///
 /// Two kinds of entry share this shape. A firmware event carries the digest
 /// the TD extended for it and nothing else worth reading. A dstack runtime
-/// event carries a name and payload, and its digest is derived from them
-/// rather than sent: the guest agent leaves the field empty and the client
-/// computes it, though the cloud attestation endpoint fills it in. Either
-/// way nothing here is trusted as received: the fold across the effective
-/// digests has to land on the register the quote signed.
+/// event carries a name and payload. Its digest is independently derived here;
+/// V1 may omit the advertised digest, while V2 must supply a digest and its
+/// canonical JSON preimage. The fold across the effective digests has to land
+/// on the register the quote signed.
 #[derive(Debug, Clone)]
 pub struct TdxEvent {
     pub imr: u32,
@@ -102,12 +129,14 @@ pub struct TdxEvent {
     /// into the register.
     pub digest: Vec<u8>,
     pub payload: Vec<u8>,
+    pub version: u32,
+    /// Decoded bytes of the hex preimage supplied by dstack's V2 quote API.
+    pub preimage: Option<Vec<u8>>,
 }
 
 /// The event type dstack writes for every runtime event it extends into the
-/// application register. Its digest is derived from the name and payload, not
-/// carried; any other event type is a firmware event whose digest is the one
-/// on the wire.
+/// application register. Its digest is independently derived from the name
+/// and payload; other event types carry a firmware digest on the wire.
 const DSTACK_RUNTIME_EVENT_TYPE: u32 = 0x0800_0001;
 
 /// The digest that actually folds into a register for this event.
@@ -117,18 +146,35 @@ const DSTACK_RUNTIME_EVENT_TYPE: u32 = 0x0800_0001;
 /// payload changes this digest, which changes the fold, which no longer meets
 /// the quoted register. A producer that also sent the digest (the cloud shape)
 /// must have sent the one this computes, or the event is rejected before the
-/// fold. For a firmware event the wire digest is authoritative and has to be a
-/// full SHA-384.
+/// fold. V2 hashes the JCS object {name,payload(hex),type} and requires both the
+/// advertised digest and preimage to match that independently reconstructed
+/// object. For firmware, the wire digest must be a full SHA-384.
 fn effective_digest(event: &TdxEvent) -> Result<[u8; 48], VerificationError> {
+    if !matches!(event.version, 1 | 2) {
+        return Err(VerificationError::TdxEventDigestMismatch);
+    }
     if event.event_type == DSTACK_RUNTIME_EVENT_TYPE {
-        let mut hasher = Sha384::new();
-        hasher.update(event.event_type.to_le_bytes());
-        hasher.update(b":");
-        hasher.update(event.name.as_bytes());
-        hasher.update(b":");
-        hasher.update(&event.payload);
-        let computed: [u8; 48] = hasher.finalize().into();
-        if !event.digest.is_empty() {
+        let preimage = if event.version == 1 {
+            let mut bytes = event.event_type.to_le_bytes().to_vec();
+            bytes.push(b':');
+            bytes.extend_from_slice(event.name.as_bytes());
+            bytes.push(b':');
+            bytes.extend_from_slice(&event.payload);
+            bytes
+        } else {
+            let canonical = serde_jcs::to_vec(&serde_json::json!({
+                "name": event.name,
+                "payload": hex::encode(&event.payload),
+                "type": event.event_type,
+            }))
+            .map_err(|_| VerificationError::TdxEventDigestMismatch)?;
+            if event.preimage.as_deref() != Some(canonical.as_slice()) {
+                return Err(VerificationError::TdxEventDigestMismatch);
+            }
+            canonical
+        };
+        let computed: [u8; 48] = Sha384::digest(preimage).into();
+        if event.version == 2 || !event.digest.is_empty() {
             let carried: [u8; 48] = event
                 .digest
                 .as_slice()
@@ -154,15 +200,16 @@ fn effective_digest(event: &TdxEvent) -> Result<[u8; 48], VerificationError> {
 ///
 /// `instance_id` is the piece the quote alone cannot give. `MRTD` and the
 /// boot registers name an image, and every TD launched from that image shares
-/// them; the instance id is minted per deployment and extended into `RTMR3`,
-/// so it is the value a control plane may treat as unique per node.
+/// them; the instance id is extended into `RTMR3` and identifies the deployed
+/// guest. Its seed persists on the data disk and can be cloned; it is not a
+/// unique physical processor identity.
 #[derive(Debug, Clone)]
 pub(crate) struct TdxRuntimeBindings {
     pub(crate) compose_hash: [u8; 32],
     pub(crate) instance_id: Vec<u8>,
 }
 
-/// The named events a dstack log must bind exactly once. Missing means the
+/// The named events a legacy dstack log must bind exactly once. Missing means the
 /// log is not from a completed dstack boot; twice means someone appended a
 /// second claim after the fact, and first-wins or last-wins would each make
 /// one of those claims silently authoritative.
@@ -195,9 +242,17 @@ const APP_EVENT_IMR: u32 = 3;
 pub(crate) fn verify_tdx_event_log(
     report: &TdReport,
     events: &[TdxEvent],
+    profile: TdxRuntimeProfile,
 ) -> Result<TdxRuntimeBindings, VerificationError> {
     let mut folds = [[0u8; 48]; 4];
     for event in events {
+        // dstack runtime events exclusively extend RTMR3. Treating an RTMR3
+        // entry as opaque firmware would let a caller retain a real runtime
+        // digest while hiding its name/payload from boot-identity checks.
+        // Conversely, firmware occupies RTMR0..2, not the application register.
+        if (event.imr == APP_EVENT_IMR) != (event.event_type == DSTACK_RUNTIME_EVENT_TYPE) {
+            return Err(VerificationError::TdxEventLogMismatch);
+        }
         let digest = effective_digest(event)?;
         let register = folds
             .get_mut(event.imr as usize)
@@ -215,6 +270,10 @@ pub(crate) fn verify_tdx_event_log(
         if !bool::from(fold.ct_eq(quoted)) {
             return Err(VerificationError::TdxEventLogMismatch);
         }
+    }
+
+    if let TdxRuntimeProfile::Dstack061 { os_image_hash } = profile {
+        return verify_dstack061_bindings(events, &os_image_hash);
     }
 
     let mut bindings: Vec<(&str, &[u8])> = Vec::new();
@@ -251,6 +310,81 @@ pub(crate) fn verify_tdx_event_log(
     Ok(TdxRuntimeBindings {
         compose_hash,
         instance_id: exactly_one("instance-id")?,
+    })
+}
+
+/// Boot identities stop at system-ready; later events are app-controlled.
+/// Keep replaying the entire log, but never let a later event supply a missing
+/// boot identity or replace one. This profile deliberately accepts only the
+/// KMS-backed production boot used by this deployment.
+fn verify_dstack061_bindings(
+    events: &[TdxEvent],
+    expected_os_image_hash: &[u8; 32],
+) -> Result<TdxRuntimeBindings, VerificationError> {
+    const REQUIRED: [&str; 5] = [
+        "compose-hash",
+        "app-id",
+        "instance-id",
+        "os-image-hash",
+        "key-provider",
+    ];
+    let mut bindings: Vec<(&str, &[u8])> = Vec::new();
+    let mut ready = false;
+    for event in events {
+        if event.imr != APP_EVENT_IMR || event.event_type != DSTACK_RUNTIME_EVENT_TYPE {
+            continue;
+        }
+        if event.name == "system-ready" {
+            if ready || !event.payload.is_empty() {
+                return Err(VerificationError::TdxEventLogIncomplete);
+            }
+            ready = true;
+        } else if event.name == "mr-kms" {
+            return Err(VerificationError::TdxEventLogIncomplete);
+        } else if REQUIRED.contains(&event.name.as_str()) {
+            if ready || bindings.iter().any(|(name, _)| *name == event.name) {
+                return Err(VerificationError::TdxEventLogIncomplete);
+            }
+            bindings.push((&event.name, &event.payload));
+        }
+    }
+    if !ready {
+        return Err(VerificationError::TdxEventLogIncomplete);
+    }
+    let get = |name: &str| {
+        bindings
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, p)| *p)
+            .ok_or(VerificationError::TdxEventLogIncomplete)
+    };
+    let compose_hash = get("compose-hash")?
+        .try_into()
+        .map_err(|_| VerificationError::TdxEventLogIncomplete)?;
+    if get("app-id")?.len() != 20 || get("instance-id")?.len() != 20 {
+        return Err(VerificationError::TdxEventLogIncomplete);
+    }
+    if get("os-image-hash")? != expected_os_image_hash {
+        return Err(VerificationError::TdxEventLogIncomplete);
+    }
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct KeyProvider {
+        name: String,
+        id: String,
+    }
+    let provider: KeyProvider = serde_json::from_slice(get("key-provider")?)
+        .map_err(|_| VerificationError::TdxEventLogIncomplete)?;
+    if provider.name != "kms"
+        || provider.id.is_empty()
+        || provider.id.len() > 1024
+        || hex::decode(&provider.id).is_err()
+    {
+        return Err(VerificationError::TdxEventLogIncomplete);
+    }
+    Ok(TdxRuntimeBindings {
+        compose_hash,
+        instance_id: get("instance-id")?.to_vec(),
     })
 }
 

@@ -432,7 +432,12 @@ pub fn parse_events(events: &[TdxEventEntry]) -> Result<Vec<TdxEvent>> {
     events
         .iter()
         .map(|e| {
-            if e.event.len() > 256 || e.event_payload.len() > 8192 || e.digest.len() > 96 {
+            if e.event.len() > 256
+                || e.event_payload.len() > 8192
+                || e.digest.len() > 96
+                || e.preimage.as_ref().is_some_and(|p| p.len() > 24 * 1024)
+                || !matches!(e.version, 1 | 2)
+            {
                 return Err(BindingError::Invalid("event exceeds limits".into()));
             }
             Ok(TdxEvent {
@@ -443,6 +448,13 @@ pub fn parse_events(events: &[TdxEventEntry]) -> Result<Vec<TdxEvent>> {
                     .map_err(|_| BindingError::Invalid("event digest".into()))?,
                 payload: hex::decode(&e.event_payload)
                     .map_err(|_| BindingError::Invalid("event payload".into()))?,
+                version: e.version,
+                preimage: e
+                    .preimage
+                    .as_ref()
+                    .map(hex::decode)
+                    .transpose()
+                    .map_err(|_| BindingError::Invalid("event preimage".into()))?,
             })
         })
         .collect()

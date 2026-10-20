@@ -4212,15 +4212,19 @@ mod tests {
         use std::sync::atomic::{AtomicUsize, Ordering};
         let hits = Arc::new(AtomicUsize::new(0));
         let seen = hits.clone();
+        let received = Arc::new(tokio::sync::Notify::new());
+        let notify_received = received.clone();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
         let app = axum::Router::new().route(
             "/federation/jobs",
             axum::routing::post(move || {
                 let seen = seen.clone();
+                let notify_received = notify_received.clone();
                 async move {
                     seen.fetch_add(1, Ordering::SeqCst);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    notify_received.notify_one();
+                    std::future::pending::<()>().await;
                     axum::http::StatusCode::ACCEPTED
                 }
             }),
@@ -4248,13 +4252,24 @@ mod tests {
             },
         )
         .unwrap();
-        let result = submit_envelope_http_attempts(
-            &SingleAttemptClient::new(Duration::from_millis(50)).0,
-            &config,
-            &envelope,
-            1,
-        )
-        .await;
+        let submit = tokio::spawn(async move {
+            submit_envelope_http_attempts(
+                &SingleAttemptClient::new(Duration::from_secs(60)).0,
+                &config,
+                &envelope,
+                1,
+            )
+            .await
+        });
+        // Observe the real POST before triggering its timeout. A 50 ms wall
+        // deadline could expire before a loaded CI runner scheduled Axum.
+        tokio::time::timeout(Duration::from_secs(30), received.notified())
+            .await
+            .expect("server must receive the paid POST before its timeout");
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(60)).await;
+        let result = submit.await.unwrap();
         assert!(matches!(result, Err(BuyerError::Unreachable { .. })));
         assert_eq!(hits.load(Ordering::SeqCst), 1);
         server.abort();

@@ -9,11 +9,11 @@ import styles from "./page.module.css";
 const display = localFont({ src: "./_assets/archivo-expanded-600.ttf", weight: "600", display: "swap" });
 const mono = localFont({ src: "./_assets/jetbrains-mono-500.ttf", weight: "500", display: "swap" });
 const title = "Compute Knowledge — Covenant Compute";
-const description = "Covenant Compute’s local code knowledge tools: source citations, dependency inspection and revision snapshots for Rust, Python, JavaScript, TypeScript and Markdown.";
+const description = "Covenant Compute Knowledge: local repository indexing, source citations and dependency inspection, with remote compilation for public GitHub repositories.";
 
 export const metadata: Metadata = pageMetadata(
   "/compute-knowledge",
-  { title: "Codebase knowledge your agents can inspect.", section: "Compute Knowledge / local release" },
+  { title: "Codebase knowledge your agents can inspect.", section: "Compute Knowledge / local + remote" },
   { title, description },
 );
 
@@ -35,7 +35,7 @@ export default function ComputeKnowledgePage() {
             <Image src="/compute-knowledge/field-square-perspective.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 1240px" />
           </div>
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}><span className={styles.dot} />Local release · Compute 0.5.1</p>
+            <p className={styles.eyebrow}><span className={styles.dot} />Local + remote · Compute 0.5.1</p>
             <p className={styles.product}>Covenant Compute / Knowledge</p>
             <h1 id="knowledge-title" className={display.className}>Codebase knowledge<br /><span>your agents<br />can inspect.</span></h1>
             <p className={styles.lead}>A code knowledge layer inside Covenant Compute. Give agents and developers a searchable view of a repository, with evidence they can inspect.</p>

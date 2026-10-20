@@ -45,6 +45,7 @@ fn ephemeral_boot(version: u32) -> Vec<TdxEvent> {
     events[5] = runtime("key-provider", br#"{"name":"none","id":""}"#, version);
     events.insert(6, runtime("storage-fs", b"ext4", version));
     events.insert(7, runtime("storage-encrypted", b"1", version));
+    events.remove(4); // The pinned KMS-free path never emits os-image-hash.
     events
 }
 
@@ -93,7 +94,7 @@ fn ephemeral_profile_rejects_keyed_and_malformed_provider_identities() {
         br#"{"name":"none","name":"none","id":""}"#.as_slice(),
     ] {
         let mut events = ephemeral_boot(2);
-        events[5] = runtime("key-provider", payload, 2);
+        events[4] = runtime("key-provider", payload, 2);
         assert!(verify_ephemeral(&report(&events), &events).is_err());
     }
 }
@@ -101,7 +102,7 @@ fn ephemeral_profile_rejects_keyed_and_malformed_provider_identities() {
 #[test]
 fn ephemeral_profile_preserves_complete_boot_and_os_identity_checks() {
     let original = ephemeral_boot(2);
-    for index in 1..=8 {
+    for index in 1..original.len() {
         let mut missing = original.clone();
         missing.remove(index);
         assert!(verify_ephemeral(&report(&missing), &missing).is_err());
@@ -110,15 +111,29 @@ fn ephemeral_profile_preserves_complete_boot_and_os_identity_checks() {
         assert!(verify_ephemeral(&report(&duplicate), &duplicate).is_err());
     }
     let mut post_ready = original.clone();
-    let provider = post_ready.remove(5);
+    let provider = post_ready.remove(4);
     post_ready.push(provider);
     assert!(verify_ephemeral(&report(&post_ready), &post_ready).is_err());
-    let mut wrong_os = original.clone();
-    wrong_os[4] = runtime("os-image-hash", &[0x62; 32], 2);
-    assert!(verify_ephemeral(&report(&wrong_os), &wrong_os).is_err());
     let mut legacy = original;
     legacy.insert(5, runtime("mr-kms", &[0; 32], 2));
     assert!(verify_ephemeral(&report(&legacy), &legacy).is_err());
+}
+
+#[test]
+fn none_boot_requires_absent_kms_os_event_while_managed_boot_still_requires_it() {
+    for version in [1, 2] {
+        for payload in [OS_HASH, [0x62; 32]] {
+            let original = ephemeral_boot(version);
+            for index in [4, original.len()] {
+                let mut injected = original.clone();
+                injected.insert(index, runtime("os-image-hash", &payload, version));
+                assert!(verify_ephemeral(&report(&injected), &injected).is_err());
+            }
+        }
+        let mut managed = boot(version);
+        managed.remove(4);
+        assert!(verify_tdx_event_log(&report(&managed), &managed, PROFILE).is_err());
+    }
 }
 
 #[test]
@@ -395,10 +410,19 @@ fn runtime_profile_requires_a_complete_nonconflicting_launch_tuple() {
         (identity.clone(), TdxRuntimeProfile::LegacyMrKms),
     ]);
     assert_eq!(conflicting.runtime_profile(&report), None);
-    let mut wrong = identity;
-    wrong.rtmr1[0] ^= 1;
-    let rejected = TdxMeasurementSet::with_profiles(vec![(wrong, PROFILE)]);
-    assert_eq!(rejected.runtime_profile(&report), None);
+    // None-mode has no KMS OS event: each independently pinned launch
+    // component must remain mandatory, never selected from a partial match.
+    for register in 0..4 {
+        let mut wrong = identity.clone();
+        match register {
+            0 => wrong.mr_td[0] ^= 1,
+            1 => wrong.rtmr0[0] ^= 1,
+            2 => wrong.rtmr1[0] ^= 1,
+            _ => wrong.rtmr2[0] ^= 1,
+        }
+        let rejected = TdxMeasurementSet::with_profiles(vec![(wrong, PROFILE)]);
+        assert_eq!(rejected.runtime_profile(&report), None);
+    }
 }
 
 #[test]

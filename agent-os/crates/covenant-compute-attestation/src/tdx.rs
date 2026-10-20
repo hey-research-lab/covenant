@@ -388,7 +388,18 @@ fn verify_dstack061_bindings(
     if get("app-id")?.len() != 20 || get("instance-id")?.len() != 20 {
         return Err(VerificationError::TdxEventLogIncomplete);
     }
-    if get("os-image-hash")? != expected_os_image_hash {
+    // Pinned dstack 0.6.1 emits os-image-hash only on the KMS response path
+    // (system_setup.rs request_app_keys_from_kms). None-mode has no such
+    // response: its OS is authenticated by the complete independently pinned
+    // MRTD+RTMR0/1/2 launch tuple selected before reaching this function.
+    // Require absence in none-mode, rather than accepting an optional claim.
+    let wrong_os_binding = match key_provider {
+        DstackKeyProvider::ManagedKms => get("os-image-hash")? != expected_os_image_hash,
+        DstackKeyProvider::EphemeralNone => {
+            bindings.iter().any(|(name, _)| *name == "os-image-hash")
+        }
+    };
+    if wrong_os_binding {
         return Err(VerificationError::TdxEventLogIncomplete);
     }
     if key_provider == DstackKeyProvider::EphemeralNone

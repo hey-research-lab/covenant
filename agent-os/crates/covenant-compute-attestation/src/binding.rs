@@ -278,7 +278,7 @@ pub fn reference_digest_for_profile(profile: HardwareProfile) -> String {
     let mut h = Sha256::new();
     h.update(b"covenant.compute.hardware.profile.phala-ephemeral-dstack061.v1\0");
     h.update(reference_digest());
-    h.update(b"dstack_0_6_1;key-provider=none;id=empty;storage-encrypted=1;storage-fs=ext4;tdx-only;gpu=none");
+    h.update(b"dstack_0_6_1;key-provider=none;id=empty;os=launch-tuple;os-image-hash-event=absent;storage-encrypted=1;storage-fs=ext4;tdx-only;gpu=none");
     hex::encode(h.finalize())
 }
 pub fn verify_evidence(evidence: &HardwareEvidence, now: u64) -> Result<HardwareVerdict> {

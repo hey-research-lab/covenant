@@ -1798,6 +1798,7 @@ mod tests {
         );
         row.phase = JobPhase::Accepted;
         let access = covenant_compute_protocol::LeaseAccess {
+            ssh: None,
             job_id: id,
             endpoint: "ssh root@example.invalid".into(),
             ready_at_ms: 100,
@@ -1834,6 +1835,7 @@ mod tests {
             client_public_key: None,
         };
         let access = covenant_compute_protocol::LeaseAccess {
+            ssh: None,
             source_price: None,
             job_id: Uuid::nil(),
             endpoint: "ssh root@203.0.113.9 -p 22".into(),
@@ -2315,6 +2317,7 @@ mod tests {
         });
         row.fee_micro_usdc = 10;
         row.lease_access = Some(covenant_compute_protocol::LeaseAccess {
+            ssh: None,
             job_id: id,
             endpoint: "PRIVATE_SSH_ENDPOINT".into(),
             ready_at_ms: source_at,

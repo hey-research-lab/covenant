@@ -40,6 +40,7 @@ pub mod canary;
 pub mod community_work;
 pub mod deposit;
 pub mod escrow;
+pub mod hardware;
 pub mod http;
 pub mod jobs;
 pub mod journal;

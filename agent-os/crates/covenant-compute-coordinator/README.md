@@ -365,3 +365,15 @@ their own encryption keys. See [workspace operation and acceptance](../../../doc
 | `COVENANT_COMPUTE_WORKSPACE_MAX_OWNERS` | `1024` | Positive limit on owner identities. |
 | `COVENANT_COMPUTE_WORKSPACE_MAX_BYTES` | `1073741824` | Positive global ciphertext reservation limit including pending writes and garbage. |
 | `COVENANT_COMPUTE_WORKSPACE_WRITES_ENABLED` | `false` | Admit new workspaces/uploads only after provider acceptance; disabling preserves recovery, reads and cleanup. |
+
+## Hardware attestation diagnostics
+
+`COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256` is unset by default. Setting a
+reviewed 64-character lowercase workload SHA-256 enables authenticated
+`/federation/hardware/:job/{challenge,evidence,verdict}` routes and a separate
+private journal. The assigned live lease must contain structured SSH endpoint
+and observed host-key metadata; existing legacy leases are refused by these
+routes. Observation alone never authenticates that key. Served trust remains
+`Open`, including for workspace grants, until a measured guest and its channel
+key pass live acceptance. See [verification and release gates](../../../../docs/compute-hardware-attestation.md)
+and [hardware acceptance plan](../../../../docs/compute-hardware-acceptance.md).

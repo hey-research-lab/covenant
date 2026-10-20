@@ -1709,6 +1709,7 @@ mod tests {
             close_requested_at_ms,
             price_history_identity: None,
             lease_access: endpoint.map(|endpoint| LeaseAccess {
+                ssh: None,
                 source_price: None,
                 job_id,
                 endpoint: endpoint.into(),

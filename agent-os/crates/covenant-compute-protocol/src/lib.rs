@@ -39,6 +39,7 @@ mod read_auth;
 mod receipt;
 mod sign;
 mod speech;
+pub mod ssh;
 mod stream;
 mod swarm;
 mod tool;

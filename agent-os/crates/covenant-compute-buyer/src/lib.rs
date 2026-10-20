@@ -51,6 +51,7 @@ pub use agent_purchase::agent_purchase_recorded;
 mod check;
 pub use check::{check_pinned_task, check_preview, CheckOutcome};
 pub mod durable_budget;
+pub mod hardware;
 pub mod workspace;
 pub use agent::{
     agent_preview, agent_tool_spec, apply_patch, describe_reworks, describe_round,

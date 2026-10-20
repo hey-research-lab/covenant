@@ -2,10 +2,13 @@ name: compute-release
 
 # A compute-v* tag builds the Covenant Compute tools for macOS and Linux, signs
 # them and publishes the release. Pull requests that touch the release inputs
-# build the same archives without releasing them.
+# and the Knowledge candidate branch build the same archives without releasing
+# them. Only the tag-push condition on the release job grants publication.
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "codex/compute-knowledge"
     tags:
       - "compute-v*"
   pull_request:
@@ -28,7 +31,7 @@ on:
 
 concurrency:
   group: compute-release-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/compute-v') }}
 
 permissions:
   contents: read
@@ -47,7 +50,7 @@ jobs:
         include:
           - os: macos-15
             target: aarch64-apple-darwin
-          - os: macos-15
+          - os: macos-15-intel
             target: x86_64-apple-darwin
           - os: ubuntu-24.04
             target: x86_64-unknown-linux-musl
@@ -84,6 +87,15 @@ jobs:
         env:
           CC_aarch64_unknown_linux_musl: musl-gcc
         run: deploy/compute-release/dist.sh "${TARGET}"
+
+      - name: verify fresh offline and website-candidate installation
+        run: |
+          archives=(dist/*.tar.gz)
+          [ "${#archives[@]}" -eq 1 ]
+          python3 deploy/compute-release/check-install.py \
+            --archive "${archives[0]}" \
+            --public-installer landing/public/install/compute.sh \
+            | tee "${RUNNER_TEMP}/compute-installer-check-${TARGET}.json"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

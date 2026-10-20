@@ -51,6 +51,8 @@ reviewed_font_repair = {
     "apps/mizuki-web/app/fonts/OFL-Archivo.txt": "108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b",
     "apps/mizuki-web/app/fonts/OFL-JetBrainsMono.txt": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d",
     "apps/mizuki-web/app/fonts/sources.json": "a5c89842d580a8e5680cc0c4fd524f4a94e5967eff9bc4e0de41e59080251fd3",
+    "apps/mizuki-web/vitest.config.ts": "fa75efb6ed8868887dbab09f7a850e5ffa357aa0a84f45243621914381ac8acd",
+    "apps/mizuki-web/test/next-font-local-stub.ts": "b545c277745f8a4e815b6c839a9f5a9ae589246dfd1804778376d5e7702bcb26",
 }
 exact.update(reviewed_font_repair)
 errors, paths = [], []

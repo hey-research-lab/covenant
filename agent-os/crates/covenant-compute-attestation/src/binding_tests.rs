@@ -1,5 +1,39 @@
 use super::*;
 use p384::pkcs8::DecodePrivateKey;
+
+#[test]
+fn collector_tls_golden_binds_transport_and_preserves_legacy_bytes() {
+    let challenge: HardwareChallenge =
+        serde_json::from_str(include_str!("../reference/phala-collector-challenge.json")).unwrap();
+    challenge.validate(1_792_540_800_000).unwrap();
+    assert_eq!(
+        hex::encode(challenge.guest_report_data().unwrap()),
+        "8beb204f70fe63d2648c573860c1a03e1966e9a7084195c4ab4eb0a2d55818a0d1dc8e10aa9a163ab9663320cd4d2f213921d672a904741538b62dfab3c229de"
+    );
+    let mut legacy = challenge.clone();
+    legacy.scope.transport = None;
+    assert!(
+        !serde_json::to_value(&legacy.scope)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .contains_key("transport")
+    );
+    assert_eq!(
+        hex::encode(legacy.guest_report_data().unwrap()),
+        "a3efeea69d284413d129cced2feec322e2bd247f6e191578ecd364f6e3b5a41c0f3b38f9481291d03ecf97b8e267f62ab917a9db6242a95925d0af4c0d25851c"
+    );
+}
+
+#[test]
+fn changing_outer_transport_invalidates_otherwise_valid_guest_evidence() {
+    let mut scope = challenge();
+    scope.scope.host = "guest.example".into();
+    let mut report = evidence(scope);
+    report.challenge.scope.transport = Some(covenant_compute_protocol::ssh::SshTransport::Tls);
+    assert!(verify_evidence(&report, report.challenge.issued_at_ms).is_err());
+}
+
 fn key() -> SshHostKey {
     let mut bytes = vec![];
     bytes.extend_from_slice(&11u32.to_be_bytes());
@@ -25,6 +59,7 @@ fn challenge() -> HardwareChallenge {
             lease_generation: "provider-instance-1".into(),
             host: "127.0.0.1".into(),
             port: 22,
+            transport: None,
             username: "worker".into(),
             guest_channel_key: key(),
             workload_sha256: hex::encode([0x3c; 32]),

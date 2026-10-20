@@ -79,7 +79,7 @@ class Tests(unittest.TestCase):
             },
         }
         self.challenge["scope"].update({key: identity[key] for key in (
-            "host", "port", "username", "guest_channel_key",
+            "host", "port", "username", "guest_channel_key", "transport",
         )})
         self.challenge["scope"]["workload_sha256"] = INFO["compose_hash"]
 
@@ -96,8 +96,8 @@ class Tests(unittest.TestCase):
         # Independently produced using the actual Rust HardwareChallenge
         # deserializer and guest_report_data(), not Python's serializer.
         expected = (
-            "a3efeea69d284413d129cced2feec322e2bd247f6e191578ecd364f6e3b5a41c0f"
-            "3b38f9481291d03ecf97b8e267f62ab917a9db6242a95925d0af4c0d25851c"
+            "8beb204f70fe63d2648c573860c1a03e1966e9a7084195c4ab4eb0a2d55818a0d"
+            "1dc8e10aa9a163ab9663320cd4d2f213921d672a904741538b62dfab3c229de"
         )
         actual = self.service.validate(self.challenge, self.service.identity(), NOW)
         self.assertEqual(actual, expected)
@@ -108,7 +108,7 @@ class Tests(unittest.TestCase):
             "operator_pubkey_b58": POLICY["buyer_pubkey_b58"],
             "buyer_pubkey_b58": POLICY["operator_pubkey_b58"],
             "lease_generation": "other", "host": "other.phala.network",
-            "port": 1022, "username": "root", "guest_channel_key": {
+            "port": 1022, "username": "root", "transport": {"kind": "direct"}, "guest_channel_key": {
                 "algorithm": "ssh-ed25519", "key_base64": "AAAA"},
             "workload_sha256": "ff" * 32, "lease_expires_at_ms": NOW + 700_000,
         }

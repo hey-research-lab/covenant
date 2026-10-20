@@ -190,7 +190,7 @@ def main():
             )},
         }
         challenge["scope"].update({field: identity[field] for field in (
-            "host", "port", "username", "guest_channel_key",
+            "host", "port", "username", "guest_channel_key", "transport",
         )})
         challenge["scope"]["workload_sha256"] = INFO["compose_hash"]
         wrong = copy.deepcopy(challenge)

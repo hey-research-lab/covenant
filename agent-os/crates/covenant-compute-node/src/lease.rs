@@ -97,6 +97,15 @@ impl LeaseControl {
 pub trait SessionBackend: Send + Sync {
     /// Brings a session up and returns where it can be reached.
     async fn open(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError>;
+    /// Optional lease-bound evidence after the access grant is queued. Backends
+    /// must account for coordinator persistence lag; this is not proof of delivery.
+    async fn after_access(
+        &self,
+        _job: &JobEnvelopePayload,
+        _access: &LeaseAccess,
+    ) -> Result<(), ExecutorError> {
+        Ok(())
+    }
     /// Releases the machine. Called exactly once per opened session,
     /// on close, on deadline, and on error paths — an operator that
     /// leaks a box here pays for it.
@@ -241,9 +250,37 @@ impl JobExecutor for LeaseExecutor {
         let terms = covenant_compute_protocol::parse_lease_terms(&job.input)
             .map_err(|e| ExecutorError::Failed(format!("lease terms unreadable: {e}")))?
             .ok_or_else(|| ExecutorError::Failed("lease carries no terms".into()))?;
+        let phala_expiry = covenant_compute_protocol::phala::parse_phala_lease_spec(&job.input)
+            .map_err(|e| ExecutorError::Failed(e.to_string()))?
+            .map(|spec| {
+                spec.validate_for_job(job)
+                    .map(|()| spec.lease_expires_at_ms)
+                    .map_err(|e| ExecutorError::Failed(e.to_string()))
+            })
+            .transpose()?;
+        let signed_remaining = |expiry: u64| {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(u64::MAX);
+            Duration::from_millis(expiry.saturating_sub(now))
+        };
+        let window = Duration::from_secs(terms.max_duration_secs)
+            .min(deadline)
+            .min(phala_expiry.map(&signed_remaining).unwrap_or(Duration::MAX));
+        if window.is_zero() {
+            return Err(ExecutorError::Failed("signed lease has expired".into()));
+        }
 
         let started = std::time::Instant::now();
-        let access = self.backend.open(job).await?;
+        let access = match tokio::time::timeout(window, self.backend.open(job)).await {
+            Ok(Ok(access)) => access,
+            Ok(Err(error)) => return Err(error),
+            Err(_) => {
+                self.backend.close(job.job_id).await;
+                return Err(ExecutorError::Failed("lease expired while opening".into()));
+            }
+        };
         let grant = match lease_access_chunk(access.clone()) {
             Ok(grant) => grant,
             Err(e) => {
@@ -262,18 +299,36 @@ impl JobExecutor for LeaseExecutor {
         // its JSON — the same block the final output carries, so a
         // buyer who missed the stream still finds it on the receipt.
         if let Content::Json { value } = &grant {
-            let _ = sink.send(value.to_string()).await;
+            if sink.send(value.to_string()).await.is_err() {
+                self.backend.close(job.job_id).await;
+                self.control.forget(job.job_id);
+                return Err(ExecutorError::Failed("lease access receiver closed".into()));
+            }
+        }
+        let evidence_window = window
+            .saturating_sub(started.elapsed())
+            .min(phala_expiry.map(&signed_remaining).unwrap_or(Duration::MAX));
+        let evidence =
+            tokio::time::timeout(evidence_window, self.backend.after_access(job, &access)).await;
+        if !matches!(evidence, Ok(Ok(()))) {
+            self.backend.close(job.job_id).await;
+            self.control.forget(job.job_id);
+            return match evidence {
+                Ok(Err(error)) => Err(error),
+                _ => Err(ExecutorError::Failed(
+                    "lease expired collecting evidence".into(),
+                )),
+            };
         }
 
         // The session runs until the buyer closes it or the window
         // ends, whichever is first — and never past the job's own
         // deadline, which is the coordinator's refund trigger.
         let watch = self.spawn_close_watch(job.job_id);
-        let window = Duration::from_secs(terms.max_duration_secs).min(deadline);
-        let closed = self
-            .control
-            .closed_or_timeout(job.job_id, window.saturating_sub(started.elapsed()))
-            .await;
+        let remaining = window
+            .saturating_sub(started.elapsed())
+            .min(phala_expiry.map(&signed_remaining).unwrap_or(Duration::MAX));
+        let closed = self.control.closed_or_timeout(job.job_id, remaining).await;
         if let Some(watch) = watch {
             watch.abort();
         }
@@ -549,6 +604,111 @@ mod tests {
             })
             .expect("a concluded session carries a text summary");
         assert!(summary.contains("ended at the window"), "got: {summary}");
+    }
+
+    struct EvidenceBackend {
+        closed: Arc<Mutex<Vec<Uuid>>>,
+        reject: bool,
+    }
+    #[async_trait]
+    impl SessionBackend for EvidenceBackend {
+        async fn open(&self, job: &JobEnvelopePayload) -> Result<LeaseAccess, ExecutorError> {
+            RunningBackend {
+                closed: self.closed.clone(),
+            }
+            .open(job)
+            .await
+        }
+        async fn after_access(
+            &self,
+            _: &JobEnvelopePayload,
+            _: &LeaseAccess,
+        ) -> Result<(), ExecutorError> {
+            if self.reject {
+                return Err(ExecutorError::Failed("evidence rejected".into()));
+            }
+            std::future::pending().await
+        }
+        async fn close(&self, id: Uuid) {
+            self.closed.lock().push(id);
+        }
+    }
+
+    #[tokio::test]
+    async fn evidence_failure_and_timeout_both_release_the_machine() {
+        for reject in [true, false] {
+            let closed = Arc::new(Mutex::new(Vec::new()));
+            let executor = LeaseExecutor::new(
+                Arc::new(EvidenceBackend {
+                    closed: closed.clone(),
+                    reject,
+                }),
+                LeaseControl::new(),
+            );
+            let job = lease_job();
+            let (tx, mut rx) = tokio::sync::mpsc::channel(2);
+            assert!(executor
+                .execute_streaming(&job, Duration::from_millis(30), tx)
+                .await
+                .is_err());
+            assert!(rx.recv().await.unwrap().contains("lease_access"));
+            assert_eq!(closed.lock().as_slice(), &[job.job_id]);
+        }
+    }
+
+    #[tokio::test]
+    async fn phala_window_ends_at_signed_expiry_including_queue_delay() {
+        use base64::Engine as _;
+        use covenant_compute_protocol::phala::{
+            phala_lease_input, phala_workload, reviewed_phala_wrapper, PHALA_CPU_MODEL,
+        };
+        use covenant_compute_protocol::{lease_input, LeaseTerms};
+        let mut job = lease_job();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        job.issued_at_ms = now - 59_700;
+        job.capability_requirement.gpu_class = Some("cpu".into());
+        job.capability_requirement.model_id = Some(PHALA_CPU_MODEL.into());
+        let mut key = b"\0\0\0\x0bssh-ed25519\0\0\0\x20".to_vec();
+        key.extend_from_slice(&[7; 32]);
+        job.input = vec![lease_input(LeaseTerms {
+            max_duration_secs: 60,
+            rate_micro_usdc_per_sec: 10,
+            client_public_key: Some(format!(
+                "ssh-ed25519 {}",
+                base64::engine::general_purpose::STANDARD.encode(key)
+            )),
+        })
+        .unwrap()];
+        let (_, spec) = phala_workload(
+            &job,
+            &bs58::encode([3; 32]).into_string(),
+            &reviewed_phala_wrapper(),
+            &format!("sha256:{}", "12".repeat(32)),
+        )
+        .unwrap();
+        job.input.push(phala_lease_input(spec).unwrap());
+        let closed = Arc::new(Mutex::new(Vec::new()));
+        let executor = LeaseExecutor::new(
+            Arc::new(RunningBackend {
+                closed: closed.clone(),
+            }),
+            LeaseControl::new(),
+        );
+        let (tx, _rx) = tokio::sync::mpsc::channel(2);
+        let started = std::time::Instant::now();
+        let result = executor
+            .execute_streaming(&job, Duration::from_secs(60), tx)
+            .await
+            .unwrap();
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(
+            result.wall_ms < 2000,
+            "must not bill the queued 59.7 seconds as extra runtime"
+        );
+        assert_eq!(closed.lock().as_slice(), &[job.job_id]);
     }
 
     #[tokio::test]

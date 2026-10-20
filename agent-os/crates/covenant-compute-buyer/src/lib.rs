@@ -52,6 +52,8 @@ mod check;
 pub use check::{check_pinned_task, check_preview, CheckOutcome};
 pub mod durable_budget;
 pub mod hardware;
+pub mod phala;
+pub mod ssh;
 pub mod workspace;
 pub use agent::{
     agent_preview, agent_tool_spec, apply_patch, describe_reworks, describe_round,
@@ -3446,6 +3448,22 @@ pub async fn submit_streaming_once(
             "one-attempt submission needs a nonnil job UUID".into(),
         ));
     }
+    let envelope = build_envelope(config, buyer_identity, request, true, job_id)?;
+    submit_prepared_envelope_once(http, config, buyer_identity, envelope, |_, _| Ok(())).await
+}
+
+/// Shared one-attempt transport and durable reservation. Prepared workloads can
+/// recheck their signed time bounds after reconciliation, without rebuilding or
+/// resigning the envelope. Legacy callers retain their existing validation.
+async fn submit_prepared_envelope_once(
+    http: &SingleAttemptClient,
+    config: &BuyerConfig,
+    buyer_identity: &LocalIdentity,
+    envelope: SignedJobEnvelope,
+    validate: impl Fn(&SignedJobEnvelope, u64) -> Result<(), BuyerError>,
+) -> Result<SignedJobEnvelope, BuyerError> {
+    validate(&envelope, epoch_ms())?;
+    let job_id = envelope.payload.job_id;
     let budget = durable_budget::DurableBudget::from_env(
         &buyer_identity.agent_id().pubkey_base58(),
         &config.coordinator_url,
@@ -3455,11 +3473,19 @@ pub async fn submit_streaming_once(
         "--job-id requires COVENANT_COMPUTE_DAILY_BUDGET_MICRO_USDC and a durable budget journal".into(),
     ))?;
     let http = &http.0;
-    let envelope = build_envelope(config, buyer_identity, request, true, job_id)?;
     durable_budget::reconcile(&budget, http, config, buyer_identity).await?;
+    validate(&envelope, epoch_ms())?;
     budget
         .reserve_new(&envelope, epoch_ms())
         .map_err(|e| BuyerError::Protocol(e.to_string()))?;
+    // A slow local fsync cannot silently extend the prepared authorization.
+    // Nothing was sent, but retain the ID so this remains a one-attempt API.
+    if let Err(error) = validate(&envelope, epoch_ms()) {
+        budget
+            .submit_refused(job_id, epoch_ms())
+            .map_err(|e| BuyerError::Protocol(e.to_string()))?;
+        return Err(error);
+    }
     let result = submit_envelope_http_attempts(http, config, &envelope, 1).await;
     if let Err(BuyerError::SubmitRefused { .. }) = &result {
         budget

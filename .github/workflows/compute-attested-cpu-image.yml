@@ -41,7 +41,9 @@ jobs:
       - name: test collector and SSH configuration
         run: |
           test -f deploy/compute-attested-cpu/test_collector.py
-          python3 -m unittest discover -s deploy/compute-attested-cpu -p 'test_*.py' -v
+          python3 -m venv "$RUNNER_TEMP/covenant-kms-tests"
+          "$RUNNER_TEMP/covenant-kms-tests/bin/pip" install 'cryptography==50.0.2'
+          "$RUNNER_TEMP/covenant-kms-tests/bin/python" -m unittest discover -s deploy/compute-attested-cpu -p 'test_*.py' -v
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         with:

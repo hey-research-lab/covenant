@@ -905,11 +905,11 @@ pub fn observe_lease(record: &JobRecord, now_ms: u64) -> Option<LeaseObservation
     if record.envelope.payload.kind != covenant_compute_protocol::JobKind::LeaseSession {
         return None;
     }
-    let accepted_at_ms = record.accepted_at_ms?;
+    record.accepted_at_ms?;
     let terms = covenant_compute_protocol::parse_lease_terms(&record.envelope.payload.input)
         .ok()
         .flatten()?;
-    let elapsed_ms = observed_elapsed_ms(accepted_at_ms, now_ms);
+    let elapsed_ms = record.live_lease_elapsed_ms(now_ms);
     Some(LeaseObservation {
         job_id: record.envelope.payload.job_id,
         observed_at_ms: now_ms,

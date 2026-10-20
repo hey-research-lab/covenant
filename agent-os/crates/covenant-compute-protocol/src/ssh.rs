@@ -77,6 +77,76 @@ pub fn validate_ssh_host(host: &str) -> Result<(), ProtocolError> {
     }
     Ok(())
 }
+/// An outer channel only; neither TLS nor an observed SSH key is hardware evidence.
+/// The TLS certificate and SNI must identify the exact `SshAccess.host`, and the
+/// TCP connection uses its `port`. There is no alternate dial target or command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SshTransport {
+    Tls,
+}
+impl<'de> Deserialize<'de> for SshTransport {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // An internally tagged unit enum ignores extra fields in serde. Use a
+        // strict object so command/alternate-host metadata cannot disappear.
+        #[derive(Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        enum Kind {
+            Tls,
+        }
+        struct Wire;
+        impl<'de> serde::de::Visitor<'de> for Wire {
+            type Value = SshTransport;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an SSH transport object containing only kind")
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                let mut kind = None;
+                while let Some(field) = map.next_key::<String>()? {
+                    if field != "kind" {
+                        return Err(serde::de::Error::unknown_field(&field, &["kind"]));
+                    }
+                    if kind.is_some() {
+                        return Err(serde::de::Error::duplicate_field("kind"));
+                    }
+                    kind = Some(map.next_value::<Kind>()?);
+                }
+                match kind {
+                    Some(Kind::Tls) => Ok(SshTransport::Tls),
+                    None => Err(serde::de::Error::missing_field("kind")),
+                }
+            }
+        }
+        deserializer.deserialize_map(Wire)
+    }
+}
+impl SshTransport {
+    pub fn validate_host(&self, host: &str) -> Result<(), ProtocolError> {
+        validate_ssh_host(host)?;
+        if host.parse::<std::net::IpAddr>().is_ok()
+            || host.ends_with('.')
+            || !host.split('.').all(|label| {
+                !label.is_empty()
+                    && label.len() <= 63
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+                    && label
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            })
+        {
+            return Err(ProtocolError::Invalid(
+                "TLS SSH requires an exact lowercase DNS hostname".into(),
+            ));
+        }
+        Ok(())
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SshAccess {
@@ -84,12 +154,18 @@ pub struct SshAccess {
     pub port: u16,
     pub username: String,
     pub lease_generation: String,
+    /// Absent means direct TCP, preserving legacy serialized/signed bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<SshTransport>,
     /// Unauthenticated discovery from the remote SSH service. Never an attestation.
     pub observed_host_keys: Vec<SshHostKey>,
 }
 impl SshAccess {
     pub fn validate(&self) -> Result<(), ProtocolError> {
         validate_ssh_host(&self.host)?;
+        if let Some(transport) = self.transport {
+            transport.validate_host(&self.host)?;
+        }
         if self.port == 0
             || self.username.is_empty()
             || self.username.len() > 64
@@ -142,10 +218,58 @@ mod tests {
             port: 2222,
             username: "worker".into(),
             lease_generation: "instance-1".into(),
+            transport: None,
             observed_host_keys: vec![SshHostKey {
                 algorithm: "ssh-ed25519".into(),
                 key_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
             }],
+        }
+    }
+
+    #[test]
+    fn absent_transport_preserves_exact_legacy_json_and_tls_has_no_command() {
+        let mut a = access();
+        let old = format!(
+            r#"{{"host":"gpu.example","port":2222,"username":"worker","lease_generation":"instance-1","observed_host_keys":[{{"algorithm":"ssh-ed25519","key_base64":"{}"}}]}}"#,
+            a.observed_host_keys[0].key_base64
+        );
+        assert_eq!(serde_json::to_string(&a).unwrap(), old);
+        assert_eq!(serde_json::from_str::<SshAccess>(&old).unwrap(), a);
+        a.transport = Some(SshTransport::Tls);
+        a.validate().unwrap();
+        assert!(serde_json::to_string(&a)
+            .unwrap()
+            .contains(r#""transport":{"kind":"tls"}"#));
+        assert_eq!(
+            serde_json::from_str::<SshTransport>(r#"{"kind":"tls"}"#).unwrap(),
+            SshTransport::Tls
+        );
+        for wire in [
+            r#"{"kind":"tls","command":"evil"}"#,
+            r#"{"kind":"tls","server_name":"another.example"}"#,
+            r#"{"kind":"proxy","command":"evil"}"#,
+            r#"{"kind":"tls","kind":"tls"}"#,
+            r#"{"kind":null}"#,
+            r#"{}"#,
+            r#"["tls"]"#,
+            r#""tls""#,
+        ] {
+            assert!(
+                serde_json::from_str::<SshTransport>(wire).is_err(),
+                "{wire}"
+            );
+        }
+        for host in [
+            "127.0.0.1",
+            "::1",
+            "Example.com",
+            "example.com.",
+            "a..com",
+            "-a.com",
+            "a-.com",
+        ] {
+            a.host = host.into();
+            assert!(a.validate().is_err(), "{host}");
         }
     }
 

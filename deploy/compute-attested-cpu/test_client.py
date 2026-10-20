@@ -66,6 +66,7 @@ class Tests(unittest.TestCase):
         self.challenge["scope"].update(
             host=client.destination(INSTANCE, 1022), port=443, username="covenant",
             guest_channel_key=c.ssh_key(PUBLIC), workload_sha256=INFO["compose_hash"],
+            transport={"kind": "tls"},
         )
 
     def save_challenge(self, challenge=None):

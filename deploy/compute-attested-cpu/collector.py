@@ -28,7 +28,7 @@ POLICY_FIELDS = {
 SCOPE_FIELDS = {
     "job_id", "operator_pubkey_b58", "buyer_pubkey_b58", "lease_generation",
     "host", "port", "username", "guest_channel_key", "workload_sha256",
-    "lease_expires_at_ms",
+    "lease_expires_at_ms", "transport",
 }
 CHALLENGE_FIELDS = {
     "schema_version", "challenge_id", "nonce_hex", "issued_at_ms",
@@ -271,6 +271,7 @@ class Collector:
         require(type(strict_json(info["vm_config"])) is dict, "invalid VM config")
         host = f'{info["instance_id"]}-1022.{self.policy["gateway_domain"]}'
         return {"guest_channel_key": key, "host": host, "port": 443,
+                "transport": {"kind": "tls"},
                 "username": "covenant", "guest_info": info}
 
     def validate(self, challenge, identity, now_ms):
@@ -290,7 +291,7 @@ class Collector:
         ):
             require(type(scope[field]) is type(self.policy[field])
                     and scope[field] == self.policy[field], "wrong lease scope")
-        for field in ("host", "port", "username", "guest_channel_key"):
+        for field in ("host", "port", "username", "guest_channel_key", "transport"):
             require(type(scope[field]) is type(identity[field])
                     and scope[field] == identity[field], "wrong SSH channel")
         require(scope["workload_sha256"] == identity["guest_info"]["compose_hash"],

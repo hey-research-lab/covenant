@@ -341,7 +341,7 @@ stale observations, empty capacity and actual discrepancies. Alerts require
 three observations, persist across restart and include confirmed recovery;
 optional email delivery uses the deployment's existing Cloudflare Email Service account.
 
-See [observer configuration and acceptance](../../../../docs/compute-observer.md)
+See [observer configuration and acceptance](../../../docs/compute-observer.md)
 for every pin, delivery variable, scope limitation and the read-only live-RPC
 harness. Reviewed incidents are source-controlled and expose no buyer/job data.
 
@@ -366,14 +366,22 @@ their own encryption keys. See [workspace operation and acceptance](../../../doc
 | `COVENANT_COMPUTE_WORKSPACE_MAX_BYTES` | `1073741824` | Positive global ciphertext reservation limit including pending writes and garbage. |
 | `COVENANT_COMPUTE_WORKSPACE_WRITES_ENABLED` | `false` | Admit new workspaces/uploads only after provider acceptance; disabling preserves recovery, reads and cleanup. |
 
-## Hardware attestation diagnostics
+## Hardware attestation modes
 
-`COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256` is unset by default. Setting a
-reviewed 64-character lowercase workload SHA-256 enables authenticated
-`/federation/hardware/:job/{challenge,evidence,verdict}` routes and a separate
-private journal. The assigned live lease must contain structured SSH endpoint
-and observed host-key metadata; existing legacy leases are refused by these
-routes. Observation alone never authenticates that key. Served trust remains
-`Open`, including for workspace grants, until a measured guest and its channel
-key pass live acceptance. See [verification and release gates](../../../../docs/compute-hardware-attestation.md)
-and [hardware acceptance plan](../../../../docs/compute-hardware-acceptance.md).
+`COVENANT_COMPUTE_HARDWARE_LEASE_PINS=1` enables authenticated
+`/federation/hardware/:job/{challenge,evidence,verdict}` routes using each
+buyer's signed Phala workload/operator/generation/expiry pin. There is no
+global-pin fallback for unsigned legacy jobs. The separate diagnostic mode
+uses `COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256`, a reviewed 64-character
+lowercase hash. The modes are mutually exclusive and disabled by default.
+Changing modes or a fixed diagnostic pin requires a reviewed journal namespace;
+never delete existing evidence or financial state to force a configuration.
+
+The accepted current lease must contain the exact structured endpoint,
+transport and observed host key. Observation alone never authenticates that
+key; the buyer independently verifies raw vendor evidence. Phala metering and
+hardware access stop at the original signed expiry, without extending it at
+acceptance or readiness. Served trust remains `Open`, including workspace
+grants. See the [verification contract](../../../docs/compute-hardware-attestation.md),
+[Phala lifecycle](../../../docs/compute-phala-lease-lifecycle.md) and
+[acceptance gates](../../../docs/compute-hardware-acceptance.md).

@@ -1,0 +1,214 @@
+# Phala CPU lease lifecycle
+
+The `phala-cpu` node executor connects Covenant's signed lease, provider
+lifecycle, genuine hardware evidence and buyer SSH/workspace paths. It serves
+only `phala-cpu-dstack061`, a CPU lease profile. The compiled trust ceiling is
+**`Open`**. New managed-KMS creation is disabled by default and remains disabled
+pending the [acceptance decision](compute-hardware-acceptance.md).
+
+This is the implementation and operating contract, not a live release record.
+A new guest image must be built and qualified for the typed transport schema.
+The earlier [real CPU diagnostic](compute-hardware-diagnostic-evidence.md) does
+not establish acceptance of this integrated paid flow.
+
+## Signed lifetime and workload
+
+The buyer signs one job UUID, operator, generation, workload SHA-256 and
+absolute expiry. Generation is `phala-{job-id}-1`. Expiry is the original
+`issued_at_ms + duration_secs * 1000`, with duration between 1 and 3,600 seconds.
+Acceptance delay, boot, readiness, recovery and evidence refresh cannot extend
+it. For example, a 600-second signed window accepted 60 seconds after issuance
+has at most 540 seconds left. Live metering stops at the signed expiry; previously
+persisted settlement stamps and legacy lease behavior are unchanged.
+
+The deterministic workload uses the reviewed production wrapper, a
+digest-pinned guest image, buyer SSH public key, exact operator/buyer/job scope,
+fixed gateway and signed expiry. The node must reproduce its exact hash before
+provisioning. Matcher and node admission require the pinned operator and refuse
+future-issued or expired requests; reoffering cannot substitute another operator.
+
+The external SSH address is the attested instance ID plus
+`-1022.dstack-pha-prod5.phala.network:443`, user `covenant`. The collector uses
+instance port `18090`, mapped to container port `8090`; native dstack reserves
+host port `8090`. TLS gateway identity and the guest's SSH host key are separate
+checks, and both are bound into the hardware scope.
+
+## Operator configuration
+
+Keep existing node identity, coordinator, payment and journal configuration.
+The additional settings are:
+
+| Variable | Required value or behavior |
+| --- | --- |
+| `COVENANT_COMPUTE_NODE_EXECUTOR` | `phala-cpu` |
+| `COVENANT_COMPUTE_NODE_MAX_IN_FLIGHT` | `1`; unresolved resources retain capacity |
+| `COVENANT_COMPUTE_NODE_MODELS` | Omit for this executor's default, or set only `phala-cpu-dstack061` |
+| `COVENANT_PHALA_API_KEY_FILE` | Existing owner-only regular file, at most 4 KiB; never place its contents in a command, log or review record |
+| `COVENANT_PHALA_TEEPOD_ID` | Positive, explicitly selected live **legacy `Teepod.id`**, not the newer `node_id` |
+| `COVENANT_PHALA_OS_IMAGE` | Exact reviewed production OS identifier |
+| `COVENANT_PHALA_KMS_ID` | Exact reviewed KMS identifier |
+| `COVENANT_PHALA_GUEST_IMAGE_DIGEST` | Qualified `sha256:` digest, matching the buyer's workload |
+| `COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION` | `0` or unset for no creation; `1` only after the separate acceptance decision |
+| `COVENANT_PHALA_CREATION_ALLOWANCE_FILE` | Reviewed JSON below, at most 16 KiB; required in addition to the creation switch |
+
+Configure the coordinator with
+`COVENANT_COMPUTE_HARDWARE_LEASE_PINS=1`. Do not also configure a nonempty
+`COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256`; that belongs to the separate legacy
+diagnostic mode. Use the reviewed journal namespace for the selected mode.
+
+Select current placement through the authenticated account. The adapter does
+not choose an available Teepod automatically. It requests production
+`prefer_dev=false`, 1 vCPU, 2,048 MiB and a 20-GB disk, and rejects a provision
+response selecting another Teepod or KMS. It authenticates the live CPU catalog,
+checks the exact instance type and rate against the allowance, and rechecks
+that the rate is unchanged before create. A capacity failure is not permission
+to substitute a different type, OS, placement or price.
+
+### One-use creation allowance
+
+The JSON object has exactly these fields; numeric descriptions below are
+placeholders, not approved values:
+
+| Field | Constraint |
+| --- | --- |
+| `schema_version` | `1` |
+| `review_id` | Unique reviewed identifier; 1–128 ASCII letters/digits or `-_.` |
+| `operator_pubkey_b58` | The configured operator identity |
+| `instance_type` | Exact live selected type; same identifier syntax |
+| `max_hourly_micro_usd` | Explicitly approved positive catalog-rate ceiling |
+| `max_runtime_secs` | Approved duration, 1–3,600 |
+| `max_new_resources` | Exactly `1` |
+| `planning_reserve_micro_usd` | At least `ceil(max_hourly_micro_usd * max_runtime_secs / 3600)` |
+| `valid_until_ms` | Finite reviewed expiry, no earlier than the signed guest expiry |
+
+The durable planning row consumes the review ID even if provisioning is
+abandoned or refused. Deletion does not restore that use or refund a planning
+reserve. Another attempt requires a new explicit review; do not rewrite the
+journal or reuse an ID. The reserve bounds admission planning, not the
+provider's invoice: storage, ancillary charges or delayed deletion may exceed
+it.
+
+This object is **not** KMS policy acceptance. It contains no CA/app/workload
+acceptance fields. Retain the separate, finite, scope-bound decision required
+by the [KMS review](../deploy/compute-attested-cpu/kms-policy-review.md).
+The managed service currently reports `os_image_verification=false` and mutable
+off-chain authority. Neither the creation switch nor a valid allowance changes
+those facts or raises trust.
+
+## Durable lifecycle and evidence
+
+The private node journal is `<node-home>/phala-leases`; evidence is stored
+under `<node-home>/phala-evidence/<job-id>`. Preserve both across restart.
+Recovery runs before fresh admission checks, including when creation is
+disabled. The existing user-created diagnostic CVM is not adopted into this
+journal.
+
+The node fsyncs a provision intent before allocating app configuration, then
+persists the app ID, compose hash, OS, environment-encryption key, type, rate,
+Teepod and KMS returned by provisioning. It fsyncs create intent before the
+single create attempt. An uncertain create is reconciled using the originally
+allocated app and unique generated name. An absent lookup after an unknown
+create does not prove the request failed and does not authorize another create.
+
+Readiness requires the expected provider state and collector identity:
+instance, OS, measured workload, one SSH host key and typed TLS channel.
+Access is published before the operator requests the coordinator challenge.
+The collector quote request is recorded before nonce consumption; genuine
+quote and bounded current Intel collateral are checked locally before the
+coordinator independently verifies them. The evidence run retains original
+raw responses, verification and submission results. Unknown quote/submission
+outcomes are not silently retried with a new challenge or overwritten directory.
+An instance or key change after readiness is not silently repinned.
+
+Close, expiry, cancellation and restart cleanup operate on the original
+journal-owned immutable CVM UUID. Cleanup uses resource identity metadata;
+workload drift or an unavailable compose-detail endpoint must not prevent
+deletion of an already owned resource. HTTP 204 means deletion initiated.
+A subsequent authenticated GET 404 confirms absence. Unknown outcomes and
+cleanup obligations remain durable; stopped application services alone do not
+end provider billing. Shutdown reports unresolved resource obligations
+explicitly; draining accepted jobs alone cannot establish clean provider
+teardown.
+
+## Buyer commands
+
+These commands describe the entry path; they do not authorize spending.
+Use the intended existing buyer identity/home. Prepare the operator, qualified
+digest, public key, duration and approved native rate before starting the
+120-second submission window.
+
+```sh
+covenant-compute lease prepare-phala \
+  --job-id <UUID> \
+  --operator <OPERATOR_PUBLIC_KEY> \
+  --image-digest sha256:<QUALIFIED_DIGEST> \
+  --duration-secs <APPROVED_SECONDS> \
+  --rate <APPROVED_MICRO_USDC_PER_SECOND> \
+  --ssh-key <BUYER_PUBLIC_KEY_FILE> \
+  --output <NEW_PRIVATE_DIRECTORY>
+```
+
+Preparation is offline. It does not reserve budget, call an API, buy a lease or
+create a CVM. It creates a new owner-only directory with `workload.json`
+(exact compact bytes) and `originalsignedenvelope.json`, using the current
+issuance time. Preserve both; reformatting the workload changes its hash.
+The duration × rate ceiling must fit the configured per-call limit.
+
+Submission requires the configured `COVENANT_COMPUTE_COORDINATOR_URL`,
+`COVENANT_COMPUTE_DAILY_BUDGET_MICRO_USDC` and existing durable budget. Optional
+`COVENANT_COMPUTE_BUDGET_HOME` selects its location, and
+`COVENANT_COMPUTE_MAX_PRICE_MICRO_USDC` supplies the per-call cap. These values
+must come from the approved native Compute budget, separately from provider
+USD exposure; this guide supplies no new limits.
+
+```sh
+covenant-compute lease submit-phala \
+  --envelope <NEW_PRIVATE_DIRECTORY>/originalsignedenvelope.json
+covenant-compute lease view <UUID>
+```
+
+`submit-phala` validates the original signature, buyer, lease pin, cap and time
+before budget reconciliation/reservation, then revalidates before the HTTP
+attempt. Future issuance, age over 120 seconds or original expiry is rejected.
+It reserves through `DurableBudget` and submits once without automatic retry,
+redirect, resigning or ID replacement. Every previously reserved job ID stays
+non-reusable. An uncertain response retains the hold.
+
+```sh
+covenant-compute budget status
+covenant-compute budget reconcile
+covenant-compute lease view <UUID>
+```
+
+Use those reads/reconciliation with the original envelope after uncertainty.
+Stale preparation is never renewed automatically. Reconcile any original
+attempt before explicitly reviewing and preparing a different purchase.
+
+After readiness and fresh evidence:
+
+```sh
+covenant-compute lease probe-phala \
+  --envelope <NEW_PRIVATE_DIRECTORY>/originalsignedenvelope.json \
+  --ssh-key <BUYER_PRIVATE_KEY_FILE>
+covenant-compute workspace restore-to-lease <WORKSPACE_UUID> \
+  --job-envelope <NEW_PRIVATE_DIRECTORY>/originalsignedenvelope.json \
+  --ssh-key <BUYER_PRIVATE_KEY_FILE>
+covenant-compute lease close <UUID>
+```
+
+The probe is explicitly diagnostic at `Open`. It reads current lease scope,
+independently verifies hardware and probes the attested channel; it does not
+purchase another lease or upload a workspace. Native TLS validates the exact
+gateway hostname; OpenSSH checks only the attested guest key using isolated
+configuration and a one-use local relay.
+
+Restore first verifies the live lease/evidence, decrypts into a private local
+location, then re-reads the scope and verifies again immediately before
+upload. It honors the workspace's trust floor and refuses stronger floors at
+`Open`. Live acceptance must use synthetic data only. A changed or expired
+lease must not reuse an earlier grant, and a failed transfer is not an
+instruction to overwrite or retry automatically.
+
+Closing the Covenant lease and reconciling its USDC settlement are separate
+from confirming provider deletion and USD charges. Retain both sets of evidence.
+The earlier 0.75-USDC x402 allowance does not cover either new purchase here.

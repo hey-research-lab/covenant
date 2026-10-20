@@ -132,7 +132,8 @@ def checked_challenge(path, instance_id, now_ms):
     scope = challenge["scope"]
     require(scope["host"] == destination(instance_id, 1022)
             and type(scope["port"]) is int and scope["port"] == 443
-            and scope["username"] == "covenant", "challenge endpoint does not match instance")
+            and scope["username"] == "covenant"
+            and scope["transport"] == {"kind": "tls"}, "challenge endpoint does not match instance")
     c.integer(scope["lease_expires_at_ms"], expires)
     c.canonical(challenge)
     return raw

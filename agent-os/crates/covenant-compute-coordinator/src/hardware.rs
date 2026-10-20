@@ -16,7 +16,7 @@ use covenant_compute_attestation::{
     },
     vendor_types::TrustClass,
 };
-use covenant_compute_protocol::{parse_lease_terms, JobKind};
+use covenant_compute_protocol::{parse_lease_terms, phala::parse_phala_lease_spec, JobKind};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -185,6 +185,18 @@ impl HardwareService {
             return Err(rejected("workload digest must be 32-byte hex"));
         }
         let workload_sha256 = workload_sha256.to_ascii_lowercase();
+        Self::configured(state, path, workload_sha256)
+    }
+    /// Require a buyer-signed workload for every evidence request. The empty
+    /// journal policy marker is distinct from the legacy fixed-workload mode.
+    pub fn open_signed_leases(state: Arc<CoordinatorState>, path: &Path) -> Result<Self> {
+        Self::configured(state, path, String::new())
+    }
+    fn configured(
+        state: Arc<CoordinatorState>,
+        path: &Path,
+        workload_sha256: String,
+    ) -> Result<Self> {
         Ok(Self {
             state,
             book: Arc::new(Mutex::new(Book::open(path, workload_sha256.clone())?)),
@@ -214,7 +226,7 @@ impl HardwareService {
         if now < accepted || now < job.envelope.payload.issued_at_ms {
             return Err(rejected("lease clock moved backwards"));
         }
-        let end = accepted
+        let mut end = accepted
             .saturating_add(terms.max_duration_secs.saturating_mul(1000))
             .min(
                 job.envelope
@@ -222,6 +234,20 @@ impl HardwareService {
                     .issued_at_ms
                     .saturating_add(job.envelope.payload.deadline_ms),
             );
+        let phala = parse_phala_lease_spec(&job.envelope.payload.input).map_err(rejected)?;
+        if phala.is_none() && self.workload_sha256.is_empty() {
+            return Err(rejected("buyer-signed workload pin required"));
+        }
+        if let Some(spec) = &phala {
+            spec.validate_for_job(&job.envelope.payload)
+                .map_err(rejected)?;
+            if spec.operator_pubkey_b58 != job.operator_pubkey_b58 {
+                return Err(rejected(
+                    "lease operator differs from buyer-signed workload",
+                ));
+            }
+            end = end.min(spec.lease_expires_at_ms);
+        }
         if now >= end {
             return Err(rejected("paid lease window expired"));
         }
@@ -236,6 +262,29 @@ impl HardwareService {
             .ssh
             .ok_or_else(|| rejected("structured SSH identity is required"))?;
         ssh.validate().map_err(rejected)?;
+        if let Some(spec) = &phala {
+            if ssh.lease_generation != spec.lease_generation
+                || ssh.transport != Some(covenant_compute_protocol::ssh::SshTransport::Tls)
+                || ssh.port != 443
+                || ssh.username != "covenant"
+            {
+                return Err(rejected(
+                    "Phala channel differs from the signed lease profile",
+                ));
+            }
+            let suffix = format!("-1022.{}", covenant_compute_protocol::phala::PHALA_GATEWAY);
+            let instance = ssh
+                .host
+                .strip_suffix(&suffix)
+                .ok_or_else(|| rejected("unexpected Phala SSH endpoint"))?;
+            if instance.len() != 40
+                || !instance
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            {
+                return Err(rejected("invalid Phala instance endpoint"));
+            }
+        }
         let key = ssh
             .observed_host_keys
             .get(key_index)
@@ -248,9 +297,12 @@ impl HardwareService {
             lease_generation: ssh.lease_generation,
             host: ssh.host,
             port: ssh.port,
+            transport: ssh.transport,
             username: ssh.username,
             guest_channel_key: key,
-            workload_sha256: self.workload_sha256.clone(),
+            workload_sha256: phala
+                .map(|spec| spec.workload_sha256)
+                .unwrap_or_else(|| self.workload_sha256.clone()),
             lease_expires_at_ms: end,
         })
     }
@@ -602,6 +654,31 @@ pub fn build_from_env(
     state: Arc<CoordinatorState>,
     journal_path: &Path,
 ) -> Result<Option<Arc<HardwareService>>> {
+    let per_lease = match std::env::var("COVENANT_COMPUTE_HARDWARE_LEASE_PINS") {
+        Ok(value) if value == "1" => true,
+        Ok(value) if value == "0" => false,
+        Err(std::env::VarError::NotPresent) => false,
+        _ => {
+            return Err(rejected(
+                "COVENANT_COMPUTE_HARDWARE_LEASE_PINS must be 0 or 1",
+            ))
+        }
+    };
+    if per_lease {
+        if std::env::var("COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256")
+            .ok()
+            .is_some_and(|value| !value.is_empty())
+        {
+            return Err(rejected(
+                "choose signed lease pins or one diagnostic workload pin",
+            ));
+        }
+        return HardwareService::open_signed_leases(
+            state,
+            &journal_path.with_extension("hardware.json"),
+        )
+        .map(|service| Some(Arc::new(service)));
+    }
     let Some(digest) = std::env::var("COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256")
         .ok()
         .filter(|s| !s.is_empty())

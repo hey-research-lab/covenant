@@ -320,12 +320,25 @@ impl JobRecord {
             return metered;
         }
         if self.phase == JobPhase::Accepted {
-            return self
-                .accepted_at_ms
-                .map(|started| now_ms.saturating_sub(started))
-                .unwrap_or(0);
+            return self.live_lease_elapsed_ms(now_ms);
         }
         0
+    }
+
+    /// Acceptance remains the start of billing; a buyer-signed guest expiry
+    /// bounds the end even if evidence collection or provider deletion is slow.
+    /// Persisted settlement stamps are handled separately and never repriced.
+    pub fn live_lease_elapsed_ms(&self, now_ms: u64) -> u64 {
+        let cutoff = match covenant_compute_protocol::phala::parse_phala_lease_spec(
+            &self.envelope.payload.input,
+        ) {
+            Ok(Some(spec)) => now_ms.min(spec.lease_expires_at_ms),
+            Ok(None) => now_ms,
+            Err(_) => return 0,
+        };
+        self.accepted_at_ms
+            .map(|started| cutoff.saturating_sub(started))
+            .unwrap_or(0)
     }
 
     /// The micro-USDC a lease view reports as charged as of `now_ms`, given

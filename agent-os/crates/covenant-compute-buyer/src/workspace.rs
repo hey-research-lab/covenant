@@ -443,6 +443,81 @@ impl<'a> WorkspaceClient<'a> {
         self.upload_snapshot(&prepared).await
     }
 
+    /// Restore a pinned snapshot into a live, buyer-signed Phala lease. Hardware
+    /// verification gates both local restoration and the first plaintext
+    /// upload. A second current lease read rejects replacement/closing while
+    /// downloading. No private workspace key is sent to the guest.
+    ///
+    /// The destination is deterministic and never overwritten. An interrupted
+    /// transfer may leave a partial remote file; reconcile that exact path
+    /// before retrying, rather than creating another destination.
+    pub async fn restore_to_lease(
+        &self,
+        workspace: &WorkspaceView,
+        key: &VaultKey,
+        envelope: &covenant_compute_protocol::SignedJobEnvelope,
+        private_ssh_key: &Path,
+    ) -> Result<String, BuyerError> {
+        use crate::hardware::{scope_for_phala_lease, HardwareClient};
+        use covenant_compute_attestation::vendor_types::TrustClass;
+        if workspace.owner != self.identity.agent_id().pubkey_base58() {
+            return Err(protocol("workspace belongs to a different buyer"));
+        }
+        let snapshot = workspace
+            .snapshot
+            .as_ref()
+            .ok_or_else(|| protocol("workspace has no committed snapshot"))?;
+        if snapshot.plaintext_bytes > crate::ssh::MAX_TRANSFER_BYTES {
+            return Err(protocol(
+                "lease workspace transfer exceeds the 64 MiB limit",
+            ));
+        }
+        let floor = match workspace.trust_floor {
+            WorkspaceTrustFloor::Open => TrustClass::Open,
+            WorkspaceTrustFloor::Isolated => TrustClass::Isolated,
+            WorkspaceTrustFloor::Attested => TrustClass::Attested,
+            WorkspaceTrustFloor::Confidential => TrustClass::Confidential,
+        };
+        let hardware = HardwareClient::new(&self.config.coordinator_url, self.identity)?;
+        let current = crate::lease_view(
+            self.http,
+            self.config,
+            self.identity,
+            envelope.payload.job_id,
+        )
+        .await?;
+        let scope = scope_for_phala_lease(envelope, &current, &workspace.owner, crate::epoch_ms())?;
+        hardware.verify_lease(&scope, floor).await?;
+        let temporary = tempfile::tempdir().map_err(protocol)?;
+        let plaintext = temporary.path().join("snapshot");
+        self.restore_file(workspace, key, &plaintext, Some(scope.job_id))
+            .await?;
+
+        let current =
+            crate::lease_view(self.http, self.config, self.identity, scope.job_id).await?;
+        let latest =
+            scope_for_phala_lease(envelope, &current, &workspace.owner, crate::epoch_ms())?;
+        if latest != scope {
+            return Err(protocol(
+                "lease channel changed during workspace restoration",
+            ));
+        }
+        let basename = format!("covenant-{}-v{}.snapshot", workspace.id, workspace.version);
+        // upload_file freshly fetches and independently verifies the current
+        // verdict again, then validates TLS and the single hardware-bound key.
+        crate::ssh::SshClient::default()
+            .upload_file(
+                &hardware,
+                &scope,
+                floor,
+                private_ssh_key,
+                &plaintext,
+                &basename,
+            )
+            .await?;
+        Ok(format!("/workspace/{basename}"))
+    }
+
     /// Restores the exact caller-pinned snapshot. `lease_job_id` asks the server
     /// to additionally authorize delivery into that live lease. The caller then
     /// transfers the resulting local file over its authenticated lease channel.
@@ -648,5 +723,155 @@ mod persistence_tests {
                 .upload_id,
             id
         );
+    }
+}
+
+#[cfg(test)]
+mod lease_gate_tests {
+    use super::*;
+    use axum::{http::StatusCode, response::IntoResponse, Json, Router};
+    use base64::Engine as _;
+    use covenant_a2a::{A2ADuplicateSafety, A2AIdempotency};
+    use covenant_compute_protocol::{
+        lease_input, phala,
+        ssh::{SshAccess, SshHostKey, SshTransport},
+        CapabilityRequirement, JobEnvelopePayload, JobKind, LeaseAccess, LeaseTerms, LeaseView,
+        SignedJobEnvelope,
+    };
+    use std::sync::{Arc, Mutex};
+
+    #[tokio::test]
+    async fn restore_to_lease_checks_hardware_before_requesting_or_decrypting_snapshot() {
+        let buyer = LocalIdentity::generate("workspace-ssh@buyer");
+        let operator = LocalIdentity::generate("workspace-ssh@operator");
+        let now = crate::epoch_ms();
+        let key = SshHostKey {
+            algorithm: "ssh-ed25519".into(),
+            key_base64: base64::engine::general_purpose::STANDARD
+                .encode([b"\0\0\0\x0bssh-ed25519\0\0\0\x20".as_slice(), &[0x9e; 32]].concat()),
+        };
+        let mut job = JobEnvelopePayload {
+            job_id: Uuid::new_v4(),
+            buyer: buyer.agent_id().clone(),
+            kind: JobKind::LeaseSession,
+            capability_requirement: CapabilityRequirement {
+                inference_tariff: None,
+                gpu_class: Some("cpu".into()),
+                min_vram_gb: None,
+                model_id: Some(phala::PHALA_CPU_MODEL.into()),
+                kind: JobKind::LeaseSession,
+                max_duration_secs: 600,
+                min_reputation_bps: None,
+            },
+            input: vec![lease_input(LeaseTerms {
+                max_duration_secs: 600,
+                rate_micro_usdc_per_sec: 1,
+                client_public_key: Some(format!("{} {}", key.algorithm, key.key_base64)),
+            })
+            .unwrap()],
+            price_micro_usdc: 600,
+            deadline_ms: 900_000,
+            idempotency: A2AIdempotency::new(A2ADuplicateSafety::Idempotent, "workspace-gate"),
+            issued_at_ms: now - 1000,
+            referral_code: None,
+            stream: true,
+        };
+        let (_, spec) = phala::phala_workload(
+            &job,
+            &operator.agent_id().pubkey_base58(),
+            &phala::reviewed_phala_wrapper(),
+            &format!("sha256:{}", "ab".repeat(32)),
+        )
+        .unwrap();
+        job.input
+            .push(phala::phala_lease_input(spec.clone()).unwrap());
+        let envelope = SignedJobEnvelope::sign(job, &buyer).unwrap();
+        let lease = LeaseView {
+            job_id: envelope.payload.job_id,
+            status: "accepted".into(),
+            access: Some(LeaseAccess {
+                job_id: envelope.payload.job_id,
+                endpoint: "structured TLS SSH".into(),
+                ready_at_ms: now,
+                note: None,
+                source_price: None,
+                ssh: Some(SshAccess {
+                    host: format!("{}-1022.{}", "a".repeat(40), phala::PHALA_GATEWAY),
+                    port: 443,
+                    username: "covenant".into(),
+                    lease_generation: spec.lease_generation,
+                    transport: Some(SshTransport::Tls),
+                    observed_host_keys: vec![key],
+                }),
+            }),
+            rate_micro_usdc_per_sec: 1,
+            max_duration_secs: 600,
+            elapsed_ms: 0,
+            charged_micro_usdc: 0,
+            close_requested: false,
+        };
+        let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+        let seen = calls.clone();
+        let lease_path = format!("/federation/jobs/{}/lease", envelope.payload.job_id);
+        let view_path = lease_path.clone();
+        let router = Router::new().fallback(move |request: axum::extract::Request| {
+            let path = request.uri().path().to_owned();
+            seen.lock().unwrap().push(path.clone());
+            let lease = lease.clone();
+            let is_view = path == view_path;
+            async move {
+                if is_view {
+                    Json(lease).into_response()
+                } else {
+                    StatusCode::CONFLICT.into_response()
+                }
+            }
+        });
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let config = BuyerConfig {
+            coordinator_url: format!("http://{}", listener.local_addr().unwrap()),
+            poll_interval: std::time::Duration::from_millis(10),
+            referral_code: None,
+            rpc_url: None,
+        };
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let http = crate::http_client();
+        let client = WorkspaceClient::new(&http, &config, &buyer);
+        let workspace = WorkspaceView {
+            id: Uuid::new_v4(),
+            owner: buyer.agent_id().pubkey_base58(),
+            name: "gated".into(),
+            trust_floor: WorkspaceTrustFloor::Open,
+            version: 1,
+            snapshot: Some(WorkspaceSnapshot {
+                version: 1,
+                plaintext_bytes: 4,
+                ciphertext_bytes: ciphertext_len(4).unwrap(),
+                ciphertext_sha256: "a".repeat(64),
+                created_at_ms: now,
+            }),
+        };
+        let error = client
+            .restore_to_lease(
+                &workspace,
+                &VaultKey::random(),
+                &envelope,
+                Path::new("/missing-private-ssh-key"),
+            )
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("409"), "{error}");
+        assert_eq!(
+            *calls.lock().unwrap(),
+            vec![
+                lease_path,
+                format!("/federation/hardware/{}/verdict", envelope.payload.job_id),
+            ]
+        );
+        // No workspace download grant, object fetch, decryption, or SSH request
+        // occurred. A server-selected scope cannot bypass this gate.
+        server.abort();
     }
 }

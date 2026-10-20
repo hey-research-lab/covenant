@@ -545,3 +545,247 @@ async fn challenge_fresh_submit_and_cached_retry_run_on_blocking_workers() {
     );
     assert_eq!(service.verify_slots.available_permits(), 2);
 }
+
+fn phala_fixture() -> (
+    Arc<CoordinatorState>,
+    LocalIdentity,
+    LocalIdentity,
+    Uuid,
+    u64,
+    covenant_compute_protocol::phala::PhalaLeaseSpec,
+) {
+    use covenant_compute_protocol::phala::{
+        phala_lease_input, phala_workload, reviewed_phala_wrapper, PHALA_CPU_MODEL, PHALA_GATEWAY,
+    };
+    let (state, buyer, operator, id, now) = fixture();
+    let mut record = state.jobs().get(id).unwrap();
+    let mut payload = record.envelope.payload;
+    payload.issued_at_ms = now - 60_000;
+    payload.stream = true;
+    payload.capability_requirement.gpu_class = Some("cpu".into());
+    payload.capability_requirement.model_id = Some(PHALA_CPU_MODEL.into());
+    let ssh = record.lease_access.as_mut().unwrap().ssh.as_mut().unwrap();
+    payload.input = vec![covenant_compute_protocol::lease_input(LeaseTerms {
+        max_duration_secs: 600,
+        rate_micro_usdc_per_sec: 1,
+        client_public_key: Some(format!(
+            "ssh-ed25519 {}",
+            ssh.observed_host_keys[0].key_base64
+        )),
+    })
+    .unwrap()];
+    let (_, spec) = phala_workload(
+        &payload,
+        &operator.agent_id().pubkey_base58(),
+        &reviewed_phala_wrapper(),
+        &format!("sha256:{}", "cd".repeat(32)),
+    )
+    .unwrap();
+    payload.input.push(phala_lease_input(spec.clone()).unwrap());
+    payload.validate_input().unwrap();
+    record.envelope = SignedJobEnvelope::sign(payload, &buyer).unwrap();
+    ssh.host = format!("{}-1022.{PHALA_GATEWAY}", "12".repeat(20));
+    ssh.port = 443;
+    ssh.username = "covenant".into();
+    ssh.transport = Some(covenant_compute_protocol::ssh::SshTransport::Tls);
+    ssh.lease_generation = spec.lease_generation.clone();
+    let endpoint = format!("ssh+tls://covenant@{}:443", ssh.host);
+    record.lease_access.as_mut().unwrap().endpoint = endpoint;
+    state.jobs().insert(id, record).unwrap();
+    (state, buyer, operator, id, now, spec)
+}
+
+#[test]
+fn phala_signed_expiry_caps_scope_view_and_both_meters_after_delayed_acceptance() {
+    let (state, buyer, _, id, now, spec) = phala_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    let global_pin = "ab".repeat(32);
+    let service = HardwareService::open(
+        state.clone(),
+        &directory.path().join("hardware"),
+        global_pin.clone(),
+    )
+    .unwrap();
+    let challenge = service
+        .challenge(id, &buyer.agent_id().pubkey_base58(), 0, now)
+        .unwrap();
+    assert_ne!(challenge.scope.workload_sha256, global_pin);
+    assert_eq!(challenge.scope.workload_sha256, spec.workload_sha256);
+    assert_eq!(challenge.scope.lease_expires_at_ms, now + 540_000);
+    assert_eq!(
+        challenge.scope.lease_expires_at_ms,
+        spec.lease_expires_at_ms
+    );
+    assert!(service.scope(id, 0, spec.lease_expires_at_ms - 1).is_ok());
+    assert!(service.scope(id, 0, spec.lease_expires_at_ms).is_err());
+
+    let mut record = state.jobs().get(id).unwrap();
+    assert_eq!(record.live_lease_elapsed_ms(now - 1), 0);
+    assert_eq!(record.live_lease_elapsed_ms(now + 120_000), 120_000);
+    let late_result = spec.lease_expires_at_ms + 120_000;
+    // A delayed receipt or slow deletion cannot bill after the guest's signed
+    // shutdown, even though the generic deadline still permits settlement.
+    assert_eq!(record.live_lease_elapsed_ms(late_result), 540_000);
+    assert_eq!(record.lease_elapsed_ms(late_result), 540_000);
+    let terms = parse_lease_terms(&record.envelope.payload.input)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        record.lease_charged_micro_usdc(&terms, late_result, None),
+        540
+    );
+    let observation = crate::onchain_meter::observe_lease(&record, late_result).unwrap();
+    assert_eq!(observation.elapsed_ms, 540_000);
+    assert_eq!(observation.charged_micro_usdc, 540);
+
+    record.metered_elapsed_ms = Some(17_000);
+    record.phase = JobPhase::Completed;
+    assert_eq!(record.lease_elapsed_ms(late_result), 17_000);
+    assert_eq!(
+        record.lease_charged_micro_usdc(&terms, late_result, None),
+        17
+    );
+    record.metered_elapsed_ms = None;
+    assert_eq!(
+        record.lease_charged_micro_usdc(&terms, late_result, Some(19)),
+        19
+    );
+
+    let (legacy_state, _, _, legacy_id, legacy_now) = fixture();
+    let mut legacy = legacy_state.jobs().get(legacy_id).unwrap();
+    assert_eq!(legacy.live_lease_elapsed_ms(legacy_now + 700_000), 700_000);
+    legacy.metered_elapsed_ms = Some(23_000);
+    legacy.phase = JobPhase::Completed;
+    assert_eq!(legacy.lease_elapsed_ms(legacy_now + 700_000), 23_000);
+}
+
+#[test]
+fn signed_lease_mode_has_no_operator_global_workload_fallback() {
+    let (state, buyer, _, id, now) = fixture();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("hardware");
+    let service = HardwareService::open_signed_leases(state.clone(), &path).unwrap();
+    assert!(service
+        .challenge(id, &buyer.agent_id().pubkey_base58(), 0, now)
+        .is_err());
+    service.book.lock().save().unwrap();
+    drop(service);
+    assert!(HardwareService::open(state, &path, "ab".repeat(32)).is_err());
+
+    let (state, buyer, _, id, now, spec) = phala_fixture();
+    let path = directory.path().join("signed");
+    let service = HardwareService::open_signed_leases(state, &path).unwrap();
+    let challenge = service
+        .challenge(id, &buyer.agent_id().pubkey_base58(), 0, now)
+        .unwrap();
+    assert_eq!(challenge.scope.workload_sha256, spec.workload_sha256);
+}
+
+#[test]
+fn phala_scope_rejects_unpinned_operator_or_wrong_generation_and_tls_endpoint() {
+    let (state, _, _, id, now, _) = phala_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    let service = HardwareService::open(
+        state.clone(),
+        &directory.path().join("hardware"),
+        "ab".repeat(32),
+    )
+    .unwrap();
+    let original = state.jobs().get(id).unwrap();
+    for mode in 0..9 {
+        let mut changed = original.clone();
+        if mode == 0 {
+            changed.operator_pubkey_b58 = LocalIdentity::generate("other@hardware")
+                .agent_id()
+                .pubkey_base58();
+        } else {
+            let ssh = changed.lease_access.as_mut().unwrap().ssh.as_mut().unwrap();
+            match mode {
+                1 => ssh.lease_generation.push_str("-replacement"),
+                2 => ssh.transport = None,
+                3 => ssh.port = 1022,
+                4 => ssh.username = "root".into(),
+                5 => ssh.host = format!("{}-1022.untrusted.example", "12".repeat(20)),
+                6 => {
+                    ssh.host = format!(
+                        "{}-1022.{}",
+                        "AB".repeat(20),
+                        covenant_compute_protocol::phala::PHALA_GATEWAY
+                    )
+                }
+                7 => {
+                    ssh.host = format!(
+                        "{}-1022.{}",
+                        "12".repeat(19),
+                        covenant_compute_protocol::phala::PHALA_GATEWAY
+                    )
+                }
+                8 => ssh.observed_host_keys[0].key_base64 = "AA==".into(),
+                _ => unreachable!(),
+            }
+        }
+        state.jobs().insert(id, changed).unwrap();
+        assert!(service.scope(id, 0, now).is_err(), "mode {mode}");
+    }
+    state.jobs().insert(id, original).unwrap();
+    assert!(service.scope(id, 0, now).is_ok());
+}
+
+#[test]
+fn phala_challenge_cannot_be_reused_with_changed_workload_transport_or_key() {
+    let (state, buyer, _, id, now, _) = phala_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    let service = HardwareService::open(
+        state.clone(),
+        &directory.path().join("hardware"),
+        "ab".repeat(32),
+    )
+    .unwrap();
+    let challenge = service
+        .challenge(id, &buyer.agent_id().pubkey_base58(), 0, now)
+        .unwrap();
+    service.match_live_scope(&challenge.scope, now).unwrap();
+    for mode in 0..6 {
+        let mut altered = challenge.scope.clone();
+        match mode {
+            0 => altered.workload_sha256 = "ef".repeat(32),
+            1 => altered.transport = None,
+            2 => altered.lease_generation.push_str("-replacement"),
+            3 => altered.lease_expires_at_ms += 1,
+            4 => {
+                let mut key = base64::engine::general_purpose::STANDARD
+                    .decode(&altered.guest_channel_key.key_base64)
+                    .unwrap();
+                *key.last_mut().unwrap() ^= 1;
+                altered.guest_channel_key.key_base64 =
+                    base64::engine::general_purpose::STANDARD.encode(key);
+                altered.guest_channel_key.validate().unwrap();
+            }
+            5 => {
+                altered.host = format!(
+                    "{}-1022.{}",
+                    "34".repeat(20),
+                    covenant_compute_protocol::phala::PHALA_GATEWAY
+                )
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            service.match_live_scope(&altered, now).is_err(),
+            "mode {mode}"
+        );
+    }
+    let mut record = state.jobs().get(id).unwrap();
+    let covenant_mcp::Content::Json { value } = record.envelope.payload.input.last_mut().unwrap()
+    else {
+        unreachable!()
+    };
+    value["phala_lease"]["workload_sha256"] = "ef".repeat(32).into();
+    record.envelope = SignedJobEnvelope::sign(record.envelope.payload, &buyer).unwrap();
+    state.jobs().insert(id, record).unwrap();
+    assert!(service.match_live_scope(&challenge.scope, now).is_err());
+    assert_eq!(
+        service.scope(id, 0, now).unwrap().workload_sha256,
+        "ef".repeat(32)
+    );
+}

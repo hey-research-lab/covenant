@@ -48,6 +48,8 @@ use covenant_mcp::Content;
 use serde_json::Value;
 use uuid::Uuid;
 
+#[path = "../phala_cli.rs"]
+mod phala_cli;
 #[path = "../workspace_cli.rs"]
 mod workspace_cli;
 
@@ -84,6 +86,10 @@ Usage:
   covenant-compute agent --repo <path|url> --accept <cmd> <task>   hire a coding agent; pay only if its work passes
   covenant-compute fix --repo <path|url> --accept <cmd> <bug>      hire a crew to reproduce and fix a bug; pay only if the fix passes
   covenant-compute lease open --minutes N --rate R    rent a whole GPU for a window
+  covenant-compute lease prepare-phala --job-id UUID --operator PUB --image-digest sha256:... --duration-secs N --rate R --ssh-key PUBLICFILE --output NEWDIR
+                                                prepare a pinned CPU lease offline; creates no resource
+  covenant-compute lease submit-phala --envelope FILE  submit that original envelope once with a durable budget
+  covenant-compute lease probe-phala --envelope FILE --ssh-key PRIVATEFILE  verify and probe its current SSH channel (Open)
   covenant-compute lease view <job-id>          a live lease's endpoint, meter and cost
   covenant-compute lease close <job-id>         end a running lease and settle the meter
   covenant-compute workspace create <name> [--id UUID] [--trust open]  create an encrypted workspace
@@ -91,6 +97,7 @@ Usage:
   covenant-compute workspace save <id> <file>   encrypt and commit a checkpoint file
   covenant-compute workspace retry <id>          reconcile an interrupted snapshot
   covenant-compute workspace restore <id> <file> [--lease UUID]  restore the pinned snapshot locally
+  covenant-compute workspace restore-to-lease <id> --job-envelope <signed.json> --ssh-key <file>  verify and upload to a Phala lease
   covenant-compute workspace delete <id>         tombstone and schedule ciphertext cleanup
   covenant-compute workspace backup <id> <file>  export a private key and pinned-version backup
   covenant-compute workspace import <file>       import a private backup for this buyer and endpoint
@@ -693,9 +700,16 @@ async fn main() -> anyhow::Result<()> {
             // A lease needs an explicit action: `open` spends money, so a
             // bare `lease` with a stray flag must never fall through into
             // opening a paid session by accident.
-            let action = positional(&args, 0, "action (open|view|close)")?;
+            let action = positional(
+                &args,
+                0,
+                "action (open|prepare-phala|submit-phala|probe-phala|view|close)",
+            )?;
             let mut rest = args.split_off(1);
             match action.as_str() {
+                "prepare-phala" => phala_cli::prepare(&rest, json_out),
+                "submit-phala" => phala_cli::submit(&rest, json_out).await,
+                "probe-phala" => phala_cli::probe(&rest, json_out).await,
                 "open" => {
                     let job_id = take_flag_value(&mut rest, "--job-id")
                         .map(|value| parse_explicit_lease_job_id(&value))
@@ -743,7 +757,7 @@ async fn main() -> anyhow::Result<()> {
                 "view" => cmd_lease_view(&load_ctx()?, parse_job_id(&rest, 0)?, json_out).await,
                 "close" => cmd_lease_close(&load_ctx()?, parse_job_id(&rest, 0)?, json_out).await,
                 other => {
-                    anyhow::bail!("unknown lease action {other:?} — use open, view or close")
+                    anyhow::bail!("unknown lease action {other:?} — use open, prepare-phala, submit-phala, probe-phala, view or close")
                 }
             }
         }

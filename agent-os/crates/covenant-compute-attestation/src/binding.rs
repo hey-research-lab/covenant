@@ -35,6 +35,9 @@ pub struct HardwareScope {
     pub lease_generation: String,
     pub host: String,
     pub port: u16,
+    /// Authenticated outer transport, distinct from the guest-owned SSH key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<covenant_compute_protocol::ssh::SshTransport>,
     pub username: String,
     pub guest_channel_key: SshHostKey,
     pub workload_sha256: String,
@@ -103,6 +106,11 @@ impl HardwareChallenge {
             }
         }
         validate_ssh_host(&self.scope.host).map_err(|_| invalid("invalid SSH host"))?;
+        if let Some(transport) = self.scope.transport {
+            transport
+                .validate_host(&self.scope.host)
+                .map_err(|_| invalid("invalid SSH transport hostname"))?;
+        }
         self.scope
             .guest_channel_key
             .validate()

@@ -859,6 +859,49 @@ and pending ciphertext survive process restart. See the [CLI workflow, backup
 and release gates](../../../docs/compute-workspaces.md) before enabling storage.
 A workspace save does not rent a machine or spend the buyer's Compute balance.
 
+For a ready Phala lease whose original signed purchase pins the workload:
+
+```sh
+covenant-compute workspace restore-to-lease WORKSPACE_UUID \
+  --job-envelope original-signed-lease.json --ssh-key /private/buyer_ssh
+```
+
+This command checks the current lease, independently verifies its hardware
+evidence, restores the pinned snapshot into a private local temporary file,
+then checks the lease and evidence again before uploading plaintext. It uses
+the workspace's existing trust floor; the current `Open` release ceiling still
+rejects higher floors. Neither a valid TLS certificate nor an observed SSH key
+raises that ceiling.
+
+The structured `{ "kind": "tls" }` SSH transport validates the exact gateway
+hostname with rustls/webPKI before starting OpenSSH. A single-use local relay
+carries SSH; OpenSSH still requires the exact hardware-bound host key for the
+original gateway endpoint. Provider strings never become `ProxyCommand` or
+local shell commands. OpenSSH must be installed, and the supplied private key
+must have mode `0600` or stricter on Unix. An absent transport field preserves
+the existing direct TCP protocol and serialized bytes.
+
+The destination is `/workspace/covenant-WORKSPACE_UUID-vVERSION.snapshot`.
+Uploads are limited to 64 MiB and the shorter of 120 seconds or the live
+verdict/lease deadline. They never overwrite or automatically retry. A timeout
+or failed upload can leave a partial file at that exact destination; reconcile
+it before retrying. The file remains an archive/snapshot and is not unpacked or
+executed. Workspace encryption keys stay local.
+
+The transport tests include real local TLS certificate rejection. To additionally
+exercise a real local SSH server, correct and wrong host keys, wrong buyer
+authentication, upload, overwrite rejection and deadline cleanup:
+
+```sh
+cd agent-os
+cargo test -p covenant-compute-buyer --lib ssh::
+cargo test -p covenant-compute-buyer --lib ssh::tests::openssh -- --ignored
+```
+
+The second command requires `/usr/sbin/sshd`, `/usr/bin/ssh`, and
+`/usr/bin/ssh-keygen` on Unix and contacts loopback only. These tests do not
+establish provider lifecycle acceptance or production attested availability.
+
 ### Versioned inference pricing
 
 Use `infer --tariff-id ID --model MODEL --max-tokens N` to request an advertised

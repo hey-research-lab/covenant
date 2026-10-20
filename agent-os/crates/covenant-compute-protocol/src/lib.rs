@@ -33,6 +33,7 @@ mod lease_close;
 mod logprobs;
 mod merkle;
 mod payout;
+pub mod phala;
 pub mod price_history;
 mod proof;
 mod read_auth;

@@ -29,6 +29,79 @@ fn invalid(e: impl ToString) -> BuyerError {
     BuyerError::Coordinator(e.to_string())
 }
 
+/// Derive a scope from the buyer's original signed purchase and a fresh lease
+/// view. The coordinator/operator cannot supply the expected workload digest.
+pub fn scope_for_phala_lease(
+    envelope: &covenant_compute_protocol::SignedJobEnvelope,
+    view: &covenant_compute_protocol::LeaseView,
+    expected_buyer: &str,
+    now: u64,
+) -> Result<HardwareScope, BuyerError> {
+    use covenant_compute_protocol::{phala, ssh::SshTransport};
+    envelope.verify().map_err(invalid)?;
+    let job = &envelope.payload;
+    job.validate_input().map_err(invalid)?;
+    let spec = phala::parse_phala_lease_spec(&job.input)
+        .map_err(invalid)?
+        .ok_or_else(|| invalid("signed Phala workload pin missing"))?;
+    if job.buyer.pubkey_base58() != expected_buyer
+        || view.job_id != job.job_id
+        || view.status != "accepted"
+        || view.close_requested
+        || now < job.issued_at_ms
+        || now >= spec.lease_expires_at_ms
+    {
+        return Err(invalid(
+            "Phala lease is not live or belongs to another buyer",
+        ));
+    }
+    let access = view
+        .access
+        .as_ref()
+        .ok_or_else(|| invalid("Phala lease is not ready"))?;
+    access.validate().map_err(invalid)?;
+    let ssh = access
+        .ssh
+        .as_ref()
+        .ok_or_else(|| invalid("structured Phala SSH channel missing"))?;
+    if access.job_id != job.job_id
+        || access.ready_at_ms < job.issued_at_ms
+        || access.ready_at_ms > now
+        || ssh.lease_generation != spec.lease_generation
+        || ssh.transport != Some(SshTransport::Tls)
+        || ssh.port != 443
+        || ssh.username != "covenant"
+        || ssh.observed_host_keys.len() != 1
+    {
+        return Err(invalid("Phala SSH channel differs from the signed lease"));
+    }
+    let suffix = format!("-1022.{}", phala::PHALA_GATEWAY);
+    let instance = ssh
+        .host
+        .strip_suffix(&suffix)
+        .ok_or_else(|| invalid("unexpected Phala SSH endpoint"))?;
+    if instance.len() != 40
+        || !instance
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(invalid("invalid Phala instance endpoint"));
+    }
+    Ok(HardwareScope {
+        job_id: job.job_id,
+        operator_pubkey_b58: spec.operator_pubkey_b58,
+        buyer_pubkey_b58: expected_buyer.into(),
+        lease_generation: spec.lease_generation,
+        host: ssh.host.clone(),
+        port: ssh.port,
+        transport: ssh.transport,
+        username: ssh.username.clone(),
+        guest_channel_key: ssh.observed_host_keys[0].clone(),
+        workload_sha256: spec.workload_sha256,
+        lease_expires_at_ms: spec.lease_expires_at_ms,
+    })
+}
+
 fn require_live_scope(scope: &HardwareScope, now: u64) -> Result<(), BuyerError> {
     if scope.job_id.is_nil() || now >= scope.lease_expires_at_ms {
         return Err(invalid("hardware lease is invalid or expired"));
@@ -343,6 +416,7 @@ mod tests {
             lease_generation: "lease-generation-1".into(),
             host: "gpu.example".into(),
             port: 22,
+            transport: None,
             username: "worker".into(),
             guest_channel_key: SshHostKey {
                 algorithm: "ssh-ed25519".into(),

@@ -44,7 +44,7 @@ use crate::bond::{BondPostOutcome, SlashRecord, UnbondOutcome, UnbondState};
 use crate::deposit::{BondClaim, DepositClaim, RailError};
 use crate::escrow::WithdrawOutcome;
 use crate::jobs::{JobError, JobPhase, JobRecord, ReleaseCharges};
-use crate::matcher::{cheapest_capable_ask_above_offer, select_operator};
+use crate::matcher::{cheapest_capable_ask_above_offer, select_operator_for_job};
 use crate::registry::RegistryError;
 use crate::state::{BuyerFunds, CoordinatorState};
 
@@ -1260,12 +1260,11 @@ async fn submit_job(
             .await
         }
         None => {
-            select_operator(
+            select_operator_for_job(
                 state.registry(),
                 state.reputation(),
                 state.bonds(),
-                &envelope.payload.capability_requirement,
-                envelope.payload.price_micro_usdc,
+                &envelope.payload,
                 now_ms,
                 state.config().operator_liveness_timeout,
                 state.config().min_operator_score_bps,
@@ -1887,12 +1886,7 @@ async fn submit_result(
     // sizes the bill. A lease that concluded without an accept has no
     // meter to read and bills nothing.
     let metered_elapsed_ms = match record.envelope.payload.kind {
-        JobKind::LeaseSession => Some(
-            record
-                .accepted_at_ms
-                .map(|started| now_ms.saturating_sub(started))
-                .unwrap_or(0),
-        ),
+        JobKind::LeaseSession => Some(record.live_lease_elapsed_ms(now_ms)),
         _ => None,
     };
     let metered_used = match (metered_elapsed_ms, lease_terms.as_ref()) {

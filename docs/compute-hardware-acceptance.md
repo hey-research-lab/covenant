@@ -1,342 +1,158 @@
-# Measured CPU lease acceptance plan
+# Measured CPU lease acceptance
 
-Prepared 2026-10-20 for Prism adoption package 11. This is implementation
-preparation, not a production activation or an acceptance result. The user
-subsequently created the Phala CVM recorded below; no paid Covenant lease or
-hardware acceptance has completed. Keep the served hardware trust ceiling at
-`Open`.
+Package 11 now includes a Phala CPU lease lifecycle, signed per-lease workload
+pins, automatic challenge/evidence collection and a buyer path for independent
+verification, SSH probing and workspace restore. The served trust ceiling
+remains **`Open`**, and new managed-KMS resource creation remains disabled.
+This implementation has not completed a paid Covenant lease acceptance or a
+production attested-rental release.
 
-The first target is one lease-bound, measured CPU guest. A successful CPU
-acceptance would establish only the reviewed guest/session properties. It would
-not attest a GPU, establish confidential GPU execution, prove arbitrary program
-outputs correct, or complete package 14's confidential inference integration.
+The [lease lifecycle guide](compute-phala-lease-lifecycle.md) records the exact
+configuration and buyer commands. The [hardware contract](compute-hardware-attestation.md)
+describes verification and grant rules. This plan separates the evidence
+already obtained from the decisions and live checks still required.
 
-## Existing route and access
+## Established evidence
 
-The deployed rental integration uses `covenant-compute-vast` through the node's
-`broker.rs`. It launches a digest-pinned OCI image with the `ssh_direct` runtime,
-attaches the buyer's SSH public key, and reconciles provider teardown. It does
-not provision an SNP/TDX virtual machine or collect hardware reports.
-[Vast's instance documentation](https://docs.vast.ai/guides/instances/overview)
-describes its instances as Docker containers. A GPU model check, provider log,
-container digest, or authenticated SSH connection cannot substitute for a
-measured guest.
+On 2026-10-20, the user-created diagnostic Phala CVM ran Covenant's isolated
+SSH service and collector on production dstack 0.6.1. A genuine TDX quote passed
+strict Intel signature and current-collateral verification with `UpToDate`
+platform/QE status and no advisories. The measured workload, complete launch
+tuple and full Covenant challenge matched. SSH/SFTP, buyer isolation, replay
+and endpoint/key/workload substitution checks passed. Both temporary services
+exited at the original signed expiry; an existing SSH session closed 144 ms
+after the cutoff. See the [diagnostic evidence](compute-hardware-diagnostic-evidence.md)
+for immutable identities, timestamps and artifact hashes.
 
-Historical broker configuration contains `COVENANT_VAST_API_KEY`,
-`COVENANT_COMPUTE_BROKER_IMAGE`, `COVENANT_VAST_GPU_MODELS`, and
-`COVENANT_VAST_MAX_HOURLY_MICROS`. Their presence is not a new authorization or a
-fresh account/balance check.
+That diagnostic was not a paid coordinator lease, workspace grant, settlement
+or provider deletion. Its CVM
+`32ed28e4-0a6f-4dff-a9bf-ba84c38d6e9f` was user-created and retained. It is not
+owned by the new adapter journal and must not be adopted or deleted by inference.
+Service shutdown is not proof that provider billing stopped. The diagnostic
+also recorded inconsistent provider operation status; its historical evidence
+does not claim that this discrepancy was reconciled.
 
-The initial read-only investigation established no usable Phala/GCP/Azure/AWS API credential.
-The standard local Phala, GCP, Azure and AWS configuration directories were
-absent, and the inspected Compute release environment files supplied no new
-provider connection. This was a scoped check, not an exhaustive credential
-inventory. Phala documents `PHALA_CLOUD_API_KEY` for API access; no key value
-belongs in this document or the repository.
-[Phala authentication](https://docs.phala.com/phala-cloud/references/cloud-go-sdk/authentication)
+The production reference is independently derived from official dstack source
+`7f143148cc49f4a09799958835d310e050137cb3` and release artifacts, for the reviewed
+1-vCPU, 2-GiB lite configuration. The OS image hash is
+`ec43cb8c5e04b6bb6c53b33b16076a01d83d01f7f4b703f2f78a0d947d6247e6`.
+The [measurement recipe](../deploy/compute-attested-cpu/measurement/README.md)
+reproduces MRTD and RTMR0–2 without trusting values reported by the guest.
+Unknown or mixed launch tuples, malformed runtime logs, hardware debug,
+unacceptable TCB or advisories remain rejected.
 
-## Candidate providers
+Management account access is now working. Authorized reads of the diagnostic
+app's KMS information, device allowlist, revisions and pending updates all
+returned HTTP 200. Authenticated CPU inventory and CVM listing also succeeded.
+The CPU catalog returned `tdx.small`, 1 vCPU, 2048 MiB, a 20-GB default disk and
+an hourly-rate string of `0.058000`. This is a catalog component observed at
+that read, not an all-in invoice cap, a permanent quote or spending approval.
+The earlier signed-in total estimate must not be replaced with this component.
 
-| Candidate | Documented capability | Remaining incompatibility |
-| --- | --- | --- |
-| Phala `tdx.small`, 1 vCPU / 2 GB RAM | Intel TDX and dstack workload measurements; programmatic custom-data quotes | Signed-in account and production OS availability subsequently confirmed below; accepted guest profile, lifecycle adapter and SSH transport remain pending |
-| GCP `c3-standard-4` in `us-central1-a` | Supported Intel TDX configuration; raw hardware challenge quotes available | Stock GCP boot measurements and event logs do not satisfy the current dstack-specific policy; no connected project, billing/quota confirmation, or adapter |
-| GCP N2D with Milan and SEV-SNP in a supported zone | Raw AMD hardware reports available | Current imported SNP policy is Genoa-specific and pins a particular Kata guest plus workload `host_data`; a separate reviewed platform/image design is required |
+## Remaining production gates
 
-The initial comparison used documented offerings, not reserved capacity. The
-documented unauthenticated Phala instance-types request returned HTTP 403 during
-research, so actual inventory remains unconfirmed. Do not infer availability
-from the pricing page or substitute a non-confidential VM when capacity is
-missing.
+1. **KMS and administrative policy.** The authenticated managed KMS reports
+   `os_image_verification=false`. Account evidence confirms an off-chain KMS
+   with no on-chain contract configuration. A matching CA identifies the
+   service; it does not prove its complete allowed workloads or immutable
+   governance. Resolve the [KMS policy review](../deploy/compute-attested-cpu/kms-policy-review.md)
+   through a reviewed customer-controlled policy or an explicit, finite,
+   scope-bound acceptance of the managed-policy threat model. No such
+   production acceptance is recorded here.
+2. **Current guest image and release qualification.** Build and qualify a new
+   digest-pinned guest image containing the typed transport binding. The
+   historical diagnostic image is not the new lifecycle image. Retain exact
+   source, image provenance, real SSH/SFTP container smoke and current suite
+   results. Local implementation and the earlier hardware diagnostic do not
+   qualify a newly built image automatically.
+3. **Bounded paid lifecycle acceptance.** Approve separate native Compute USDC
+   and provider USD exposure, exact placement, one new resource, finite
+   lifetime and cleanup ownership. Exercise the integrated lease, evidence,
+   buyer channel, synthetic workspace transfer, settlement and confirmed
+   provider deletion with the original identities. This live flow is untested.
+4. **Trust-release decision.** Keep `Open` during diagnostics. A stronger
+   workspace floor must continue to reject. Any future ceiling increase is a
+   separate reviewed code/release change for an accepted profile, not an
+   environment switch or a consequence of valid quote cryptography.
 
-Primary sources:
+Production dstack excludes native guest `sshd`; the measured pre-launch script's
+root-key import path alone does not establish reachable native SSH. The earlier
+log reported zero imported keys. KMS authority, mutable account configuration,
+privileged pre-launch behavior and the reviewed wrapper's other settings still
+belong in the policy decision. Application isolation checks do not prove
+provider-independent custody of persistent secrets.
 
-- [Phala CPU instance pricing](https://phala.com/pricing)
-- [Phala public instance-type API](https://docs.phala.com/api-reference/instance-types/list-family-instance-types)
-- [GCP supported machines, technologies and zones](https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/supported-configurations)
-- [GCP raw SNP/TDX report collection](https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/attestation)
+## Review record before one live attempt
 
-Phala is the first candidate to qualify because its quote and measured
-application model are closest to the existing verifier. This choice does not
-establish compatibility or authorize a purchase.
+Prepare a concrete record naming the buyer/operator, job and lease generation,
+exact guest digest and signed workload hash, KMS CA and policy decision, selected
+production OS/KMS/legacy Teepod ID, current instance type/rate, finite expiry,
+provider account, cleanup owner and evidence destination. Select a currently
+available Teepod through the authenticated account; a remembered diagnostic
+placement or the newer `node_id` is not a substitute for `Teepod.id`.
 
-## Production guest and channel requirements
+Record native Compute's maximum price and durable daily-budget allowance
+separately from the provider's one-resource USD planning reserve. Include boot,
+probe and cleanup time, storage/ancillary billing and the response if deletion
+fails. A provider planning reserve is not an enforceable invoice cap. The old
+**0.75 USDC x402 authorization does not authorize this Phala resource or lease**.
+This document supplies no new numerical spending approval.
 
-The imported TDX reference describes `dstack-0.5.9-dev` with 1 vCPU and 2 GB RAM.
-It records an OS archive hash and a tuple of MRTD plus RTMR0, RTMR1 and RTMR2.
-That upstream reference is not an accepted Covenant guest. Never promote it
-merely because a rented machine returns matching bytes.
+The machine-readable creation allowance limits the operator, instance type,
+rate, runtime, expiry and one durable planning attempt. It is an execution
+guard, not the KMS policy acceptance record: it has no CA, app or workload
+acceptance fields. Both records are needed before considering creation, and
+`COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION` remains `0` until that decision.
 
-A development OS image and the hardware TDX debug attribute are different
-properties. The former includes software such as administrative SSH access;
-the latter can allow the host to inspect TD state. Both need explicit policy
-review. A hardware quote with debug disabled does not make a development
-software image production-approved. Do not enable hardware debug or relax
-measurement, collateral, TCB or advisory checks to obtain a passing result.
+## Live acceptance sequence
 
-Phala's built-in guest SSH is available only on development OS images.
-Production OS images disable it. Its documented SSH transport uses an OpenSSL
-TLS `ProxyCommand`, and account-level SSH keys are copied into new guests.
-Those facts prevent treating native `phala ssh` as an already compatible,
-buyer-exclusive Covenant rental.
-[Phala SSH access](https://docs.phala.com/phala-cloud/networking/enable-ssh-access)
+1. Complete current source/image qualification, policy review and explicit
+   spending/cleanup authorization. Verify account inventory, production
+   placement and the live rate again. Preserve existing journals and budgets.
+2. Prepare the buyer's exact workload and signed envelope offline, then inspect
+   their scope and price. Submission must occur within 120 seconds of issuance
+   and before the original signed expiry. Never refresh a stale signed request
+   or substitute a new job automatically.
+3. Submit once through the durable buyer budget. Retain the original envelope,
+   reservation, provisioned app identity, create intent and resulting CVM UUID.
+   On an uncertain submit/create, reconcile that original identity; do not buy
+   a replacement or clear a reservation to obtain progress.
+4. Require current lease readiness and automatic collection of a fresh
+   coordinator challenge, genuine quote and current Intel collateral. Retain
+   local verification and coordinator acceptance. Re-read evidence using the
+   independent buyer verifier, then prove possession of the attested SSH key
+   through the typed, hostname-validated TLS transport.
+5. Run `probe-phala` and transfer only a synthetic workspace permitted at
+   `Open`. Confirm exact bytes and remove them. Re-read lease/scope and verify
+   evidence immediately before upload. Demonstrate that stronger-floor
+   workspace access remains refused.
+6. Exercise wrong buyer/operator, future issuance, expired/consumed challenge,
+   changed key/endpoint/transport/workload, unacceptable collateral, close and
+   original-expiry rejection. Test restart after durable intents and challenge
+   consumption without creating a second resource or extending the expiry.
+7. Close the original lease and reconcile native settlement/budget by original
+   IDs. Confirm deletion of the journal-owned CVM through authenticated GET
+   absence, then retain storage/billing evidence. HTTP 204, stopped containers
+   or an unreachable endpoint alone do not establish completed cleanup. Keep
+   unresolved creation, payment or deletion obligations durable.
 
-A possible production route is a reviewed application container that owns the
-lease's SSH service and collector inside a production dstack guest. This is a
-design to qualify, not an established supported deployment recipe. Before
-provisioning, demonstrate that the selected provider image and networking can
-serve it without enabling the development guest shell. If they cannot, stop
-and select a different measured guest route.
+## Validation status
 
-The acceptance profile must establish all of the following:
-
-1. **Independent image provenance.** Pin the OS, collector, SSH service and
-   workload images by digest. Retain source/build provenance and calculate
-   expected boot measurements independently from the guest being tested.
-   Record the CPU/memory/QEMU configuration used in the calculation. Approve
-   complete measurement tuples, not independently interchangeable registers.
-2. **Measured workload binding.** Review the exact dstack `app-compose` bytes
-   and their hash. Replay the authenticated runtime event log and require the
-   expected workload, instance, OS and key-provider bindings. Merely placing a
-   claimed workload hash in `reportData` does not prove that workload ran.
-3. **Guest-owned channel key.** Generate the SSH host private key within the
-   measured guest/service for this lease. Do not inject a host key supplied by
-   the broker, export it, or reuse it across leases. Review persistence,
-   backup, logging, administrative access and any KMS dependency for paths
-   through which another party could obtain it.
-4. **Collector ownership checks.** The measured collector must obtain the
-   public key from the actual SSH service and bind the current lease context.
-   It must not act as a quote oracle for arbitrary caller-supplied channel
-   keys, workload labels or unrelated endpoints. Restrict the dstack quote
-   socket to the reviewed collector; measure and review other components
-   that can request quotes or change the SSH service.
-5. **Channel possession.** The buyer independently verifies the report, then
-   performs a strict SSH handshake using only the attested host key. Retain
-   proof that the endpoint answering that handshake owns the corresponding
-   private key. This complements the measured key-generation/custody design;
-   a handshake alone does not prove the key was never copied.
-6. **Buyer access isolation.** Review all injected account, administrator and
-   buyer authorization keys. Prove which parties can enter or alter the
-   guest/service. Do not describe a session as buyer-exclusive while an
-   unreviewed provider-account key still grants access.
-
-Phala's current `DstackClient.getQuote()` accepts at most 64 bytes of
-`reportData` without automatically hashing them. Supply the exact 64-byte
-Covenant binding digest, not a hex string's UTF-8 bytes or a second digest.
-Collect raw quote bytes, the event log, VM configuration, image provenance and
-fresh Intel collateral. Verification happens outside the guest.
-[Quote collection](https://docs.phala.com/phala-cloud/attestation/get-attestation),
-[application verification](https://docs.phala.com/phala-cloud/attestation/verify-your-application),
-[platform and OS verification](https://docs.phala.com/phala-cloud/attestation/verify-the-platform)
-
-## Smallest viable Covenant integration
-
-Implement a separately configured CPU lease provider path; do not repurpose a
-Vast GPU offer or advertise this CPU guest as GPU capacity. Reuse Covenant's
-lease ownership, duration, journal and settlement contracts where applicable,
-while retaining the provider's real instance identity and billing terms.
-
-The minimum adapter needs authenticated discovery/qualification, a fixed
-create identity, create-outcome reconciliation, readiness, supported channel
-transport, evidence collection, and confirmed deletion. It must reject
-unexpected instance type, OS/image, workload, region, endpoint, account-key
-policy or price changes before handing over access. A generic signed-report
-upload endpoint by itself is not a functioning provider integration.
-
-The retained Phala OpenAPI contract exposes separate provision and create
-steps. The adapter must explicitly set the production image and
-`prefer_dev=false` because omission can default to development. Persist the
-provisioned `app_id` and `compose_hash` before submitting creation, then retain
-the returned CVM UUID and independently verified instance identity. The create
-schema declares no idempotency header; do not treat a repeated create as safe
-after a timeout. Reconcile by the original application identity first.
-Likewise, deletion's HTTP204 means **deletion initiated**, not confirmed
-absence. Scheduled deletion is a separate API operation and cannot be assumed
-to have been installed by creation or service expiry.
-
-Keep TLS transport identity separate from the SSH host key terminating inside
-the guest. If TLS tunneling is required, define and validate the transport
-explicitly instead of accepting arbitrary shell commands or weakening strict
-SSH checking. Bind the final externally reachable endpoint and the actual
-guest key into the Covenant challenge.
-
-Before enabling protected workspace grants, integrate the adapter with a live
-Covenant lease and exercise independent buyer verification. An out-of-band VM
-probe can qualify a collector or verifier, but cannot by itself prove the
-lease/workspace integration.
-
-## Bounded acceptance sequence
-
-1. Resolve a connected provider account, current inventory, exact production
-   image availability, permissions, billing terms and the reviewed guest/
-   channel design. Prepare an immutable plan with separate provider and native
-   Compute cost limits. There is no approved provider spending record here.
-2. Before creating a resource, persist the acceptance run ID, Covenant job ID,
-   buyer/operator identities, lease generation, provider create label or
-   idempotency identity, workload/image pins, maximum lifetime and teardown
-   owner. Reserve the authorized budget without resetting existing ledgers.
-3. Create at most the planned guest. On an ambiguous response, reconcile the
-   original identity; do not generate a replacement label, new job or second
-   purchase. Preserve unknown costs and cleanup obligations.
-4. Obtain a fresh coordinator challenge after the real lease endpoint and
-   guest key are known. Collect a report bound to the full lease scope and
-   exact nonce. Verify vendor signatures, current collateral/TCB policy,
-   measured image/workload, key/endpoint binding, and the paid lease window.
-   Retain both raw evidence and independent verifier results.
-5. Demonstrate the attested SSH handshake and a synthetic workspace grant/
-   transfer under the reviewed trust policy. No customer secrets are needed.
-   Do not lift the compiled production trust ceiling to run a diagnostic.
-   A positive stronger-floor test needs an explicitly reviewed isolated
-   acceptance build/profile, followed by a separate release decision.
-6. Exercise the negative cases below and restart/recovery behavior. Re-read
-   current lease ownership, endpoint, generation and expiry before a grant;
-   a stored earlier verdict must not override changed live state.
-7. Close the original lease, reconcile its original settlement identities,
-   delete the original provider instance and disks, and confirm absence
-   through authenticated inventory and billing evidence. A stop request,
-   timeout or missing SSH response is not deletion proof. Retain unresolved
-   obligations until reconciled.
-
-Required rejection cases include evidence from another lease/buyer/operator or
-generation; consumed or expired nonce; changed endpoint or host key; a valid
-quote paired with a different SSH server; changed workload/compose hash;
-unknown image measurements; altered or missing runtime events; expired or
-unacceptable vendor collateral/TCB; closed/expired leases; and a restart with
-an already-consumed challenge. A failed verification consumes its challenge.
-A fresh challenge may retry evidence collection within the original plan,
-without buying a replacement lease. Replaying an accepted response must not
-create another resource or payment.
-
-## Cost envelope and unresolved blockers
-
-Phala advertises `tdx.small` compute at **$0.06/hour** and disk at
-**$0.000139/GB-hour**. A one-hour planning window with a 20 GB disk therefore
-estimates **$0.06278**, approximately **$0.063**, for those two components.
-This is not an all-in quote or an approved spend. Ancillary charges, taxes,
-payment minimums, account-specific terms and available inventory remain
-unconfirmed. Do not count advertised trial credits as an available balance.
-[Pricing and storage lifecycle](https://phala.com/pricing)
-
-The planned maximum runtime must include boot and teardown, not only the
-successful probe. Confirm billing granularity and arrange independent expiry
-cleanup before creation. Phala storage continues billing while a stopped CVM
-exists, so successful deletion is required. A timer or client-side budget
-cannot guarantee the provider's bill is capped if deletion fails.
-
-The remaining production gates are usable management API credentials, KMS and
-administrative policy review, a durable CPU provider lifecycle adapter, an
-approved all-in lease cost envelope, and real lease/workspace/teardown
-acceptance. The subsequent live diagnostic qualifies the observed quote and
-channel within its recorded scope; it does not complete these lifecycle and
-production trust gates.
-
-Only after evidence review may a separate code/release change raise the served
-ceiling for the specifically accepted profile. Keep other operators, GPU
-claims and unaccepted guest profiles at their existing trust level.
-
-## Signed-in account qualification (2026-10-20)
-
-The user confirmed an existing Phala account and requested a new Covenant
-Compute node. Its authenticated deployment form offers production
-`dstack-0.6.1` on `prod5` in US West. The selected preview is a small TDX
-instance with 1 vCPU, 2 GB RAM, 20 GB storage, Phala KMS and ZFS. It quotes
-**$0.06074/hour**, or **$44.34/month** if kept running. This account preview
-supersedes the earlier public estimate for this configuration; it is not a
-resource reservation or final billing evidence.
-
-The user created `covenant-compute-attestation`; its boot completed and the
-instance gateway served the default Phala Next.js starter. The existing CVM is
-`32ed28e4-0a6f-4dff-a9bf-ba84c38d6e9f`, app
-`d5f0ef708c68c52916a7b0da313ae416eb0b980d`, instance
-`fc551bcb5f96283763f42da3578805ec7e2ecfe3` on
-`dstack-pha-prod5.phala.network`. Reuse this identity; do not create a duplicate.
-The starter was unsuitable for lease/key binding and was subsequently replaced
-by the isolated Covenant service image. Running this diagnostic guest is not
-registered Covenant Compute capacity.
-
-The supplied clipboard credential was saved privately as requested,
-but the management API rejected it with HTTP 401; a Cloud management API token
-is still required for the API lifecycle path. The signed-in browser provides
-configuration visibility without that token.
-
-The production OS uses V2 event/VM-configuration bindings. The diagnostic
-verifier now supports its independently pinned launch tuple and canonical V2
-event replay. Runtime events must belong to IMR3 and preserve the authenticated
-application, instance, OS, key-provider and system-ready boundaries. Strict
-vendor TCB/advisory policy remains unchanged; this implementation still requires
-live quote and guest acceptance before any stronger trust can be served.
-
-The starter's public `Info` response reports production OS hash
-`ec43cb8c5e04b6bb6c53b33b16076a01d83d01f7f4b703f2f78a0d947d6247e6`
-and a lite TDX measurement document. Its embedded checksum manifest and
-measurement CBOR were compared byte-for-byte with the official
-`mkosi-os-v0.6.1` archive, whose SHA-256 is
-`7583f51c717011b8086c2dd4d1e73fbbe7bf2d6d2420b90858d538c26efcca41`.
-The manifest hash matches the pinned OS hash. Independent launch replay from
-that archive and the pinned dstack source reproduced the complete expected
-MRTD/RTMR0–2 tuple; inputs, tool lockfile and recipe are retained under
-`deploy/compute-attested-cpu/measurement/`. This qualifies the launch reference,
-not by itself the running quote. Subsequent live signature/current-collateral/TCB
-verification passed as recorded below. The actual boot reports ext4 storage, superseding the earlier
-deployment form's ZFS preview.
-
-At source `6ff0d50097f81522f22f5a91416b037e5d9bc75d`, both full Rust CI
-jobs, all four native builds, both guest image builds/smoke jobs, landing and
-security checks passed. Release signing was skipped for the feature branch.
-The staged guest image is the previously verified immutable digest
-`sha256:922c3ba47a5a20ab30d8603fb08c9fdfdad1f21bd59ec5744848666e82a1058e`.
-
-The first browser update timed out. A fresh update form still loaded the
-original starter, and the operation history showed only the original boot;
-no successful Covenant update was observed. The initial collector probe on
-host port8090 reached dstack's guest agent, which reserves that port. The
-corrected candidate publishes host18090 to the unchanged collector port8090;
-the client and rendered-template regression now enforce that mapping.
-All 29 collector/client tests pass. The user submitted the corrected configuration
-on the same CVM, with the original diagnostic expiry of 2026-10-20 18:38
-Copenhagen time. No replacement resource was created.
-
-## Live diagnostic result (2026-10-20)
-
-The collector on host18090 returned HTTP200. Its exact measured Compose payload
-matches the reviewed candidate. A fresh original-scope quote passed independent
-Intel signature/current-collateral verification, `UpToDate` with no advisories,
-the pinned production launch tuple, runtime event replay and full Covenant
-scope binding. All 16 live SSH/SFTP/isolation checks passed; the exercised SSH
-key equals the verified quote's key, and the tests ran within verdict validity.
-The collector rejected replay with HTTP409. Offline changes to endpoint, key
-and workload were rejected by signed report-data binding using the actual clock.
-See the [diagnostic evidence record](compute-hardware-diagnostic-evidence.md).
-
-Phala's UI still marks the update operation and latest boot phase failed, while
-the log drawer lists both containers running and the serial log reports
-`Finished app-compose.service`. Preserve that provider-status discrepancy;
-the independently observed service results do not make its operation ledger
-successful.
-
-The provider startup script imports SSH keys from separate host-supplied
-configuration, but the pinned production image has no native SSH server, and
-the live serial log reported zero imported keys. This is not demonstrated
-native SSH exposure. KMS/upgrade authorization, application-key custody and
-administrative input policy still require review. The synthetic diagnostic
-does not complete a real Covenant lease/workspace, provider lifecycle,
-settlement or teardown. The served trust ceiling remains `Open`, and the
-user-requested CVM remains retained and billed after diagnostic access expires.
-
-The final timed test observed the authenticated SSH session close 144 ms
-after the original expiry. New SSH and collector access stopped; the
-authenticated Phala runtime view confirmed both diagnostic containers
-`Exited (0)`. No service lifetime was extended. This confirms the bounded
-diagnostic shutdown, not provider deletion or stopped billing.
-
-The next KMS review must bind the observed `key_provider_id` to the actual
-authorization backend and application policy. In pinned dstack source,
-`app_id` is the key namespace; `compose_hash` is checked by policy rather than
-included in the application/environment key derivation. Record the permitted
-Compose hashes and who can change them. For the bundled Ethereum policy,
-`disableUpgrades` freezes implementation upgrades, not the owner-controlled
-Compose allowlist. Source inspection alone does not identify this account's
-live backend, owner or policy. This gate concerns stronger persistent-secret
-claims; the diagnostic SSH host key was freshly generated in container tmpfs.
-[Pinned KMS key release](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/src/main_service.rs#L387-L475),
-[application policy setters](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/auth-eth/contracts/DstackApp.sol#L136-L223).
+The historical real diagnostic above is complete within its recorded scope.
+For the new lifecycle changes, 310 protocol tests, 276 buyer library tests
+(two existing ignored cases), 45 buyer CLI tests, 17 coordinator hardware tests,
+seven attestation binding tests, 23 node Phala tests, 11 node lease tests and
+four node admission tests have passed. The final matcher test also passes:
+the signed operator wins over cheaper compatible supply, and an unavailable
+target never falls back. Node tests passed again with the unresolved-resource
+shutdown checks. The two node unit-test filters overlap
+and must not be added as unique tests. All 37 collector/client Python tests
+passed without skips. Cases cover unknown-create recovery, cleanup after
+configuration drift, expiry, encryption and creation allowances. The environment
+inventory guard, workspace formatting, full repository guard scripts and
+documentation link/diff checks passed. Clippy passed with warnings denied for
+all targets in the five affected crates, including both executable entry paths.
+Current-head CI and new image qualification remain pending; no full workspace
+test-suite success or new image qualification is claimed.
+No paid integrated lease, customer-data transfer, production trust promotion
+or provider-deletion acceptance has run for this change.

@@ -1,44 +1,134 @@
 # Hardware evidence and release status
 
-The `covenant-compute-attestation` verifier checks raw AMD SEV-SNP, Intel TDX/DCAP and NVIDIA H100 CC reports cryptographically. Certificate chains, report signatures, reference measurements, TCB floors, debug/secure-boot/CC policy, fresh nonce and report-data bindings all participate. Decoding a report or observing `tee_capable` never earns trust.
+The `covenant-compute-attestation` verifier checks raw AMD SEV-SNP, Intel
+TDX/DCAP and NVIDIA H100 CC evidence cryptographically. Certificate chains,
+signatures, reference measurements, TCB floors, debug/secure-boot/CC policy,
+fresh nonces and report-data bindings all participate. Decoding a report or
+observing `tee_capable` never earns trust. The compiled served ceiling remains
+**`Open`**, including when a genuine report has evidence class `Attested`.
 
-The Covenant wrapper binds the full UUID, buyer, assigned operator, lease generation, endpoint, typed SSH host key, workload SHA-256 and lease expiry into guest report-data (SHA-512, distinct Covenant domain) and GPU nonce (SHA-256, separate domain). Combined evidence additionally commits the exact GPU report and chain into the guest report-data via `guest_report_data_for_gpu`, so an independent guest report cannot be combined with a different GPU report. The coordinator persists and consumes each challenge before verification, rejects clock rollback/corrupt journals, limits concurrent verification without an unbounded wait queue, rechecks the current lease before persisting a result and before every protected workspace grant, and prevents one verified GPU being assigned to different operators during a live verdict.
+A genuine Covenant-bound production Phala CPU diagnostic has passed strict
+verification, SSH/SFTP, isolation, binding negatives and original-expiry checks;
+its [evidence record](compute-hardware-diagnostic-evidence.md) states the exact
+scope. The new [Phala lease integration](compute-phala-lease-lifecycle.md) is
+implemented locally but has not completed a paid lease or production acceptance.
+Managed KMS policy, a new qualified guest image and the integrated live test
+remain explicit [acceptance gates](compute-hardware-acceptance.md).
 
-`COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256` enables signed diagnostic routes alongside the coordinator journal. Absent configuration registers no hardware routes. POST `/federation/hardware/{job}/challenge` accepts `{"host_key_index":0}`; the assigned operator POSTs the returned challenge and raw guest/GPU evidence to `/evidence`; buyer/operator GET `/verdict`. Ed25519 headers bind method, path, exact body and a 30-second timestamp window. The buyer crate's `hardware::HardwareClient` implements these requests and independently re-verifies raw vendor evidence against its expected lease/workload, rather than trusting a coordinator label. `verified_known_hosts` only formats the verified key and callers must use strict host-key checking.
+## Binding and verification
 
-Challenge life is at most two minutes, verdict life five minutes, both bounded by the paid lease window. Raw evidence and verdict metadata are saved privately, atomically and with fsync; no private SSH keys or prompts belong in this journal. A changed workload pin requires a new journal namespace/review. Replaying evidence from another lease, nonce, generation, endpoint or key fails. A failed verification consumes the challenge; request a fresh challenge to retry. An overload rejection before verification does not consume it. Saved verdicts recheck vendor certificates/collateral at the current read time as well as recomputing the original verdict; the challenge collection window is not extended. HTTP evidence responses use `Cache-Control: no-store`.
+The Covenant wrapper binds the full UUID, buyer, assigned operator, lease
+generation, endpoint, typed SSH transport, host key, workload SHA-256 and lease
+expiry into guest report-data using SHA-512 and a Covenant-specific domain.
+The GPU nonce uses SHA-256 under a separate domain. Combined evidence also
+commits the exact GPU report and chain into the guest report-data through
+`guest_report_data_for_gpu`, preventing substitution of a different GPU report.
 
-The served trust ceiling is deliberately `Open`. Imported SNP and TDX genuine vectors demonstrate verifier behavior, not Covenant's deployment. A genuine NVIDIA CC chain reaches the measurement allowlist and is refused because its captured firmware differs from the reviewed reference. The legacy GPU fixture still lacks a production capture. Reference images and roots retain pinned upstream provenance in `crates/covenant-compute-attestation/UPSTREAM.md`. No Covenant hardware was purchased or accepted, and no confidential capacity is advertised. Stronger workspace floors remain unavailable, even when a diagnostic report has valid cryptography.
+The coordinator consumes each challenge durably before verification, rejects
+clock rollback and corrupt journals, bounds hardware work to two blocking
+workers without an unbounded wait queue, and rechecks the current lease before
+persisting a result or issuing a protected workspace grant. Blocking journal
+work uses the same admission bound. One verified GPU cannot be assigned to
+different operators during a live verdict.
 
-CPU-attested release requires a fresh Covenant-controlled guest image measurement, reproducible image/source provenance, per-lease hardware report collection with the returned challenge and an in-guest channel key, vendor collateral/TCB acceptance, and live negative replay/endpoint/key/workload-substitution checks. A later confidential GPU release additionally requires current GPU CC firmware allowlisting, measured in-guest local-device collection and guest-to-GPU secure-channel custody. Raising the compiled served ceiling is an explicit reviewed change after that acceptance; it is not an environment flag. This package supplies verification and signed transport; it does not claim to install a kernel attestation driver on rented machines.
+For the production dstack 0.6.1 profile, the verifier requires the complete
+reviewed launch tuple, V2 runtime event replay, measured app-compose, instance,
+OS and key-provider bindings. Runtime-register event types cannot be relabelled
+as opaque firmware to hide duplicate identity or boundary events. Expected
+measurements come from the [independent official-artifact replay](../deploy/compute-attested-cpu/measurement/README.md),
+not from the quote under examination. Strict Intel `UpToDate`, advisory and
+debug policy remains unchanged. Reference images and vendor roots retain
+pinned provenance in [UPSTREAM.md](../agent-os/crates/covenant-compute-attestation/UPSTREAM.md).
 
-The current Vast broker still emits legacy lease access (`ssh: None`), so these
-routes cannot attest existing rentals. The additive typed metadata preserves
-legacy serialized bytes when absent. Provider integration, a measured in-guest
-collector and current image review remain explicit work in the
-[acceptance plan](compute-hardware-acceptance.md). This implementation does not
-activate the separate SSH attestor feature or confidential inference package.
+## Coordinator modes and HTTP contract
 
-## Local validation
+Set `COVENANT_COMPUTE_HARDWARE_LEASE_PINS=1` for signed per-lease mode. The buyer's
+signed `phala_lease` input supplies the workload, operator, generation and
+absolute expiry. There is no global-workload fallback for unsigned legacy jobs.
+The legacy diagnostic mode instead uses
+`COVENANT_COMPUTE_HARDWARE_WORKLOAD_SHA256`. A nonempty legacy pin and signed
+per-lease mode are mutually exclusive. With neither configured, hardware
+routes are not registered.
 
-Validated on 2026-10-20 against deployment baseline
-`72f66142f407690024c6a0ca4a3bdaf148ef8766`, with Rust 1.98.1:
+Journal configuration is part of the integrity boundary. A changed legacy pin
+or a switch between modes requires a separately reviewed namespace; do not
+reset, overwrite or delete financial/evidence state to bypass a mismatch.
 
-- 1,419 library tests passed across attestation, protocol, coordinator, buyer,
-  control and node; 20 existing opt-in tests remained ignored.
-- Another 76 attestation integration tests passed against vendor/synthetic
-  vectors; four fixture regeneration or opt-in capture cases remained ignored.
-- Cases include exact lease/key/workload substitution, replay, close/expiry,
-  clock rollback, certificate expiry during a saved verdict, tampered vendor
-  evidence, strict signed HTTP requests, bounded request/response bodies and
-  overloaded blocking workers that do not touch the journal.
-- Legacy lease access retains identical serialized bytes without the optional
-  SSH metadata. Existing workspace controls and rental paths remain covered by
-  the affected-crate suites.
-- Workspace formatting and the crate inventory, Compute environment inventory
-  and Compute network documentation guards passed. All-target Clippy passed for
-  all six affected crates with warnings denied.
+- POST `/federation/hardware/{job}/challenge` accepts `{"host_key_index":0}`.
+- The assigned operator POSTs the challenge and raw guest/GPU evidence to
+  `/federation/hardware/{job}/evidence`.
+- The buyer or assigned operator GETs `/federation/hardware/{job}/verdict`.
 
-These are local software results. No genuine Covenant-bound CPU/GPU report,
-provider lifecycle, stronger-floor workspace grant, paid settlement or production
-deployment was accepted in this change.
+Ed25519 request headers bind the method, path, exact body and a 30-second
+timestamp window. The lease must be accepted and current, not closing, not
+before signed issuance, and before its deadline, paid window and signed expiry.
+Phala additionally requires the exact signed operator/generation, user
+`covenant`, port 443 and the instance-specific `-1022` endpoint on the fixed
+reviewed gateway, with typed TLS transport.
+
+Challenges last at most 120 seconds; verdicts at most 300 seconds. Both are
+bounded by the current lease window. A failed verification consumes its
+challenge; a pre-admission overload does not. A deliberately requested new
+challenge does not extend the lease or authorize a new purchase. Unknown
+collector/submission outcomes must first be reconciled from the original
+private evidence run.
+
+Raw evidence and verdict metadata are stored privately and atomically with
+fsync. Private SSH keys and prompts do not belong in this journal. Saved
+verdicts recompute the original result and revalidate vendor collateral at the
+current read time, without extending the original challenge window. Evidence
+HTTP responses use `Cache-Control: no-store`.
+
+## Buyer and provider integration
+
+`hardware::HardwareClient` independently re-verifies raw vendor evidence
+against the buyer's original signed lease/workload. Coordinator labels alone
+are insufficient. `verified_known_hosts` is only a formatting helper. The
+buyer SSH client validates gateway TLS through native certificate/hostname
+checking, then uses strict OpenSSH host-key checking for the actual attested
+guest key. It accepts no provider-supplied shell `ProxyCommand` and ignores
+ambient SSH configuration, agents and multiplexing.
+
+The Phala adapter provisions one CPU resource for the signed
+`phala-cpu-dstack061` profile. It durably records mutation intent, preserves
+unknown outcomes, collects challenge-bound evidence, and recovers cleanup
+before admitting fresh work. It does not adopt the earlier user-created
+diagnostic CVM. New creation requires both an explicit managed-KMS switch and
+a finite one-use allowance, and remains disabled pending acceptance review.
+The [lifecycle guide](compute-phala-lease-lifecycle.md) documents configuration,
+buyer commands and original-identity reconciliation.
+
+Workspace restore verifies the current lease and evidence before local restore,
+then rechecks scope and verifies again before upload. Stronger workspace floors
+still reject at the `Open` served ceiling. Valid cryptography is not an override.
+The current Vast broker retains legacy access (`ssh: None`); it is not converted
+into measured capacity. Optional transport metadata preserves legacy wire bytes
+when absent. This work does not activate confidential GPU inference or imply
+that arbitrary program outputs are correct.
+
+## Validation and release boundary
+
+The earlier verifier baseline at
+`72f66142f407690024c6a0ca4a3bdaf148ef8766` passed 1,419 library tests across six
+crates and 76 attestation integration tests, with existing opt-in cases left
+ignored, plus formatting, documentation guards and all-target Clippy. Those
+results describe that baseline, not the current lifecycle changes.
+
+Current results include 310 protocol tests, 276 buyer library tests (two
+existing ignored cases), 45 buyer CLI tests, 17 coordinator hardware tests,
+seven attestation binding tests, 23 node Phala tests, 11 node lease tests and
+four node admission tests passed. The node unit-test filters overlap; these
+are not an additive unique-test total. All 37 collector/client Python tests
+passed without skips, as did the environment inventory and documentation checks.
+Remaining centralized affected-crate suites and lint checks are pending. The
+historical genuine CPU diagnostic is separately documented; the new typed
+transport requires a newly built and qualified guest image.
+There is no accepted paid Phala lease, stronger-floor workspace grant,
+settlement/cleanup run or production attested-rental release for this change.
+
+The managed KMS has authenticated `os_image_verification=false` and mutable
+off-chain authority. Working account access resolves the credential gap, not
+that policy gate. See the [KMS review](../deploy/compute-attested-cpu/kms-policy-review.md).
+Any future ceiling increase requires explicit evidence review and a separate
+code/release change. A later GPU release also needs current CC firmware
+allowlisting, measured local-device collection and secure guest-to-GPU custody.

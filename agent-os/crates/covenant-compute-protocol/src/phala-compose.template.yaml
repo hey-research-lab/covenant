@@ -1,0 +1,54 @@
+# Render both __IMAGE_DIGEST__ and __LEASE_POLICY_B64__ before provisioning.
+# The token must be a separate fresh 64-character lowercase hex secret supplied
+# through Phala encrypted environment variables, never substituted into this file.
+services:
+  ssh:
+    image: ghcr.io/open-covenant/covenant/compute-node-public@sha256:__IMAGE_DIGEST__
+    command: ["ssh"]
+    user: "0:0"
+    read_only: true
+    restart: "no"
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "SETUID", "SETGID", "SYS_CHROOT"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      COVENANT_LEASE_POLICY_B64: "__LEASE_POLICY_B64__"
+    ports: ["1022:1022"]
+    tmpfs:
+      - /run:rw,nosuid,nodev,noexec,size=8m,mode=755
+      - /tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777
+    volumes:
+      - host-public:/host-public
+      - workspace:/workspace
+    pids_limit: 128
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options: {max-size: "1m", max-file: "2"}
+  collector:
+    image: ghcr.io/open-covenant/covenant/compute-node-public@sha256:__IMAGE_DIGEST__
+    command: ["collector"]
+    user: "10002:10002"
+    read_only: true
+    restart: "no"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      COVENANT_LEASE_POLICY_B64: "__LEASE_POLICY_B64__"
+      COVENANT_COLLECTOR_TOKEN: "${COVENANT_COLLECTOR_TOKEN:?missing encrypted collector token}"
+    # Host 8090 belongs to the dstack guest agent; the collector keeps its
+    # internal image port and publishes a separate guest host port.
+    ports: ["18090:8090"]
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock:ro
+      - host-public:/host-public:ro
+      - collector-state:/state
+    pids_limit: 16
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: {max-size: "1m", max-file: "2"}
+volumes:
+  host-public:
+  workspace:
+  collector-state:

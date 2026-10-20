@@ -41,7 +41,82 @@ also preserves captured evidence. Positive `is_dev=false` or
 `allow_any_upgrade=false` fields do not establish an immutable authorization
 policy. Missing OS-image verification is never interpreted as enabled.
 
-## Required decision before production qualification
+## Production qualification result: rejected on 2026-10-20
+
+The read-only assessment completed with **`rejected_for_production`**. Between
+18:44:11 and 18:44:15 UTC, all **17 assessed endpoints** returned authenticated
+`os_image_verification=false`: managed prod5, all eight registered Base nodes,
+and all eight registered Ethereum nodes. Each connection passed the separately
+obtained registry CA pin, direct certificate signature, exact DNS name,
+certificate validity and `kms:rpc` role checks before the metadata GET.
+The remaining managed nodes were not surveyed. Switching this application to
+either hosted on-chain service therefore does not resolve the observed gate.
+
+The private `qualification-result.json` records every endpoint, observation
+time, body/certificate hash, authentication result and qualification limit.
+Its SHA-256 is
+`d8c904a7f3290281be5feff918b22ffdc6ea602bfc5830c6b90355f50fe667f1`.
+The source lists were the official [KMS registry](https://cloud-api.phala.com/api/v1/kms),
+[Base nodes](https://cloud-api.phala.com/api/v1/kms/base/nodes) and
+[Ethereum nodes](https://cloud-api.phala.com/api/v1/kms/eth/nodes), using Cloud
+API version `2026-06-23`. Registry/Cloud inspection statements are not independent
+finalized-chain verification. No key-release or quote RPC, account/contract
+mutation, deployment, signing or spend was performed.
+
+An authenticated account refresh still reported `is_onchain_kms=false`.
+No supported account operation to enable `image.verify` was found in the
+reviewed Cloud API schema, official SDK or current KMS documentation. It is
+a [KMS server configuration field](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/kms/src/config.rs#L27-L43);
+Phala controls that configuration for the hosted endpoints. This finding
+does not rule out undocumented provider administration, but an app owner
+cannot use the documented on-chain Compose/device controls to enable it.
+
+To retry qualification, Phala must provide a pinned endpoint with image
+verification enabled and evidence binding its effective configuration and
+authorization backend to reviewed measured code. Verify current attestation,
+collateral/TCB, TLS-key binding, manifest/config preimages, root bootstrap and
+replication policy, and relevant app/global contract governance. Then perform
+fresh acceptance with that authority. The alternative is a separately planned
+customer-managed KMS root and authorization deployment, with new infrastructure,
+governance, CA/workload pins and acceptance; none was created by this review.
+
+The collected TLS leaves contain embedded attestation, but it was not marked
+hardware-verified. The pinned [RA-TLS verifier](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/ra-tls/src/attestation.rs#L38-L94)
+can verify hardware evidence and its binding to the TLS public key. That alone
+does not establish the effective image-verification or authorization settings:
+their measured configuration preimages and enforcement must also be checked.
+Enabling a check later cannot prove that existing shared-root or derived keys
+were never exposed under an earlier policy; key continuity needs explicit review.
+
+### Provider remediation request (prepared, not sent)
+
+> We are qualifying Covenant's attested CPU lease path on Phala dstack 0.6.1.
+> On 2026-10-20 at 18:44 UTC, managed prod5 and all 16 registered Base/Ethereum
+> KMS nodes returned `os_image_verification=false` through authenticated
+> CA-pinned connections. Our production gate requires this check to be enabled.
+>
+> Please provide a supported KMS endpoint with `image.verify=true`, its exact
+> CA/root identity, and the following verification material:
+>
+> - Current KMS attestation, event log and collateral, bound to its actual TLS
+>   public key; expected launch measurements and source/container image mapping.
+> - Exact measured manifest and effective configuration preimages proving image
+>   verification and authorization settings, including image-download integrity,
+>   chain/contract identity, RPC trust/finality settings and config mutation powers.
+> - Root bootstrap/replication evidence, all permitted KMS measurements/devices,
+>   and the administrator/upgrade powers that could change key-release behavior.
+> - For on-chain authorization, deployed app/global contract implementations,
+>   owners, upgrade authorities and OS/device/workload/TCB rules at a named
+>   finalized block, including any override or emergency path.
+> - The supported migration steps and key-continuity implications for an app
+>   previously using managed prod5; state whether a new root/application identity
+>   is required to avoid relying on keys released under the earlier policy.
+>
+> We can then independently verify the evidence and run one separately bounded
+> lease lifecycle acceptance. A metadata flag or contract allowlist alone is
+> insufficient to qualify the effective measured key-release path.
+
+## Qualification paths and retained account evidence
 
 For the reviewed Phala managed KMS, the direct authenticated response reported
 `os_image_verification=false`, `chain_id=0`, and no contract address. The official
@@ -142,7 +217,7 @@ configuration, governance and boot qualification; previously reviewed OS and
 container bytes may be reusable, but existing prod5 acceptance cannot simply
 be transferred to the new authority.
 
-The KMS choice remains pending and new creation remains disabled. Any later
+Production qualification remains rejected and new creation remains disabled. Any later
 managed-policy acceptance must stay a finite synthetic pilot at `Open`, with
 independent Covenant evidence checks. It is insufficient for stronger
 production trust or provider-independent persistent-secret exclusivity.
@@ -184,19 +259,21 @@ provider-held persistent secrets, not independent proof of guest key custody.
 Its SNP [runtime configuration](https://github.com/prismnetwork-tech/prism/blob/4e32eb5eb1398fd9d11dcd29aa5a96e3f2f646ec/node/prismd/src/runtime.rs#L464-L489)
 also puts `/workspace` in tmpfs, reducing restored plaintext written to disk.
 
-Covenant likewise generates the SSH private key in `/run` tmpfs and keeps
-workspace encryption keys local to the buyer. Its current Compose still uses
-disk-backed named volumes for restored workspace plaintext, the public host-key
-sidecar and collector state. KMS compromise combined with disk access could
-therefore affect their confidentiality or integrity. The collector's read-only
-mount does not establish integrity against an actor controlling the underlying
-storage. A valid fresh quote does not independently authenticate every mutable
-file it reads.
+Covenant's hardened guest generates the SSH private key in `/run` tmpfs and
+keeps workspace encryption keys local to the buyer. Workspace plaintext and
+the public host-key/status sidecar now use bounded `tmpfs,noswap` mounts.
+The measured wrapper explicitly requests zero swap, and actual guest swap,
+container cgroup limits, mount options and core-dump policy are checked before
+key generation and continuously while access is open. A new versioned shared
+volume prevents an update from reusing the historical disk-backed sidecar.
+Current-image live qualification remains a separate requirement; source
+presence alone does not establish a running node's controls.
 
-Tmpfs alone also does not establish that key pages never reach persistent
-storage: the reviewed dstack source supports encrypted-disk swap, while this
-Compose does not establish a no-swap policy. Actual VM configuration and runtime
-swap behavior require qualification before claiming memory-only custody.
-These are residual trust boundaries, not evidence of an observed compromise.
+The collector replay journal and underlying Docker/containerd state remain
+disk-backed. KMS compromise combined with backing-storage access can therefore
+still affect runtime integrity; a fresh quote does not independently
+authenticate every mutable file it reads. Memory-backed workspace hardening
+does not qualify the KMS root or erase historical key exposure. These are
+residual trust boundaries, not evidence of an observed compromise.
 See dstack's [persistent container storage](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/os/common/rootfs/dstack-prepare.sh#L286-L303)
 and [swap setup](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/dstack/dstack-util/src/system_setup.rs#L2499-L2573).

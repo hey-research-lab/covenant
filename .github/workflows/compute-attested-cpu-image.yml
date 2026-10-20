@@ -77,7 +77,16 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:attested-cpu-${{ github.sha }}
 
       - name: verify real SSH, SFTP and collector isolation
-        run: python3 deploy/compute-attested-cpu/runtime_smoke.py --image "${IMAGE_NAME}:attested-cpu-${GITHUB_SHA}"
+        run: |
+          # This disposable runner must satisfy the production guest's strict
+          # checks. Do not add a bypass to the image or alter any live guest.
+          sudo swapoff -a
+          test "$(wc -l < /proc/swaps)" -eq 1
+          # Piped handlers can ignore RLIMIT_CORE. A non-piped handler respects
+          # the core=0:0 limit required by each tested container.
+          sudo sysctl -w kernel.core_pattern=core
+          test "$(cat /proc/sys/kernel/core_pattern)" = core
+          python3 deploy/compute-attested-cpu/runtime_smoke.py --image "${IMAGE_NAME}:attested-cpu-${GITHUB_SHA}"
 
       - name: publish tested diagnostic image
         if: github.event_name == 'push' && (github.ref == 'refs/heads/deploy/compute-coordinator' || github.ref == 'refs/heads/codex/compute-hardware-attestation')

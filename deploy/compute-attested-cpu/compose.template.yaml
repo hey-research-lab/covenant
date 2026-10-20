@@ -1,4 +1,4 @@
-# Render both __IMAGE_DIGEST__ and __LEASE_POLICY_B64__ before provisioning.
+# Render __IMAGE_DIGEST__, __LEASE_POLICY_B64__ and __JOB_ID__ before provisioning.
 # The token must be a separate fresh 64-character lowercase hex secret supplied
 # through Phala encrypted environment variables, never substituted into this file.
 services:
@@ -15,13 +15,16 @@ services:
       COVENANT_LEASE_POLICY_B64: "__LEASE_POLICY_B64__"
     ports: ["1022:1022"]
     tmpfs:
-      - /run:rw,nosuid,nodev,noexec,size=8m,mode=755
-      - /tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777
+      - /run:rw,nosuid,nodev,noexec,noswap,size=8m,mode=755
+      - /tmp:rw,nosuid,nodev,noexec,noswap,size=16m,mode=1777
+      - /workspace:rw,nosuid,nodev,noswap,size=128m,mode=700,uid=10001,gid=10001
     volumes:
-      - host-public:/host-public
-      - workspace:/workspace
+      - host-public-memory-v1:/host-public
     pids_limit: 128
     mem_limit: 768m
+    memswap_limit: 768m
+    ulimits:
+      core: {soft: 0, hard: 0}
     logging:
       driver: json-file
       options: {max-size: "1m", max-file: "2"}
@@ -41,14 +44,23 @@ services:
     ports: ["18090:8090"]
     volumes:
       - /var/run/dstack.sock:/var/run/dstack.sock:ro
-      - host-public:/host-public:ro
-      - collector-state:/state
+      - host-public-memory-v1:/host-public:ro
+      - collector-state-__JOB_ID__:/state
     pids_limit: 16
     mem_limit: 256m
+    memswap_limit: 256m
+    ulimits:
+      core: {soft: 0, hard: 0}
     logging:
       driver: json-file
       options: {max-size: "1m", max-file: "2"}
 volumes:
-  host-public:
-  workspace:
-  collector-state:
+  # New name avoids reusing a pre-hardening disk-backed Docker volume during
+  # an update. The runtime guard still verifies the actual mounted filesystem.
+  host-public-memory-v1:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "rw,nosuid,nodev,noexec,noswap,size=1m,mode=755"
+  collector-state-__JOB_ID__:

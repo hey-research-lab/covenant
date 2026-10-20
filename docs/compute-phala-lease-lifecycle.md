@@ -7,7 +7,9 @@ only `phala-cpu-dstack061`, a CPU lease profile. The compiled trust ceiling is
 pending the [acceptance decision](compute-hardware-acceptance.md).
 
 This is the implementation and operating contract, not a live release record.
-A new guest image must be built and qualified for the typed transport schema.
+A new guest image must be built and qualified for the typed transport schema
+and the memory/swap controls below. Updated-image and live swap verification
+on the existing diagnostic CVM remain pending; this check creates no new resource.
 The earlier [real CPU diagnostic](compute-hardware-diagnostic-evidence.md) does
 not establish acceptance of this integrated paid flow.
 
@@ -26,12 +28,41 @@ digest-pinned guest image, buyer SSH public key, exact operator/buyer/job scope,
 fixed gateway and signed expiry. The node must reproduce its exact hash before
 provisioning. Matcher and node admission require the pinned operator and refuse
 future-issued or expired requests; reoffering cannot substitute another operator.
+The wrapper must explicitly encode `"swap_size": "0"` as a string. Missing,
+numeric or nonzero values are rejected. The provider's normalized Compose
+hash must still equal the buyer's exact signed workload hash before creation;
+API normalization cannot silently change the swap policy.
 
 The external SSH address is the attested instance ID plus
 `-1022.dstack-pha-prod5.phala.network:443`, user `covenant`. The collector uses
 instance port `18090`, mapped to container port `8090`; native dstack reserves
 host port `8090`. TLS gateway identity and the guest's SSH host key are separate
 checks, and both are bound into the hardware scope.
+
+## Candidate guest memory and runtime checks
+
+The current source uses a 128-MiB `noswap` tmpfs for `/workspace`. SSH `/run`
+and `/tmp` use 8-MiB and 16-MiB `noswap` tmpfs mounts. A new
+`host-public-memory-v1` volume provides a 1-MiB `noswap` tmpfs at `/host-public`,
+avoiding reuse of the earlier disk-backed public-key volume during an update.
+The collector mounts it read-only; it contains the public host key and runtime
+status. Private SSH keys stay in `/run`; the collector replay journal remains
+durable. Workspace plaintext does not persist across recreation of its tmpfs.
+
+The SSH service sets both `mem_limit` and `memswap_limit` to 768 MiB; the
+collector sets both to 256 MiB. Both set core soft/hard limits to zero.
+Runtime checks require no guest swap, cgroup v2 `memory.swap.max=0` and
+`memory.swap.current=0`, the exact memory limits, actual tmpfs mount properties,
+and a non-piped kernel core handler. Missing/ambiguous kernel evidence or
+unsupported controls stop admission to SSH/collection; there is no fallback.
+
+Before generating a host key, SSH verifies these controls. Its watchdog
+continues checking, publishes short-lived status bound to the lease and public
+key, and stops SSH while invalidating status on failure. The collector checks
+its own controls and that status before and after guest information RPCs and
+quote collection. Thus a blocking RPC cannot reuse an earlier safe status
+after SSH has stopped. These are candidate controls pending image/runtime
+qualification, not proof of provider-independent memory or secret custody.
 
 ## Operator configuration
 
@@ -48,7 +79,7 @@ The additional settings are:
 | `COVENANT_PHALA_OS_IMAGE` | Exact reviewed production OS identifier |
 | `COVENANT_PHALA_KMS_ID` | Exact reviewed KMS identifier |
 | `COVENANT_PHALA_GUEST_IMAGE_DIGEST` | Qualified `sha256:` digest, matching the buyer's workload |
-| `COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION` | `0` or unset for no creation; `1` only after the separate acceptance decision |
+| `COVENANT_PHALA_ALLOW_MANAGED_KMS_CREATION` | `0` or unset for no creation; `1` only for a separately authorized finite synthetic pilot at `Open`, not production-trust qualification |
 | `COVENANT_PHALA_CREATION_ALLOWANCE_FILE` | Reviewed JSON below, at most 16 KiB; required in addition to the creation switch |
 
 Configure the coordinator with
@@ -91,11 +122,19 @@ it.
 This object is **not** KMS policy acceptance. It contains no CA/app/workload
 acceptance fields. Retain the separate, finite, scope-bound decision required
 by the [KMS review](../deploy/compute-attested-cpu/kms-policy-review.md).
-The managed service currently reports `os_image_verification=false` and mutable
-off-chain authority. Neither the creation switch nor a valid allowance changes
-those facts or raises trust.
+The KMS production assessment is **rejected**: managed prod5 and all 16
+registered Base/Ethereum nodes reported `os_image_verification=false`.
+Accepting the current managed service is limited to a finite synthetic pilot
+at `Open`, not a production-trust alternative. Production requires provider
+remediation with verified measured configuration/governance or a separately
+qualified customer-controlled KMS deployment. Neither the creation switch nor
+a valid allowance changes those facts or raises trust.
 
 ## Durable lifecycle and evidence
+
+The guest's persistent replay journal uses a job-specific named volume.
+Updating a diagnostic CVM for a new job must preserve the earlier journal and
+select that new job's volume; never clear or reset an existing replay journal.
 
 The private node journal is `<node-home>/phala-leases`; evidence is stored
 under `<node-home>/phala-evidence/<job-id>`. Preserve both across restart.

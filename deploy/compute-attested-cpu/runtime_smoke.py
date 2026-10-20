@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import select
 import socketserver
 import subprocess
 import tempfile
@@ -18,6 +19,7 @@ import urllib.request
 import uuid
 
 import collector as c
+import memory_guard as memory
 from test_collector import EVENTS, INFO, POLICY
 
 
@@ -84,34 +86,46 @@ def main():
         os.chmod(guest_socket, 0o666)
         guest_thread = threading.Thread(target=guest_server.serve_forever, daemon=True)
         guest_thread.start()
-        for suffix in ("public", "workspace", "state"):
+        def create_volume(suffix, public=False):
             name = prefix + "-" + suffix
-            run("docker", "volume", "create", name)
+            options = (["--driver", "local", "--opt", "type=tmpfs", "--opt", "device=tmpfs",
+                        "--opt", "o=rw,nosuid,nodev,noexec,noswap,size=1m,mode=755"]
+                       if public else [])
+            run("docker", "volume", "create", *options, name)
             volumes.append(name)
+            return name
+
+        public_volume = create_volume("public", public=True)
+        state_volume = create_volume("state")
         common = [
             "--read-only", "--restart", "no", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges:true",
             "--env", "COVENANT_LEASE_POLICY_B64",
+            "--ulimit", "core=0:0",
+        ]
+        ssh_runtime = [
+            "--user", "0:0", "--cap-add", "CHOWN", "--cap-add", "SETUID",
+            "--cap-add", "SETGID", "--cap-add", "SYS_CHROOT",
+            "--tmpfs", "/run:rw,nosuid,nodev,noexec,noswap,size=8m,mode=755",
+            "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,noswap,size=16m,mode=1777",
+            "--tmpfs", "/workspace:rw,nosuid,nodev,noswap,size=128m,mode=700,uid=10001,gid=10001",
+            "--pids-limit", "128", "--memory", "768m", "--memory-swap", "768m",
+        ]
+        collector_runtime = [
+            "--user", "10002:10002", "--env", "COVENANT_COLLECTOR_TOKEN",
+            "--mount", f"type=bind,src={guest_socket},dst=/var/run/dstack.sock,readonly",
+            "--pids-limit", "16", "--memory", "256m", "--memory-swap", "256m",
         ]
         ssh_name = prefix + "-ssh"
         containers.append(ssh_name)
-        run("docker", "run", "-d", "--name", ssh_name, *common,
-            "--user", "0:0", "--cap-add", "CHOWN", "--cap-add", "SETUID",
-            "--cap-add", "SETGID", "--cap-add", "SYS_CHROOT",
-            "--tmpfs", "/run:rw,nosuid,nodev,noexec,size=8m,mode=755",
-            "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777",
-            "--mount", f"type=volume,src={volumes[0]},dst=/host-public",
-            "--mount", f"type=volume,src={volumes[1]},dst=/workspace",
-            "--pids-limit", "128", "--memory", "768m",
+        run("docker", "run", "-d", "--name", ssh_name, *common, *ssh_runtime,
+            "--mount", f"type=volume,src={public_volume},dst=/host-public",
             "-p", "127.0.0.1::1022", args.image, "ssh", env=process_env)
         collector_name = prefix + "-collector"
         containers.append(collector_name)
-        run("docker", "run", "-d", "--name", collector_name, *common,
-            "--user", "10002:10002", "--env", "COVENANT_COLLECTOR_TOKEN",
-            "--mount", f"type=bind,src={guest_socket},dst=/var/run/dstack.sock,readonly",
-            "--mount", f"type=volume,src={volumes[0]},dst=/host-public,readonly",
-            "--mount", f"type=volume,src={volumes[2]},dst=/state",
-            "--pids-limit", "16", "--memory", "256m",
+        run("docker", "run", "-d", "--name", collector_name, *common, *collector_runtime,
+            "--mount", f"type=volume,src={public_volume},dst=/host-public,readonly",
+            "--mount", f"type=volume,src={state_volume},dst=/state",
             "-p", "127.0.0.1::8090", args.image, "collector", env=process_env)
 
         def mapped_port(name, port):
@@ -164,9 +178,36 @@ def main():
                        check=check, input_text=input_text)
         assert ssh("id -u").stdout.strip() == "10001"
         assert ssh("pwd").stdout.strip() == "/workspace"
+        # Actual kernel interfaces must meet the same policy in both roles.
+        for name, role in ((ssh_name, "ssh"), (collector_name, "collector")):
+            run("docker", "exec", name, "python3", "-c",
+                f"from memory_guard import RuntimeGuard; RuntimeGuard().check('{role}')")
+        status_raw = ssh(f"cat /host-public/{memory.STATUS_NAME}").stdout
+        assert json.loads(status_raw)["profile"] == memory.PROFILE
+        ssh("cat > /workspace/maximum.snapshot", input_text="x" * (64 * 1024 * 1024))
+        assert ssh("wc -c < /workspace/maximum.snapshot").stdout.strip() == "67108864"
+        ssh("rm /workspace/maximum.snapshot")
+        # Prove the mount cap is enforced rather than merely displayed in
+        # Compose. No host file or swap device is created.
+        capacity_test = (
+            "import errno,os\n"
+            "p='/workspace/capacity-test'\n"
+            "f=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)\n"
+            "try:\n"
+            " try: os.posix_fallocate(f,0,129*1024*1024)\n"
+            " except OSError as e: assert e.errno==errno.ENOSPC\n"
+            " else: raise AssertionError('workspace limit not enforced')\n"
+            "finally:\n"
+            " os.close(f)\n"
+            " os.unlink(p)\n"
+        )
+        ssh("python3 -", input_text=capacity_test)
         assert ssh("cat /run/covenant/host_key", check=False).returncode != 0
         ssh("test ! -e /var/run/dstack.sock")
         ssh("test ! -w /host-public/host_key.pub")
+        ssh(f"test ! -w /host-public/{memory.STATUS_NAME}")
+        assert ssh(f"rm /host-public/{memory.STATUS_NAME}", check=False).returncode != 0
+        assert ssh(f"printf tampered > /host-public/{memory.STATUS_NAME}", check=False).returncode != 0
         ssh("test ! -w /run/authorized_keys")
         ssh("test ! -w /opt/covenant/collector.py")
         ssh("test -z \"${COVENANT_COLLECTOR_TOKEN+x}\"")
@@ -222,6 +263,73 @@ def main():
         wrong_public = " ".join((directory / "wrong-buyer.pub").read_text().split()[:2])
         known_hosts.write_text(f"[127.0.0.1]:{ssh_port} {wrong_public}\n")
         assert ssh("id", check=False).returncode != 0
+        # A restart clears the private key and workspace even while the
+        # collector keeps the shared public tmpfs mounted.
+        old_key = identity["guest_channel_key"]
+        run("docker", "restart", ssh_name)
+        ssh_port = mapped_port(ssh_name, 1022)
+        changed_identity = None
+        for _ in range(60):
+            try:
+                status, value = request_collector("/identity")
+                if status == 200 and value["identity"]["guest_channel_key"] != old_key:
+                    changed_identity = value["identity"]
+                    break
+            except (OSError, urllib.error.URLError):
+                pass
+            time.sleep(0.1)
+        assert changed_identity is not None, "SSH restart reused key or failed memory checks"
+        known_hosts.write_text(
+            f'[127.0.0.1]:{ssh_port} {old_key["algorithm"]} {old_key["key_base64"]}\n')
+        assert ssh("id", check=False).returncode != 0
+        changed_key = changed_identity["guest_channel_key"]
+        known_hosts.write_text(
+            f'[127.0.0.1]:{ssh_port} {changed_key["algorithm"]} {changed_key["key_base64"]}\n')
+        ssh("test ! -e /workspace/synthetic.txt && test ! -e /workspace/sftp.txt")
+        # Change a real kernel-enforced control after startup. The watchdog
+        # must kill an established session, and collection must stop.
+        active = subprocess.Popen(
+            ["ssh", *ssh_options, "-i", str(directory / "buyer"), "-p", str(ssh_port),
+             "covenant@127.0.0.1", "printf 'ready\\n'; sleep 30; printf should-not-complete"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        try:
+            assert select.select([active.stdout], [], [], 5)[0], "SSH session did not start"
+            assert active.stdout.readline() == "ready\n"
+            run("docker", "update", "--memory-swap", "1536m", ssh_name)
+            stdout, _ = active.communicate(timeout=10)
+            assert active.returncode != 0 and "should-not-complete" not in stdout
+        finally:
+            if active.poll() is None:
+                active.kill()
+                active.communicate()
+        for _ in range(60):
+            running = json.loads(run("docker", "inspect", ssh_name).stdout)[0]["State"]["Running"]
+            if not running:
+                break
+            time.sleep(0.1)
+        assert not running, "SSH survived a swap-limit change"
+        assert request_collector("/identity")[0] == 503
+        assert ssh("id", check=False).returncode != 0
+        # Negative startup profiles exercise actual mounts/cgroup controls,
+        # never substitute fake /proc data or enable swap on the CI host.
+        rejected_public = create_volume("rejected-public", public=True)
+        for label, mutation in (
+            ("swap-allowed", lambda options: [
+                "1536m" if value == "768m" and options[index - 1] == "--memory-swap" else value
+                for index, value in enumerate(options)]),
+            ("swappable-workspace", lambda options: [
+                value.replace("nodev,noswap,size=128m", "nodev,size=128m")
+                if value.startswith("/workspace:") else value for value in options]),
+        ):
+            rejected_name = prefix + "-" + label
+            containers.append(rejected_name)
+            result = run("docker", "run", "--name", rejected_name, *common,
+                         *mutation(ssh_runtime),
+                         "--mount", f"type=volume,src={rejected_public},dst=/host-public",
+                         args.image, "ssh", env=process_env, check=False)
+            assert result.returncode != 0, f"unsafe {label} startup was accepted"
+            assert "UnsafeRuntime" in result.stderr, "failure was not the runtime guard"
         # A distinct short lease proves process/session shutdown. Never mutate
         # the main lease policy or reuse its persistent consumption journal.
         expiry_policy = copy.deepcopy(policy)
@@ -229,27 +337,18 @@ def main():
                              lease_expires_at_ms=int(time.time() * 1000) + 20_000)
         expiry_env = dict(process_env, COVENANT_LEASE_POLICY_B64=base64.b64encode(
             c.canonical(expiry_policy)).decode())
-        for suffix in ("expiry-public", "expiry-state"):
-            name = prefix + "-" + suffix
-            run("docker", "volume", "create", name)
-            volumes.append(name)
+        expiry_public = create_volume("expiry-public", public=True)
+        expiry_state = create_volume("expiry-state")
         expiry_ssh = prefix + "-expiry-ssh"
         containers.append(expiry_ssh)
-        run("docker", "run", "-d", "--name", expiry_ssh, *common,
-            "--user", "0:0", "--cap-add", "CHOWN", "--cap-add", "SETUID",
-            "--cap-add", "SETGID", "--cap-add", "SYS_CHROOT",
-            "--tmpfs", "/run:rw,nosuid,nodev,noexec,size=8m,mode=755",
-            "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777",
-            "--mount", f"type=volume,src={volumes[-2]},dst=/host-public",
-            "--mount", f"type=volume,src={volumes[1]},dst=/workspace",
+        run("docker", "run", "-d", "--name", expiry_ssh, *common, *ssh_runtime,
+            "--mount", f"type=volume,src={expiry_public},dst=/host-public",
             "-p", "127.0.0.1::1022", args.image, "ssh", env=expiry_env)
         expiry_collector = prefix + "-expiry-collector"
         containers.append(expiry_collector)
-        run("docker", "run", "-d", "--name", expiry_collector, *common,
-            "--user", "10002:10002", "--env", "COVENANT_COLLECTOR_TOKEN",
-            "--mount", f"type=bind,src={guest_socket},dst=/var/run/dstack.sock,readonly",
-            "--mount", f"type=volume,src={volumes[-2]},dst=/host-public,readonly",
-            "--mount", f"type=volume,src={volumes[-1]},dst=/state",
+        run("docker", "run", "-d", "--name", expiry_collector, *common, *collector_runtime,
+            "--mount", f"type=volume,src={expiry_public},dst=/host-public,readonly",
+            "--mount", f"type=volume,src={expiry_state},dst=/state",
             "-p", "127.0.0.1::8090", args.image, "collector", env=expiry_env)
         ssh_port = mapped_port(expiry_ssh, 1022)
         base = f"http://127.0.0.1:{mapped_port(expiry_collector, 8090)}"
@@ -288,10 +387,15 @@ def main():
                 break
             time.sleep(0.1)
         assert not any(states), "lease roles remained running after expiry"
-        print("PASS: real SSH/SFTP/auth/key isolation, mock collector/replay, lease expiry.")
+        print("PASS: real SSH/SFTP/auth, tmpfs workspace/key rotation, swap guard/watchdog, replay, expiry.")
         print("No genuine hardware evidence, Phala transport, lease integration or trust accepted.")
     except Exception:
         for name in containers:
+            inspected = run("docker", "inspect", name, check=False)
+            if inspected.returncode == 0:
+                state = json.loads(inspected.stdout)[0]["State"]
+                summary = {key: state.get(key) for key in ("Status", "ExitCode", "OOMKilled")}
+                print(f"{name} state: {json.dumps(summary, sort_keys=True)}")
             logs = run("docker", "logs", "--tail", "30", name, check=False)
             print(f"{name} diagnostic logs:\n{logs.stdout}{logs.stderr}")
         raise

@@ -19,7 +19,9 @@ def render(template, digest, policy, now_ms):
     encoded = base64.b64encode(collector.canonical(policy)).decode()
     result = template.replace("__IMAGE_DIGEST__", digest[7:])
     result = result.replace("__LEASE_POLICY_B64__", encoded)
-    collector.require("__IMAGE_DIGEST__" not in result and "__LEASE_POLICY_B64__" not in result,
+    result = result.replace("__JOB_ID__", policy["job_id"])
+    collector.require("__IMAGE_DIGEST__" not in result and "__LEASE_POLICY_B64__" not in result
+                      and "__JOB_ID__" not in result,
                       "unresolved template")
     return result
 

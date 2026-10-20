@@ -182,6 +182,7 @@ fn reviewed_wrapper(wrapper: &Value) -> Result<(), ProtocolError> {
         "runner",
         "secure_time",
         "storage_fs",
+        "swap_size",
         "tproxy_enabled",
     ];
     if object.len() != fields.len() || fields.iter().any(|key| !object.contains_key(*key)) {
@@ -194,7 +195,7 @@ fn reviewed_wrapper(wrapper: &Value) -> Result<(), ProtocolError> {
         "kms_enabled": true, "local_key_provider_enabled": false,
         "manifest_version": "3", "name": "", "no_instance_id": false,
         "runner": "docker-compose", "secure_time": false,
-        "storage_fs": "ext4", "tproxy_enabled": true
+        "storage_fs": "ext4", "swap_size": "0", "tproxy_enabled": true
     });
     if expected
         .as_object()
@@ -261,7 +262,8 @@ pub fn phala_workload(
         .encode(serde_json::to_vec(&policy).map_err(|_| invalid("policy serialization failed"))?);
     let compose = COMPOSE_TEMPLATE
         .replace("__IMAGE_DIGEST__", digest)
-        .replace("__LEASE_POLICY_B64__", &encoded);
+        .replace("__LEASE_POLICY_B64__", &encoded)
+        .replace("__JOB_ID__", &job.job_id.to_string());
     let mut wrapper = wrapper_template.clone();
     wrapper["docker_compose_file"] = Value::String(compose);
     let exact =
@@ -349,9 +351,12 @@ mod tests {
         assert_eq!(sha256(manifest.as_bytes()), spec.workload_sha256);
         assert_eq!(spec.lease_expires_at_ms, job.issued_at_ms + 600_000);
         let parsed: Value = serde_json::from_str(&manifest).unwrap();
+        assert_eq!(parsed["swap_size"], "0");
         let compose = parsed["docker_compose_file"].as_str().unwrap();
         assert!(compose.contains("18090:8090"));
         assert!(!compose.contains("__LEASE_POLICY_B64__"));
+        assert!(!compose.contains("__JOB_ID__"));
+        assert!(compose.contains(&format!("collector-state-{}:/state", job.job_id)));
         for change in 0..5 {
             let mut altered = job.clone();
             match change {
@@ -400,6 +405,9 @@ mod tests {
             ("no_instance_id", json!(true)),
             ("local_key_provider_enabled", json!(true)),
             ("secure_time", json!(true)),
+            ("swap_size", json!("1")),
+            ("swap_size", json!(0)),
+            ("swap_size", Value::Null),
             ("new_privileged_field", json!(true)),
         ] {
             let mut altered = wrapper.clone();
@@ -409,6 +417,9 @@ mod tests {
                 "{key}"
             );
         }
+        let mut absent_swap = wrapper.clone();
+        absent_swap.as_object_mut().unwrap().remove("swap_size");
+        assert!(phala_workload(&job, &operator(), &absent_swap, &image()).is_err());
     }
 
     #[test]

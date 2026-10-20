@@ -1,9 +1,11 @@
 # Production-guest collector candidate
 
-This directory prepares a single bounded CPU lease on production dstack 0.6.1.
-It is **unaccepted diagnostic code**. It does not activate Covenant hardware
-trust, implement a Phala provider lifecycle, or prove a live lease or workload.
-The served ceiling remains `Open`.
+This directory supplies the guest image for a bounded CPU lease on production
+dstack 0.6.1. The memory-hardening candidate requires a new immutable image and
+runtime acceptance; previous image evidence does not qualify these new bytes.
+It does not activate hardware trust or resolve managed-KMS policy. The served
+ceiling remains `Open`. The external lifecycle is described in
+[the lease integration guide](../../docs/compute-phala-lease-lifecycle.md).
 
 ## Image and ownership
 
@@ -33,8 +35,9 @@ The same image runs two roles:
   is freshly generated in tmpfs inside this container, is root-readable only,
   and is never passed into the collector or provider configuration.
 - `collector`: uid10002, no capabilities, read-only root filesystem. It has the
-  dstack quote socket, a read-only volume containing only the SSH public key,
-  and its own persistent consumption journal. The buyer SSH container has
+  dstack quote socket, a read-only memory volume containing the SSH public key
+  and short-lived runtime status, and its own persistent consumption journal.
+  The buyer SSH container has
   neither this socket nor this journal nor the collector authorization secret.
 
 The sole SSH authorization key comes from the public lease policy. Password,
@@ -45,6 +48,65 @@ No host root, Docker socket, privileged mode or guest native administrative
 SSH is used. A container restart generates a new host key; evidence for the old
 key must fail. Container lifetime checks stop access at lease expiry, but do
 not delete a billed CVM or replace external cleanup.
+
+## Memory and swap policy
+
+The new measured image enforces this policy using actual Linux interfaces.
+Unsupported or unreadable controls stop startup or collection; there is no
+compatibility fallback or request flag that disables checks.
+
+| Storage or control | Required runtime state |
+| --- | --- |
+| SSH `/run` and `/tmp` | Whole tmpfs mounts, `noswap,nosuid,nodev,noexec`, 8 MiB and 16 MiB |
+| Buyer `/workspace` | Whole tmpfs mount, `noswap,nosuid,nodev`, 128 MiB, uid/gid10001 |
+| Shared `/host-public` | Whole tmpfs mount, `noswap,nosuid,nodev,noexec`, 1 MiB; collector reads only |
+| Both container cgroups | Private cgroup v2; exact 768/256 MiB memory limits; `memory.swap.max=0` and `memory.swap.current=0` |
+| Guest swap | `/proc/swaps` has a valid header and no configured swap devices/files |
+| Core dumps | Both soft/hard `RLIMIT_CORE` limits zero and a nonempty, non-piped guest `core_pattern` |
+
+The shared volume is named `host-public-memory-v1`, so updating an older
+deployment cannot silently reuse its disk-backed `host-public` volume. Actual
+mount verification is still required. The workspace is ephemeral: a container
+restart clears its contents and generates a new private host key. The 128 MiB
+workspace accommodates the buyer's maximum 64 MiB snapshot transfer; it does
+not promise space for multiple maximum snapshots.
+
+The SSH role checks storage before generating its private key, then every
+250 ms while serving. A failure removes its public status and terminates the
+role and its sessions. Status is an atomically replaced, root-owned regular
+file with mode0644, bound to the entire lease policy and current public key.
+The collector requires this status to be at most two seconds old using
+`CLOCK_BOOTTIME`, checks its own kernel controls, and repeats these checks
+before and after guest RPCs. The signed challenge and quote wire schemas are
+unchanged: this policy is an invariant of the independently pinned image and
+measured workload, not an extra unsigned attestation claim. Retain raw runtime
+observations separately during acceptance.
+
+The reviewed dstack source pins Linux 6.18.40 and supports configurable swap;
+the reviewed app-compose wrapper must explicitly set `swap_size` to `"0"`.
+That configuration alone is insufficient, which is why the runtime must also
+pass the checks above. Kernel documentation specifies that tmpfs can otherwise
+swap pages and that `noswap` disables it. Docker requires memory and
+memory-swap to be equal to prohibit container swap.
+Sources: [pinned kernel version](https://github.com/Dstack-TEE/dstack/blob/7f143148cc49f4a09799958835d310e050137cb3/os/mkosi/versions.env),
+[tmpfs](https://docs.kernel.org/filesystems/tmpfs.html),
+[Docker memory limits](https://docs.docker.com/engine/containers/resource_constraints/#--memory-swap-details).
+
+These controls reduce accidental disk persistence. They do not prove safety
+against a compromised guest kernel/root, malicious KMS or mutable container
+runtime state. The collector journal remains disk-backed to preserve replay
+consumption across restarts; Docker state and application configuration also
+remain subject to the separate KMS review. A buyer command can deliberately
+send plaintext to output or another destination. Local workspace encryption
+does not make an untrusted execution environment safe to receive plaintext.
+
+The Docker smoke checks actual mounts/cgroups, transfers a synthetic 64 MiB file
+over SSH, verifies the capacity limit, confirms restart erasure/key rotation,
+and changes a real container swap allowance to require watchdog termination.
+It also tests rejected unsafe startup configurations, authentication, replay,
+SFTP and expiry. Its fake dstack responses do not constitute TEE acceptance.
+The disposable CI host explicitly disables swap and configures a non-piped
+core handler; no test helper changes these settings on a live Phala guest.
 
 ## Candidate inputs
 
@@ -115,6 +177,8 @@ The collector checks:
    attestation verification must authenticate every identity and measurement.
 5. Strict canonical ASCII/safe-integer encoding, two-minute challenge window,
    current lease window, and durable one-use challenge ID and nonce.
+6. Current kernel storage/swap controls and a fresh, key/lease-bound status
+   from the SSH watchdog, repeated after potentially blocking guest calls.
 
 It consumes a valid challenge before requesting a quote; failure leaves it
 consumed. The persistent journal rejects a different job, clock rollback,
@@ -131,7 +195,8 @@ validate the outer TLS hostname/chain and strictly pin the independently
 attested SSH host key inside that connection. A controlled local tunnel can
 provide this transport; arbitrary provider-supplied `ProxyCommand` strings
 are not a supported Covenant interface. Existing typed SSH metadata does not
-yet implement the required TLS tunnel adapter.
+accept a caller-selected TLS hostname: the buyer's native transport validates
+the exact advertised endpoint and then the independently verified SSH key.
 
 ## dstack 0.6.1 qualification remains separate
 

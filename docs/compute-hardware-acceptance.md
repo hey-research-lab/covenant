@@ -51,19 +51,24 @@ The earlier signed-in total estimate must not be replaced with this component.
 
 ## Remaining production gates
 
-1. **KMS and administrative policy.** The authenticated managed KMS reports
-   `os_image_verification=false`. Account evidence confirms an off-chain KMS
-   with no on-chain contract configuration. A matching CA identifies the
-   service; it does not prove its complete allowed workloads or immutable
-   governance. Resolve the [KMS policy review](../deploy/compute-attested-cpu/kms-policy-review.md)
-   through a reviewed customer-controlled policy or an explicit, finite,
-   scope-bound acceptance of the managed-policy threat model. No such
-   production acceptance is recorded here.
+1. **KMS and administrative policy: production qualification rejected.**
+   Authenticated metadata from managed prod5 and all 16 registered
+   Base/Ethereum KMS nodes reported `os_image_verification=false` on
+   2026-10-20. Account evidence confirms the diagnostic app uses off-chain
+   KMS. Production requires provider remediation with measured configuration
+   and governance evidence, or a separately qualified customer-controlled
+   KMS deployment. See the [KMS policy review](../deploy/compute-attested-cpu/kms-policy-review.md).
+   Accepting the current managed-policy threat model can authorize only a
+   finite synthetic pilot at `Open`; it is not an alternative production-trust
+   qualification and cannot establish persistent-secret exclusivity.
 2. **Current guest image and release qualification.** Build and qualify a new
-   digest-pinned guest image containing the typed transport binding. The
-   historical diagnostic image is not the new lifecycle image. Retain exact
-   source, image provenance, real SSH/SFTP container smoke and current suite
-   results. Local implementation and the earlier hardware diagnostic do not
+   digest-pinned guest image containing the typed transport binding and the
+   memory/swap controls below. The historical diagnostic image is not this
+   candidate. Retain exact source, image provenance, real SSH/SFTP container
+   smoke and current suite results, then verify the actual mounts, cgroups,
+   guest swap and core-dump behavior on the existing diagnostic CVM.
+   Updated-image and live swap verification remain pending; no new resource
+   has been created for that check. Earlier hardware evidence does not
    qualify a newly built image automatically.
 3. **Bounded paid lifecycle acceptance.** Approve separate native Compute USDC
    and provider USD exposure, exact placement, one new resource, finite
@@ -82,6 +87,34 @@ privileged pre-launch behavior and the reviewed wrapper's other settings still
 belong in the policy decision. Application isolation checks do not prove
 provider-independent custody of persistent secrets.
 
+## Candidate guest memory controls
+
+The current source hardening makes the SSH workspace a 128-MiB `tmpfs` with
+`noswap`, rather than a persistent workspace volume. SSH `/run` and `/tmp`
+are also `noswap` tmpfs mounts, limited to 8 MiB and 16 MiB. The shared
+`/host-public` mount uses a new 1-MiB `noswap` tmpfs volume name so an update
+cannot silently reuse the older disk-backed volume; the collector mounts it
+read-only. It carries the public host key and runtime status, not the private
+SSH key. The collector's replay journal remains durable.
+
+SSH and collector have equal memory and memory-plus-swap limits
+(768 MiB and 256 MiB respectively), and core soft/hard limits of zero.
+The runtime guard also rejects a piped or unknown kernel core handler,
+active guest swap, nonzero cgroup swap allowance/usage, unexpected mount
+types/flags/sizes and substituted kernel metadata. SSH checks before key
+generation and keeps checking through its watchdog; a failed check stops
+SSH and invalidates its status. The collector requires fresh status bound
+to the same lease and host key before and after guest RPCs/quote collection.
+Unsupported runtime controls fail closed.
+
+The signed app-compose wrapper explicitly contains **`"swap_size": "0"`**.
+Omission, numeric zero or another value is rejected. The node compares the
+provider's normalized Compose hash to the exact buyer-signed workload before
+creation; it cannot silently accept changed swap settings. These controls
+are under implementation/qualification and are not yet a claim about the
+updated live image. They depend on the measured guest and do not resolve the
+separate KMS production rejection.
+
 ## Review record before one live attempt
 
 Prepare a concrete record naming the buyer/operator, job and lease generation,
@@ -98,6 +131,8 @@ fails. A provider planning reserve is not an enforceable invoice cap. The old
 **0.75 USDC x402 authorization does not authorize this Phala resource or lease**.
 This document supplies no new numerical spending approval.
 
+For a current managed-KMS pilot, the record must explicitly restrict the test
+to synthetic data at `Open`. It cannot authorize stronger production trust.
 The machine-readable creation allowance limits the operator, instance type,
 rate, runtime, expiry and one durable planning attempt. It is an execution
 guard, not the KMS policy acceptance record: it has no CA, app or workload
@@ -139,7 +174,8 @@ acceptance fields. Both records are needed before considering creation, and
 ## Validation status
 
 The historical real diagnostic above is complete within its recorded scope.
-For the new lifecycle changes, 310 protocol tests, 276 buyer library tests
+Before the current memory/swap hardening, the lifecycle changes passed
+310 protocol tests, 276 buyer library tests
 (two existing ignored cases), 45 buyer CLI tests, 17 coordinator hardware tests,
 seven attestation binding tests, 23 node Phala tests, 11 node lease tests and
 four node admission tests have passed. The final matcher test also passes:
@@ -152,7 +188,11 @@ configuration drift, expiry, encryption and creation allowances. The environment
 inventory guard, workspace formatting, full repository guard scripts and
 documentation link/diff checks passed. Clippy passed with warnings denied for
 all targets in the five affected crates, including both executable entry paths.
-Current-head CI and new image qualification remain pending; no full workspace
-test-suite success or new image qualification is claimed.
+The earlier source head passed Rust, landing and guest-image CI. Native
+platform release builds failed on a version mismatch; the 0.5 version alignment
+is being corrected. Those earlier results do not qualify the current guest
+memory changes. Current-head checks, updated-image qualification and live
+swap verification remain pending; no full workspace test-suite success or
+new image qualification is claimed.
 No paid integrated lease, customer-data transfer, production trust promotion
 or provider-deletion acceptance has run for this change.

@@ -26,9 +26,11 @@ RUN rm -f /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources && \
     dpkg-query -W -f='${binary:Package}\t${Version}\n' > /opt/covenant/packages.tsv
 
 COPY deploy/compute-attested-cpu/collector.py \
+     deploy/compute-attested-cpu/memory_guard.py \
      deploy/compute-attested-cpu/entrypoint.py /opt/covenant/
 RUN chmod 0555 /opt/covenant/*.py && chmod 0444 /opt/covenant/packages.tsv && \
-    python3 -m py_compile /opt/covenant/collector.py /opt/covenant/entrypoint.py
+    python3 -m py_compile /opt/covenant/collector.py /opt/covenant/entrypoint.py \
+      /opt/covenant/memory_guard.py
 
 WORKDIR /opt/covenant
 EXPOSE 1022 8090

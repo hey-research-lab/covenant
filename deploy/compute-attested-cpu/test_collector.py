@@ -8,6 +8,7 @@ import socketserver
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 import collector as c
 import render
@@ -63,8 +64,12 @@ class Tests(unittest.TestCase):
         self.now = NOW
         self.policy = c.load_policy(copy.deepcopy(POLICY), NOW)
         self.store = c.ReplayStore(self.directory / "journal.db", self.policy["job_id"])
+        # Collector protocol tests isolate guest RPC/canonicalization. Real
+        # kernel-interface rejection tests live in test_memory_guard.py, and
+        # runtime_smoke.py exercises both roles under actual Linux/Docker.
+        self.memory_guard = mock.Mock()
         self.service = c.Collector(self.policy, self.key, self.guest, self.store,
-                                   lambda: self.now)
+                                   lambda: self.now, memory_guard=self.memory_guard)
         identity = self.service.identity()
         self.challenge = {
             "schema_version": 1,
@@ -198,6 +203,41 @@ class Tests(unittest.TestCase):
         self.guest.request = changing
         with self.assertRaises(c.Rejected):
             self.service.collect(self.challenge)
+
+    def test_unsafe_memory_rejected_before_guest_rpc(self):
+        from memory_guard import UnsafeRuntime
+        self.guest.calls.clear()
+        self.memory_guard.check_peer.side_effect = UnsafeRuntime("swap enabled")
+        with self.assertRaises(UnsafeRuntime):
+            self.service.collect(self.challenge)
+        self.assertEqual(self.guest.calls, [])
+
+    def test_memory_guard_rechecked_after_quote(self):
+        from memory_guard import UnsafeRuntime
+        self.memory_guard.check_peer.reset_mock()
+        self.memory_guard.check_peer.side_effect = [None, None, UnsafeRuntime("stale peer")]
+        with self.assertRaises(UnsafeRuntime):
+            self.service.collect(self.challenge)
+        self.assertEqual(self.memory_guard.check_peer.call_count, 3)
+        # The failed post-quote guard cannot make the consumed nonce reusable.
+        self.memory_guard.check_peer.side_effect = None
+        with self.assertRaises(c.Rejected):
+            self.service.collect(self.challenge)
+
+    def test_slow_info_cannot_publish_identity_after_peer_status_invalidates(self):
+        from memory_guard import UnsafeRuntime
+        self.memory_guard.check_peer.reset_mock()
+        original = self.guest.request
+
+        def invalidate_during_info(method, payload=None):
+            result = original(method, payload)
+            if method == "Info":
+                self.memory_guard.check_peer.side_effect = UnsafeRuntime("expired peer")
+            return result
+        self.guest.request = invalidate_during_info
+        with self.assertRaises(UnsafeRuntime):
+            self.service.identity()
+        self.assertEqual(self.memory_guard.check_peer.call_count, 2)
 
     def test_quote_finishing_after_expiry_rejected(self):
         original = self.guest.request

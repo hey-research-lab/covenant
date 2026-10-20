@@ -8,6 +8,7 @@ import sys
 import time
 
 import collector
+from memory_guard import RuntimeGuard
 
 
 def run_ssh():
@@ -15,6 +16,11 @@ def run_ssh():
     collector.require("COVENANT_COLLECTOR_TOKEN" not in os.environ,
                       "collector token must not enter the SSH container")
     policy = collector.environment_policy()
+    guard = RuntimeGuard()
+    # Before key generation or any workspace/session access. Unsupported
+    # kernels, mounts or cgroup layouts stop this role; there is no fallback.
+    guard.check("ssh")
+    guard.invalidate()
     deadline = time.monotonic() + (
         policy["lease_expires_at_ms"] - int(time.time() * 1000)
     ) / 1000
@@ -69,6 +75,7 @@ LogLevel ERROR
 Subsystem sftp internal-sftp
 """)
     subprocess.run(["/usr/sbin/sshd", "-t", "-f", str(config)], check=True)
+    guard.publish(policy, public)
     # The master retains only standard container privilege-separation rights.
     # PID 1 exits at lease expiry, terminating every session in this container.
     child = subprocess.Popen(["/usr/sbin/sshd", "-D", "-e", "-f", str(config)],
@@ -81,17 +88,26 @@ Subsystem sftp internal-sftp
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    while not stopping and child.poll() is None and (
-        int(time.time() * 1000) < policy["lease_expires_at_ms"]
-    ) and time.monotonic() < deadline:
-        time.sleep(0.25)
-    if child.poll() is None:
-        child.terminate()
+    try:
+        while not stopping and child.poll() is None and (
+            int(time.time() * 1000) < policy["lease_expires_at_ms"]
+        ) and time.monotonic() < deadline:
+            # The immutable entrypoint keeps enforcing the actual runtime, not
+            # just its intended Compose configuration. Any failed read/check
+            # invalidates collection and terminates the SSH container.
+            guard.publish(policy, public)
+            time.sleep(0.25)
+    finally:
         try:
-            child.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            child.kill()
-            child.wait()
+            guard.invalidate()
+        finally:
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait()
 
 
 if __name__ == "__main__":

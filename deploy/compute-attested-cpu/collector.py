@@ -244,10 +244,12 @@ class ReplayStore:
 
 
 class Collector:
-    def __init__(self, policy, key_path, guest, journal, clock=None):
+    def __init__(self, policy, key_path, guest, journal, clock=None, memory_guard=None):
+        from memory_guard import RuntimeGuard
         self.policy, self.key_path = policy, Path(key_path)
         self.guest, self.journal = guest, journal
         self.clock = clock or (lambda: int(time.time() * 1000))
+        self.memory_guard = memory_guard if memory_guard is not None else RuntimeGuard()
 
     def identity(self):
         require(self.clock() < self.policy["lease_expires_at_ms"], "expired lease")
@@ -260,6 +262,7 @@ class Collector:
             key = ssh_key(raw_key.decode("ascii"))
         except UnicodeError as error:
             raise Rejected("invalid SSH key") from error
+        self.memory_guard.check_peer(self.policy, raw_key.decode("ascii"))
         info = self.guest.request("Info")
         hex_value(info.get("compose_hash"), 32)
         # This is an early consistency check, not an authenticated measurement.
@@ -269,6 +272,9 @@ class Collector:
                 r"[0-9a-f]{40}", info[field]), "invalid guest identity")
         require(type(info.get("vm_config")) is str and info["vm_config"], "missing VM config")
         require(type(strict_json(info["vm_config"])) is dict, "invalid VM config")
+        # Info is an external RPC and may block. A status checked before that
+        # call cannot authorize identity after the SSH watchdog has stopped.
+        self.memory_guard.check_peer(self.policy, raw_key.decode("ascii"))
         host = f'{info["instance_id"]}-1022.{self.policy["gateway_domain"]}'
         return {"guest_channel_key": key, "host": host, "port": 443,
                 "transport": {"kind": "tls"},
@@ -400,7 +406,9 @@ def serve(collector, token, address=("0.0.0.0", 8090)):
 
 
 def main():
+    from memory_guard import RuntimeGuard
     policy = environment_policy()
+    RuntimeGuard().check("collector")
     journal = ReplayStore("/state/challenges.sqlite3", policy["job_id"])
     collector = Collector(policy, "/host-public/host_key.pub", Dstack(), journal)
     serve(collector, os.environ.get("COVENANT_COLLECTOR_TOKEN", ""))

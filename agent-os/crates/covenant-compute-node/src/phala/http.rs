@@ -195,6 +195,9 @@ impl PhalaProvider for PhalaCloud {
         let hourly_micro_usd = self.checked_rate(plan).await?;
         let mut compose: Value =
             serde_json::from_str(&plan.manifest).map_err(|_| failed("invalid manifest"))?;
+        if compose["swap_size"] != "0" {
+            return Err(failed("Phala workload must explicitly disable guest swap"));
+        }
         // API AppComposeV2 is not the measured v3 wrapper. These are its typed
         // carrier fields; only an exactly matching returned hash can authorize
         // create. Provider normalization cannot silently change the buyer pin.
@@ -474,9 +477,10 @@ mod tests {
     }
     fn plan() -> LeasePlan {
         let id = Uuid::new_v4();
-        let manifest =
-            json!({"manifest_version":"3","init_script":[],"docker_compose_file":"test"})
-                .to_string();
+        let manifest = json!({
+            "manifest_version":"3","init_script":[],"docker_compose_file":"test","swap_size":"0"
+        })
+        .to_string();
         LeasePlan {
             job_id: id,
             issued_at_ms: now_ms(),
@@ -577,7 +581,7 @@ mod tests {
             .and(body_partial_json(
                 json!({"name":plan.name,"teepod_id":17,"image":"dstack-0.6.1",
                 "vcpu":1,"memory":2048,"listed":false,"prefer_dev":false,
-                "compose_file":{"manifest_version":3}}),
+                "compose_file":{"manifest_version":3,"swap_size":"0"}}),
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "app_id":"ab".repeat(20), "compose_hash":"00".repeat(32),
@@ -705,6 +709,31 @@ mod tests {
             .unwrap()
             .iter()
             .all(|r| r.method == "GET"));
+    }
+    #[tokio::test]
+    async fn absent_or_nonzero_swap_policy_refuses_before_provision() {
+        for swap in [Value::Null, json!(0), json!("1")] {
+            let server = MockServer::start().await;
+            let cloud = cloud(&server);
+            pricing(&server, "0.009").await;
+            let mut plan = plan();
+            let mut manifest: Value = serde_json::from_str(&plan.manifest).unwrap();
+            if swap.is_null() {
+                manifest.as_object_mut().unwrap().remove("swap_size");
+            } else {
+                manifest["swap_size"] = swap;
+            }
+            plan.manifest = manifest.to_string();
+            plan.spec.workload_sha256 = hash(plan.manifest.as_bytes());
+            let error = cloud.provision(&plan).await.err().unwrap().to_string();
+            assert!(error.contains("explicitly disable guest swap"), "{error}");
+            assert!(server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .all(|r| r.method == "GET"));
+        }
     }
     #[tokio::test]
     async fn provision_rejects_automatic_placement_or_a_different_kms() {

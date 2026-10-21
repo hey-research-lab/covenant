@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createPublicKey, verify } from 'node:crypto';
 import { AgentKit } from '@coinbase/agentkit';
-import { Keypair, VersionedTransaction, TransactionMessage, TransactionInstruction, ComputeBudgetProgram } from '@solana/web3.js';
+import { Keypair, PublicKey, VersionedTransaction, TransactionMessage, TransactionInstruction, ComputeBudgetProgram } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { CovenantX402Client, SOLANA_GENESIS, NETWORK, USDC, agentKitSvmSigner, PAYMENT_COMPUTE_UNITS } from '../index.mjs';
+import { CovenantX402Client, SOLANA_GENESIS, NETWORK, USDC, agentKitSvmSigner, PAYMENT_COMPUTE_UNITS, LEGACY_PAYMENT_COMPUTE_UNITS, shortMemo } from '../index.mjs';
 import { covenantInferenceActionProvider, CovenantSolanaKeypairWalletProvider } from '../agentkit.mjs';
 import { sha256, stable, strictJson, verifyComputeResult } from '../proof.mjs';
 import { Journal } from '../journal.mjs';
@@ -100,10 +100,12 @@ test('AgentKit official client payment is accepted by the actual gateway facilit
 });
 
 
-function unsignedSignerFixture({units=20000,duplicate=false,presigned=false,mutatingWallet=false}={}) {
+const MEMO_PROGRAM=new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+function unsignedSignerFixture({units=20000,duplicate=false,presigned=false,mutatingWallet=false,memo,memoProgram=MEMO_PROGRAM}={}) {
   const payer=Keypair.generate(),fee=Keypair.generate();let calls=0;
   const instructions=[ComputeBudgetProgram.setComputeUnitLimit({units}),ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}),
     new TransactionInstruction({programId:Keypair.generate().publicKey,keys:[{pubkey:payer.publicKey,isSigner:true,isWritable:false}],data:Buffer.from('unchanged-transfer-and-memo-fixture')})];
+  if(memo!==undefined)instructions.push(new TransactionInstruction({programId:memoProgram,keys:[],data:Buffer.from(memo)}));
   if(duplicate)instructions.push(ComputeBudgetProgram.setComputeUnitLimit({units:20000}));
   const message=new TransactionMessage({payerKey:fee.publicKey,recentBlockhash:fee.publicKey.toBase58(),instructions}).compileToV0Message();
   const transaction=new VersionedTransaction(message);if(presigned)transaction.sign([payer]);
@@ -114,39 +116,82 @@ function unsignedSignerFixture({units=20000,duplicate=false,presigned=false,muta
   return {kit,wallet,payer,calls:()=>calls};
 }
 
-test('official modifying signer returns the 60k message it signs and preserves every other transaction byte',async()=>{
+test('modifying signer signs the official client\'s 20k message unchanged',async()=>{
   const f=unsignedSignerFixture(),before=Buffer.from(getTransactionEncoder().encode(f.kit));
-  const [modified]=await agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]);
-  const result=VersionedTransaction.deserialize(getTransactionEncoder().encode(modified));
-  assert.equal(Buffer.from(result.message.compiledInstructions[0].data).readUInt32LE(1),60000);
-  assert.equal(f.calls(),1);assert.deepEqual(modified.lifetimeConstraint,f.kit.lifetimeConstraint);
+  const [signed]=await agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]);
+  const result=VersionedTransaction.deserialize(getTransactionEncoder().encode(signed));
+  assert.equal(Buffer.from(result.message.compiledInstructions[0].data).readUInt32LE(1),PAYMENT_COMPUTE_UNITS);
+  assert.equal(f.calls(),1);assert.deepEqual(signed.lifetimeConstraint,f.kit.lifetimeConstraint);
   const keyIndex=result.message.staticAccountKeys.findIndex(key=>key.equals(f.payer.publicKey));
   const publicKey=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),f.payer.publicKey.toBuffer()]),format:'der',type:'spki'});
   assert.ok(verify(null,result.message.serialize(),publicKey,result.signatures[keyIndex]));
-  const restored=Buffer.from(result.message.compiledInstructions[0].data);restored.writeUInt32LE(20000,1);result.message.compiledInstructions[0].data=restored;
   assert.deepEqual(Buffer.from(result.message.serialize()),Buffer.from(f.kit.messageBytes));
   assert.deepEqual(Buffer.from(getTransactionEncoder().encode(f.kit)),before,'original transaction remains untouched');
 });
 
-test('compute adjustment refuses pre-signed, duplicated or unexpected compute limits before wallet signing',async()=>{
+test('a v2 quote from a gateway not yet upgraded is paid at 60k, the limit its memo needs',async()=>{
+  const f=await fixture({legacyMemo:true,expectedUnits:LEGACY_PAYMENT_COMPUTE_UNITS,verifyBridge:Boolean(process.env.COVENANT_X402_BRIDGE_PATH)});const c=new CovenantX402Client(f.config);
+  try{assert.equal((await c.purchase(input())).status,'completed');assert.equal(f.counts().signatures,1);}
+  finally{c.close();await f.cleanup();}
+});
+
+const baseOffer=q=>({scheme:'exact',network:'eip155:8453',asset:'0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',amount:q.amount,payTo:'0x5fA1d0C0bfFE257a20027C523093F941834f5D66',maxTimeoutSeconds:300,
+  extra:{name:'USD Coin',version:'2',quoteId:q.extra.quoteId,requestSha256:q.extra.requestSha256,expiresAtMs:q.extra.expiresAtMs}});
+
+for (const [label,offers] of [['a Base offer first',q=>[baseOffer(q),q]],['a Base offer last',q=>[q,baseOffer(q)]],['malformed offers',q=>[null,'offer',{network:'eip155:1'},q]]])
+test(`a quote that also lists ${label} is paid on Solana`,async()=>{
+  const f=await fixture({offers,verifyBridge:Boolean(process.env.COVENANT_X402_BRIDGE_PATH)});const c=new CovenantX402Client(f.config);
+  try{assert.equal((await c.purchase(input())).status,'completed');assert.equal(f.counts().signatures,1);}
+  finally{c.close();await f.cleanup();}
+});
+
+for (const [label,offers,code] of [['only a Base offer',q=>[baseOffer(q)],'untrusted_payment_rail'],['two Solana offers',q=>[q,{...q}],'ambiguous_payment_requirements'],['no offers',()=>[],'untrusted_payment_rail']])
+test(`refuses a quote with ${label} before reserving`,async()=>{
+  const f=await fixture({offers});const c=new CovenantX402Client(f.config);const request=input();
+  try{await assert.rejects(c.purchase(request),new RegExp(code));assert.equal(c.journal.get(request.requestId).quote,null);assert.equal(f.counts().signatures,0);assert.equal(f.counts().sends,0);}
+  finally{c.close();await f.cleanup();}
+});
+
+test('short memo matches the published vector',()=>{
+  assert.equal(shortMemo('00000000-0000-4000-8000-000000000001','a'.repeat(64)),'8bfb7fde3cb99c6b0f16b7a18d83a0e1');
+});
+
+for (const [label,options,units] of [
+  ['a v2 memo under the Memo program is raised to 60k',{memo:'covenant.x402.v2:00000000-0000-4000-8000-000000000001:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},LEGACY_PAYMENT_COMPUTE_UNITS],
+  ['the same bytes under another program stay at 20k',{memo:'covenant.x402.v2:00000000-0000-4000-8000-000000000001:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',memoProgram:Keypair.generate().publicKey},PAYMENT_COMPUTE_UNITS],
+  ['a memo with the v2 prefix not at its start stays at 20k',{memo:'xcovenant.x402.v2:00000000-0000-4000-8000-000000000001:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},PAYMENT_COMPUTE_UNITS],
+  ['a v3 memo stays at 20k',{memo:'8bfb7fde3cb99c6b0f16b7a18d83a0e1'},PAYMENT_COMPUTE_UNITS],
+]) test(`signer limit: ${label}`,async()=>{
+  const f=unsignedSignerFixture(options);
+  const [signed]=await agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]);
+  const result=VersionedTransaction.deserialize(getTransactionEncoder().encode(signed));
+  assert.equal(Buffer.from(result.message.compiledInstructions[0].data).readUInt32LE(1),units);
+  if(units===PAYMENT_COMPUTE_UNITS)assert.deepEqual(Buffer.from(result.message.serialize()),Buffer.from(f.kit.messageBytes));
+});
+
+test('signer refuses pre-signed, duplicated or unexpected compute limits before wallet signing',async()=>{
   for(const options of [{units:60000},{units:100000},{duplicate:true},{presigned:true}]){
     const f=unsignedSignerFixture(options);await assert.rejects(agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]));assert.equal(f.calls(),0);
   }
 });
 
-test('wallet message mutation remains forbidden after the explicit compute adjustment',async()=>{
+test('signer rejects a wallet that changes the signed message',async()=>{
   const f=unsignedSignerFixture({mutatingWallet:true});await assert.rejects(agentKitSvmSigner(f.wallet).modifyAndSignTransactions([f.kit]),/wallet_changed_payment_transaction/);assert.equal(f.calls(),1);
 });
 
 
-test('upgraded client reuses an existing 20k authorization without modifying or signing it again',async()=>{
-  const f=await fixture({dropFirst:true,expectedUnits:20000}),request=input();let c=new CovenantX402Client(f.config);
-  const legacySigner={address:f.walletProvider.getAddress(),signTransactions:async transactions=>Promise.all(transactions.map(async transaction=>{
-    const signed=await f.walletProvider.signTransaction(VersionedTransaction.deserialize(getTransactionEncoder().encode(transaction)));
-    const index=signed.message.staticAccountKeys.findIndex(key=>key.toBase58()===f.walletProvider.getAddress());
-    return {[f.walletProvider.getAddress()]:signed.signatures[index]};
+for (const [label,options] of [['20k authorization from the official client',{expectedUnits:20000}],['60k v2-memo authorization from an earlier client',{expectedUnits:LEGACY_PAYMENT_COMPUTE_UNITS,legacyMemo:true}]])
+test(`upgraded client reuses an existing ${label} without modifying or signing it again`,async()=>{
+  const f=await fixture({dropFirst:true,...options}),request=input();let c=new CovenantX402Client(f.config);
+  const payer=f.walletProvider.getAddress();
+  const priorSigner={address:payer,modifyAndSignTransactions:async transactions=>Promise.all(transactions.map(async transaction=>{
+    const unsigned=VersionedTransaction.deserialize(getTransactionEncoder().encode(transaction));
+    const limit=Buffer.from(unsigned.message.compiledInstructions[0].data);limit.writeUInt32LE(options.expectedUnits,1);unsigned.message.compiledInstructions[0].data=limit;
+    const message=Buffer.from(unsigned.message.serialize());const signed=await f.walletProvider.signTransaction(unsigned);
+    const index=signed.message.staticAccountKeys.findIndex(key=>key.toBase58()===payer);
+    return {...transaction,messageBytes:Uint8Array.from(message),signatures:{...transaction.signatures,[payer]:Uint8Array.from(signed.signatures[index])}};
   }))};
-  c.http=new x402HTTPClient(new x402Client().register(NETWORK,new ExactSvmScheme(legacySigner,{rpcUrl:f.config.rpcUrl})));
+  c.http=new x402HTTPClient(new x402Client().register(NETWORK,new ExactSvmScheme(priorSigner,{rpcUrl:f.config.rpcUrl})));
   try{
     await assert.rejects(c.purchase(request),/authorization_retained/);const before=c.journal.get(request.requestId).payment;c.close();
     c=new CovenantX402Client(f.config);assert.equal((await c.purchase(request)).status,'completed');

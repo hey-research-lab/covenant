@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { createPrivateKey, sign, randomUUID, createPublicKey, verify } from 'node:crypto';
 import { Keypair, VersionedTransaction } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { SOLANA_GENESIS, NETWORK, USDC, PAYMENT_COMPUTE_UNITS } from '../../index.mjs';
+import { SOLANA_GENESIS, NETWORK, USDC, PAYMENT_COMPUTE_UNITS, shortMemo } from '../../index.mjs';
 import { CovenantSolanaKeypairWalletProvider } from '../../agentkit.mjs';
 import { sha256, stable } from '../../proof.mjs';
 import { pathToFileURL } from 'node:url';
@@ -42,11 +42,11 @@ export async function fixture(options = {}) {
         res.end(JSON.stringify({jsonrpc:'2.0',id:body.id,result}));return;
       }
       assert.equal(req.url,'/v1/chat/completions'); const digest=sha256(stable(body));const quoteId=req.headers['idempotency-key'];
-      const quote=savedQuotes.get(quoteId)??{scheme:'exact',network:NETWORK,asset:USDC,amount:String(options.price?.(body)??1000),payTo:seller.publicKey.toBase58(),maxTimeoutSeconds:90,extra:{feePayer:fee.publicKey.toBase58(),quoteId,requestSha256:digest,expiresAtMs:Date.now()+90000,memo:`covenant.x402.v2:${quoteId}:${digest}`}};
+      const quote=savedQuotes.get(quoteId)??{scheme:'exact',network:NETWORK,asset:USDC,amount:String(options.price?.(body)??1000),payTo:seller.publicKey.toBase58(),maxTimeoutSeconds:90,extra:{feePayer:fee.publicKey.toBase58(),quoteId,requestSha256:digest,expiresAtMs:Date.now()+90000,memo:options.legacyMemo?`covenant.x402.v2:${quoteId}:${digest}`:shortMemo(quoteId,digest)}};
       if(!req.headers['payment-signature']) {
         quotes++; if(options.badQuote) options.badQuote(quote);
         savedQuotes.set(quoteId,quote);
-        const required={x402Version:2,resource:{url:base+'/v1/chat/completions',description:'Covenant inference',mimeType:'application/json'},accepts:[quote]};
+        const required={x402Version:2,resource:{url:base+'/v1/chat/completions',description:'Covenant inference',mimeType:'application/json'},accepts:options.offers?options.offers(quote):[quote]};
         res.statusCode=402;res.setHeader('PAYMENT-REQUIRED',encode(required));res.end('{}');return;
       }
       sends++;payments.push(req.headers['payment-signature']);

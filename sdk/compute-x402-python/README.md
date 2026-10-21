@@ -6,8 +6,10 @@ quote binding, and the confirmed payment transaction before returning a complete
 result. The Python package supports Microsoft Agent Framework through an optional
 adapter; this is an integration, not a Microsoft affiliation or endorsement.
 
-Version 0.2.0 is the model-tariff release candidate. Local tests and package builds
-do not establish production deployment or funded acceptance.
+Version 0.2.0 added model tariffs. Version 0.3.0 is the release candidate for
+quotes with a 32-character payment memo, which earlier versions refuse before
+signing. Local tests and package builds do not establish production deployment or
+funded acceptance.
 
 Python 3.11 or later is required. Install the immutable release wheel with its
 published SHA256. For framework tools, use the `agent-framework` extra. The `demo`
@@ -54,7 +56,7 @@ re-signs an uncertain payment, even after its quote or blockhash expires. Restor
 or reconcile the original journal before retrying. Deleting the journal resets
 the local ceiling and destroys recovery information.
 
-The SQLite schema and scope match `@covenant/compute-x402-client` v0.3.0 and retain
+The SQLite schema and scope match `@covenant/compute-x402-client` v0.4.0 and retain
 compatibility with v0.2.0 legacy purchases. Node and
 Python processes using the same wallet, exact gateway origin and journal share a
 cumulative ceiling and exclusive five-minute purchase claims. Preserve the
@@ -106,14 +108,22 @@ The planner is not included in the Covenant inference price.
 The optional `pricing` setting is also supported by `run_demo` and saved in its
 workflow identity.
 
-The official pinned x402 Python SVM scheme constructs an unsigned transaction
-using a capture signer. Covenant checks its full compiled message before making
-the explicit 20,000 to 60,000 compute-unit adjustment needed for the request memo.
-It then signs with the supplied solders keypair or an adapter exposing `address`
-and `sign_transaction(VersionedTransaction)`. That adapter must return the same
-message, the buyer signature, and an empty facilitator signature. The facilitator
-pays SOL fees; the buyer pays only the approved USDC transfer. Legacy 20,000-unit
-authorizations already in a shared Node journal are reused byte for byte.
+If a quote also offers payment on other networks, such as USDC on Base, the SDK
+pays the Solana offer and ignores the others.
+The SDK builds an unsigned transaction with the official x402 Python package's
+Solana scheme (pinned) and a capture signer, so it can inspect the transaction
+before anything is signed. Short-memo quotes are signed exactly as built, at the
+official client's 20,000 compute units (13,180 used in a read-only mainnet
+simulation); for a quote with the earlier 118-byte memo, which needs 43,642
+units, only the limit is raised to 60,000. It signs with the supplied `solders`
+keypair or an adapter exposing `address` and
+`sign_transaction(VersionedTransaction)`, which must return the transaction with
+its message unchanged, the buyer's signature added and the fee-payer signature
+left empty for Covenant's verifier. Covenant pays the Solana fees; the buyer pays
+only the USDC amount set by the quote. Both SDKs record purchases in the journal
+file set by `journal_path` (`journalPath` in JavaScript). With a shared journal, a
+payment the JavaScript SDK already signed for the same request is reused byte for
+byte at either compute-unit limit.
 
 New payments require the configured RPC to report the Solana mainnet genesis,
 the canonical six-decimal USDC mint, and a sufficient associated token balance.

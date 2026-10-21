@@ -435,6 +435,7 @@ fn x402scan_contract_fixture_uses_the_real_quote_serializer() {
         asset_decimals: 6,
         expires_at_ms: 75_123,
         resource_url: "https://example.test/v1/chat/completions".into(),
+        memo_binding: crate::MemoBinding::V3,
     };
     // Public, unpayable fixtures can be extracted with --nocapture for an
     // isolated run of the pinned indexer's parser. No wallet or network is used.

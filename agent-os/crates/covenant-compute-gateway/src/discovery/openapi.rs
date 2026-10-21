@@ -148,7 +148,7 @@ pub(super) fn document(
                     }
                 }}}
             },
-            "202":{"description":"Payment or execution is pending. Retry the identical request with the same payment authorization; Retry-After gives the polling delay."},
+            "202":{"description":format!("Payment or execution is pending. A paid request is held up to {} s for payment finality before this response. After Retry-After, resend the identical request with the same Payment-Signature; payment is not repeated.", crate::SETTLEMENT_WAIT.as_secs())},
             "400":{"description":"Invalid request body, output cap, pricing mode, or idempotency key."},
             "402":{
                 "description":"Fresh body-bound x402 v2 payment requirements. Inspect the runtime accepts array for exact atomic USDC amount, payment destination, quote identity, and expiry. A payment error can also return 402 without a payable challenge.",

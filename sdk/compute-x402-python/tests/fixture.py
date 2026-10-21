@@ -10,7 +10,7 @@ from solders.message import to_bytes_versioned
 
 from covenant_compute_x402 import CovenantX402Client, NETWORK, SOLANA_GENESIS, USDC
 from covenant_compute_x402.journal import now_ms
-from covenant_compute_x402.payment import TOKEN_PROGRAM, decode64, validate_transaction
+from covenant_compute_x402.payment import TOKEN_PROGRAM, decode64, short_memo, validate_transaction
 from covenant_compute_x402.proof import stable, compact, strict_json, sha256
 
 
@@ -43,7 +43,10 @@ class Wallet:
 
 class Fixture:
     def __init__(self, tmp_path, *, first_status=None, bad_quote=None, bad_result=None,
-                 wrong_rpc=False, balance="1000000", bad_settlement=None, price=None, bad_job=None):
+                 wrong_rpc=False, balance="1000000", bad_settlement=None, price=None, bad_job=None,
+                 legacy_memo=False, offers=None):
+        self.legacy_memo = legacy_memo
+        self.offers = offers
         self.wallet = Wallet(Keypair())
         self.buyer, self.operator, self.fee, self.seller = [Keypair() for _ in range(4)]
         self.calls, self.quotes, self.sends, self.payments, self.confirmed = [], 0, 0, [], {}
@@ -87,20 +90,20 @@ class Fixture:
                  "amount": str(int(self.price(body))) if self.price else "1000", "payTo": str(self.seller.pubkey()), "maxTimeoutSeconds": 90,
                  "extra": {"feePayer": str(self.fee.pubkey()), "quoteId": quote_id,
                            "requestSha256": digest, "expiresAtMs": now_ms() + 90_000,
-                           "memo": f"covenant.x402.v2:{quote_id}:{digest}"}}
+                           "memo": f"covenant.x402.v2:{quote_id}:{digest}" if self.legacy_memo else short_memo(quote_id, digest)}}
         if "payment-signature" not in req.headers:
             self.quotes += 1
             if self.bad_quote:
                 self.bad_quote(quote)
             self.saved_quotes[quote_id] = quote
-            return httpx.Response(402, headers={"PAYMENT-REQUIRED": encode({"x402Version": 2, "resource": {"url": str(req.url)}, "accepts": [quote]})}, content="{}")
+            return httpx.Response(402, headers={"PAYMENT-REQUIRED": encode({"x402Version": 2, "resource": {"url": str(req.url)}, "accepts": self.offers(quote) if self.offers else [quote]})}, content="{}")
         self.sends += 1
         payment_header = req.headers["payment-signature"]
         self.payments.append(payment_header)
         payload = strict_json(decode64(payment_header))
         assert payload["accepted"] == quote
         tx = VersionedTransaction.from_bytes(decode64(payload["payload"]["transaction"]))
-        validate_transaction(tx, payload["accepted"], self.wallet.address, legacy_allowed=True)
+        validate_transaction(tx, payload["accepted"], self.wallet.address)
         signatures = list(tx.signatures)
         signatures[0] = self.fee.sign_message(to_bytes_versioned(tx.message))
         confirmed = VersionedTransaction.populate(tx.message, signatures)

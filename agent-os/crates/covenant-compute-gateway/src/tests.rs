@@ -1321,10 +1321,12 @@ async fn rejected_payment_and_http_body_mismatch_cause_no_dispatch() {
     let required = payment_payload(quote.headers()["payment-required"].to_str().unwrap()).unwrap();
     assert_eq!(required["x402Version"], 2);
     assert_eq!(required["accepts"][0]["extra"]["quoteId"], id.to_string());
-    assert!(required["accepts"][0]["extra"]["memo"]
-        .as_str()
-        .unwrap()
-        .starts_with("covenant.x402.v2:"));
+    let memo = required["accepts"][0]["extra"]["memo"].as_str().unwrap();
+    assert_eq!(
+        memo,
+        short_memo(id, &request_digest(&json!({"prompt":"hi"})).unwrap())
+    );
+    assert_eq!(memo.len(), 32);
     let changed = http
         .post(&endpoint)
         .header("idempotency-key", id.to_string())
@@ -1937,6 +1939,10 @@ async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
         .as_object_mut()
         .unwrap()
         .remove("quoted_execution");
+    old["entries"][first.quote_id.to_string()]["terms"]
+        .as_object_mut()
+        .unwrap()
+        .remove("memo_binding");
     std::fs::write(&file, serde_json::to_vec(&old).unwrap()).unwrap();
     executor.retail.store(80, Ordering::SeqCst);
     let gateway = Gateway::open(dir.path(), "legacy", 1000, 50, rail, executor.clone()).unwrap();
@@ -1959,7 +1965,17 @@ async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
     );
     assert_eq!(disk.used_reserve(), 10);
     assert_eq!(disk.journal.reserve_micro_usdc, 1000);
-    assert_eq!(disk.journal.version, 3);
+    assert_eq!(disk.journal.version, 4);
+    // A quote saved before v3 memos keeps the memo its payment was signed over.
+    let terms = &disk.journal.entries[&first.quote_id].terms;
+    assert_eq!(terms.memo_binding, MemoBinding::V2);
+    assert_eq!(
+        terms.memo(),
+        format!(
+            "covenant.x402.v2:{}:{}",
+            first.quote_id, first.request_sha256
+        )
+    );
 }
 
 #[tokio::test]
@@ -2125,4 +2141,197 @@ async fn queued_retention_uses_time_after_the_journal_lock() {
         retention.await.unwrap();
         assert!(gateway.disk.lock().await.journal.watermark_ms >= 1030);
     }
+}
+
+#[test]
+fn short_memo_matches_the_published_vector() {
+    // The same vector is checked by the facilitator bridge and both SDKs.
+    let quote = Uuid::parse_str("00000000-0000-4000-8000-000000000001").unwrap();
+    assert_eq!(
+        short_memo(quote, &"a".repeat(64)),
+        "8bfb7fde3cb99c6b0f16b7a18d83a0e1"
+    );
+}
+
+#[tokio::test]
+async fn paid_request_waits_for_finality_and_returns_the_result() {
+    let directory = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(false),
+    });
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("settlement-wait@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(
+        directory.path(),
+        "settlement-wait",
+        30,
+        12,
+        rail.clone(),
+        executor,
+    )
+    .unwrap()
+    .with_settlement_wait(Duration::from_secs(10));
+    let request = json!({"prompt":"wait"});
+    let GatewayReply::PaymentRequired(terms) = gateway
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected a quote")
+    };
+    let finalizer = {
+        let rail = rail.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            rail.finalized.store(true, Ordering::SeqCst);
+        })
+    };
+    let paid_at = fixture_now(&gateway, 1001).await;
+    let reply = gateway
+        .handle(request, Some(terms.quote_id), Some("waited-tx"), paid_at)
+        .await
+        .unwrap();
+    finalizer.await.unwrap();
+    assert!(
+        matches!(reply, GatewayReply::Complete { transaction_id, .. } if transaction_id == "waited-tx")
+    );
+    assert!(rail.settles.load(Ordering::SeqCst) >= 2);
+}
+
+#[tokio::test]
+async fn background_recovery_never_waits_on_a_pending_settlement() {
+    let directory = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(false),
+    });
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("recovery-no-wait@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(
+        directory.path(),
+        "recovery-no-wait",
+        30,
+        12,
+        rail.clone(),
+        executor,
+    )
+    .unwrap();
+    let request = json!({"prompt":"pending"});
+    let GatewayReply::PaymentRequired(terms) = gateway
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected a quote")
+    };
+    let paid_at = fixture_now(&gateway, 1001).await;
+    assert!(matches!(
+        gateway
+            .handle(request, Some(terms.quote_id), Some("pending-tx"), paid_at)
+            .await
+            .unwrap(),
+        GatewayReply::Pending { .. }
+    ));
+    let gateway = gateway.with_settlement_wait(Duration::from_secs(60));
+    let recover_at = fixture_now(&gateway, paid_at + 1).await;
+    tokio::time::timeout(Duration::from_secs(2), gateway.recover_pending(recover_at))
+        .await
+        .expect("recovery must not hold the journal for the settlement wait")
+        .unwrap();
+}
+
+#[tokio::test]
+async fn unfinished_wait_answers_pending_without_holding_the_journal_or_rewaiting_retries() {
+    let directory = tempfile::tempdir().unwrap();
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(false),
+    });
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("unfinished-wait@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let gateway = Arc::new(
+        Gateway::open(
+            directory.path(),
+            "unfinished-wait",
+            30,
+            12,
+            rail.clone(),
+            executor,
+        )
+        .unwrap()
+        .with_settlement_wait(Duration::from_secs(3)),
+    );
+    let request = json!({"prompt":"slow finality"});
+    let GatewayReply::PaymentRequired(terms) = gateway
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected a quote")
+    };
+    let paid_at = fixture_now(&gateway, 1001).await;
+    let waiting = {
+        let gateway = gateway.clone();
+        let request = request.clone();
+        tokio::spawn(async move {
+            gateway
+                .handle(request, Some(terms.quote_id), Some("slow-tx"), paid_at)
+                .await
+        })
+    };
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    // The journal is free while the paid request waits for finality.
+    let quote_at = fixture_now(&gateway, paid_at + 1).await;
+    let started = std::time::Instant::now();
+    assert!(matches!(
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            gateway.handle(json!({"prompt":"meanwhile"}), None, None, quote_at)
+        )
+        .await
+        .expect("a fresh quote must not wait behind a settlement")
+        .unwrap(),
+        GatewayReply::PaymentRequired(_)
+    ));
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert!(matches!(
+        waiting.await.unwrap().unwrap(),
+        GatewayReply::Pending { .. }
+    ));
+    let polls = rail.settles.load(Ordering::SeqCst);
+    assert!(polls >= 2);
+    // A retry of the stuck payment answers at once instead of waiting again.
+    let retry_at = fixture_now(&gateway, quote_at + 1).await;
+    let started = std::time::Instant::now();
+    assert!(matches!(
+        gateway
+            .handle(request, Some(terms.quote_id), Some("slow-tx"), retry_at)
+            .await
+            .unwrap(),
+        GatewayReply::Pending { .. }
+    ));
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(rail.settles.load(Ordering::SeqCst), polls + 1);
 }

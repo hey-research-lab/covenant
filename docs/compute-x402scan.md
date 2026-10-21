@@ -30,24 +30,26 @@ conversion. Runtime quotes remain authoritative.
 
 ## Purchase clients
 
-Catalog registration and x402scan's built-in wallet are separate compatibility
-claims. The pinned scanner uses `@x402/svm` 2.11.0, which preserves the quoted
-memo but sets a 20,000 compute-unit limit. Covenant's previously accepted payment
-used 43,642 units; its client adapter uses 60,000. Therefore the scanner's stock
-wallet is expected to fail payment simulation until its client supports the
-higher limit. No new paid wallet test was performed for this listing change.
-The OpenAPI document identifies the
-[Covenant SDK](../sdk/compute-x402-client/README.md) as the supported purchase
-client. See the [paid release evidence](compute-x402-release-evidence.md) for the
-qualified payment path. This listing change does not modify either payment
-client or claim paid invocation through x402scan.
+Being listed in x402scan's catalog is a separate question from whether
+x402scan's built-in wallet can pay for Covenant Compute. That wallet uses the
+official x402 client (`@x402/svm`), which copies the quote's memo into the payment
+and always sets a compute-unit limit of 20,000. Quotes carry a 32-character memo,
+and a payment built this way used 13,180 units in a read-only mainnet simulation.
+Covenant's verifier tests accept a payment built by the unmodified official
+client; as of 21 October 2026, no paid purchase has been made through x402scan's
+own wallet.
 
-The proposed upstream fix is [x402scan PR #1297](https://github.com/Merit-Systems/x402scan/pull/1297).
-It adjusts the canonical unsigned v2 transaction to 60,000 units for memos over
-32 bytes, before wallet signing; default/short memos and v1 remain unchanged.
-Fourteen isolated tests against the pinned SDK verify transaction bytes,
-signatures and modifying-wallet behavior. The patch still needs upstream merge
-and deployment; those tests do not establish a live browser-wallet payment.
+Earlier gateway versions issue a 118-byte memo instead. Paying it needs 43,642
+compute units, so x402scan's wallet cannot pay those quotes.
+
+The supported purchase clients are Covenant's SDKs for
+[JavaScript](../sdk/compute-x402-client/README.md) and
+[Python](../sdk/compute-x402-python/README.md); the
+[release test record](compute-x402-release-evidence.md) lists the paid purchases
+made with them.
+
+[x402scan PR #1297](https://github.com/Merit-Systems/x402scan/pull/1297), which
+raised the scanner's limit for long memos, is superseded by the short memo.
 
 ## Logo and banner metadata
 

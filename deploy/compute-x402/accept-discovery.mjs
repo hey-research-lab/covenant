@@ -21,6 +21,8 @@ export const stable = value => Array.isArray(value) ? `[${value.map(stable).join
   : plain(value) ? `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`
   : JSON.stringify(value);
 export const sha256 = value => createHash('sha256').update(stable(value)).digest('hex');
+// The gateway's v3 payment memo: 32 hex characters, within the official client's 20k CU.
+export const shortMemo = (id, hash) => createHash('sha256').update(`covenant.x402.v3:${id}:${hash}`).digest('hex').slice(0, 32);
 const equal = (a, b, label) => requireThat(stable(a) === stable(b), `${label}: mismatch`);
 
 // JSON.parse alone silently accepts duplicate keys. Reject ambiguous public documents.
@@ -196,7 +198,7 @@ export function validateQuote(body, header, {request, id, expected, origin, ende
   equal(body, {x402Version: 2, resource: {url: `${origin}/v1/chat/completions`,
     description: 'Covenant inference with a verified operator receipt', mimeType: 'application/json'},
   accepts: [{scheme: 'exact', network: NETWORK, asset: ASSET, amount: String(amount), payTo: expected.payTo,
-    maxTimeoutSeconds: 90, extra: {feePayer: expected.feePayer, memo: `covenant.x402.v2:${id}:${hash}`,
+    maxTimeoutSeconds: 90, extra: {feePayer: expected.feePayer, memo: shortMemo(id, hash),
       quoteId: id, requestSha256: hash, expiresAtMs: expires}}]}, 'payment quote');
   return {pricing: request.pricing ?? 'legacy', max_tokens: request.max_tokens, quote_id: id,
     request_sha256: hash, amount_micro_usdc: amount, expires_at_ms: expires};

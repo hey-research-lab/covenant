@@ -3,10 +3,19 @@ import { readFile, stat } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
 import { createKeyPairSignerFromBytes } from '@solana/kit';
 import { toFacilitatorSvmSigner } from '@x402/svm';
+import { HTTPFacilitatorClient } from '@x402/core/server';
 import { createBridge, Rejected } from './bridge.mjs';
+import { createEvmRail } from './evm.mjs';
 import { readTariffConfig } from './pricing.mjs';
 
 function required(name) { const value = process.env[name]; if (!value) throw new Error(`${name} required`); return value; }
+// The value may carry a provider key, so errors name the setting, never the URL.
+function httpsUrl(name) {
+  const value = required(name); let url;
+  try { url = new URL(value); } catch { throw new Error(`${name} must be an https URL`); }
+  if (url.protocol !== 'https:' || url.username || url.password) throw new Error(`${name} must be an https URL without credentials`);
+  return value;
+}
 const secret = required('COVENANT_GATEWAY_BRIDGE_SECRET');
 const rpcUrl = required('COVENANT_GATEWAY_SOLANA_RPC');
 const keyFile = required('COVENANT_GATEWAY_FEE_PAYER_KEY_FILE');
@@ -25,36 +34,64 @@ const config = {
 if (keypair.address !== config.feePayer) throw new Error('fee payer key mismatch');
 const signer = toFacilitatorSvmSigner(keypair, { defaultRpcUrl: rpcUrl });
 let rpcId = 0;
-const rpc = async (method, params) => {
-  const response = await fetch(rpcUrl, { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }), signal: AbortSignal.timeout(15_000) });
+const jsonRpc = (url, timeoutMs = 15_000) => async (method, params) => {
+  const response = await fetch(url, { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }), signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new Error('RPC unavailable');
   const data = await response.json();
   if (data.error || !Object.hasOwn(data, 'result')) throw new Error('RPC refused');
   return data.result;
 };
+const rpc = jsonRpc(rpcUrl);
 const bridge = createBridge({ signer, config, rpc });
 await bridge.assertNetwork();
+// Optional USDC on Base once a Base merchant is set: CDP credentials for
+// Coinbase's facilitator, or any other by URL. The chain and facilitator are
+// first checked on readiness, so a Base outage at boot leaves Solana running.
+let evm = null;
+if (process.env.COVENANT_GATEWAY_BASE_PAY_TO) {
+  const byCdp = Boolean(process.env.CDP_API_KEY_ID || process.env.CDP_API_KEY_SECRET);
+  const byUrl = Boolean(process.env.COVENANT_GATEWAY_BASE_FACILITATOR_URL);
+  if (byCdp && byUrl) throw new Error('Base takes CDP_API_KEY_ID and CDP_API_KEY_SECRET or COVENANT_GATEWAY_BASE_FACILITATOR_URL, not both');
+  if (!byCdp && !byUrl) throw new Error('Base requires CDP_API_KEY_ID and CDP_API_KEY_SECRET, or COVENANT_GATEWAY_BASE_FACILITATOR_URL');
+  // Imported only when used: the CDP SDK stays out of a Solana-only verifier.
+  const facilitatorConfig = byCdp
+    ? (await import('@coinbase/x402')).createFacilitatorConfig(required('CDP_API_KEY_ID'), required('CDP_API_KEY_SECRET'))
+    : { url: httpsUrl('COVENANT_GATEWAY_BASE_FACILITATOR_URL') };
+  // Verification makes three Base RPC calls and one facilitator call inside
+  // the gateway's 30-second request budget.
+  evm = createEvmRail({ config: { ...config, network: required('COVENANT_GATEWAY_BASE_NETWORK'),
+    asset: required('COVENANT_GATEWAY_BASE_ASSET'), payTo: required('COVENANT_GATEWAY_BASE_PAY_TO') },
+    facilitator: new HTTPFacilitatorClient({ ...facilitatorConfig, timeoutMs: 10_000 }),
+    rpc: jsonRpc(httpsUrl('COVENANT_GATEWAY_BASE_RPC'), 5_000), log: message => console.log(message) });
+}
 const expectedAuth = Buffer.from(`Bearer ${secret}`);
 const server = createServer(async (req, res) => {
   const reply = (code, body) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
   const auth = Buffer.from(req.headers.authorization ?? '');
   if (auth.length !== expectedAuth.length || !timingSafeEqual(auth, expectedAuth)) return reply(401, { error: 'unauthorized' });
   if (req.method === 'GET' && req.url === '/health') return reply(200, {status:'ready'});
-  if (req.method === 'GET' && req.url === '/readiness') {
-    try { return reply(200, bridge.readiness()); }
-    catch { return reply(503, { error: 'payment pricing unavailable' }); }
+  // Base routes carry an /evm prefix and exist only when Base is configured.
+  const rail = req.url?.startsWith('/evm/') ? evm : bridge;
+  const route = req.url?.startsWith('/evm/') ? req.url.slice(4) : req.url;
+  if (!rail) return reply(404, { error: 'not found' });
+  if (req.method === 'GET' && route === '/readiness') {
+    try { return reply(200, await rail.readiness()); }
+    catch { return reply(503, { error: rail === evm ? 'Base payments unavailable' : 'payment pricing unavailable' }); }
   }
-  if (req.method !== 'POST' || !['/verify', '/settle'].includes(req.url)) return reply(404, { error: 'not found' });
+  if (req.method !== 'POST' || !['/verify', '/settle'].includes(route)) return reply(404, { error: 'not found' });
   try {
     let size = 0; const chunks = [];
     for await (const chunk of req) { size += chunk.length; if (size > 32_768) throw new Rejected('request too large'); chunks.push(chunk); }
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    reply(200, await bridge[req.url.slice(1)](body));
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new Rejected('invalid request');
+    reply(200, await rail[route.slice(1)](body));
   } catch (error) {
     // No transaction payloads, RPC credentials or private keys in logs/errors.
-    reply(error instanceof Rejected || error instanceof SyntaxError ? 400 : 503, { error: error instanceof Rejected ? error.message : 'payment bridge unavailable' });
+    if (error instanceof Rejected || error instanceof SyntaxError) return reply(400, { error: error instanceof Rejected ? error.message : 'invalid JSON' });
+    reply(503, { error: 'payment bridge unavailable' });
   }
 });
 server.requestTimeout = 30_000;
 server.headersTimeout = 10_000;
-server.listen(Number(process.env.COVENANT_GATEWAY_BRIDGE_PORT ?? 4043), '127.0.0.1', () => console.log('Covenant x402 verifier listening on loopback'));
+const port = Number(process.env.COVENANT_GATEWAY_BRIDGE_PORT ?? 4043);
+server.listen(port, '127.0.0.1', () => console.log(`Covenant x402 verifier listening on loopback port ${port}; Base ${evm ? `on ${evm.network}` : 'off'}`));

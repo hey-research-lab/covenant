@@ -60,3 +60,11 @@ test('full runtime materializes configured tariffs for both financial workers',t
   assert.equal(Object.hasOwn(env,'COVENANT_GATEWAY_TARIFFS_JSON'),false);
  }
 });
+
+test('Base facilitator credentials and RPC reach only the payment verifier',t=>{
+ const secrets={CDP_API_KEY_ID:'cdp-id',CDP_API_KEY_SECRET:'cdp-secret',COVENANT_GATEWAY_BASE_RPC:'https://base.example/key',COVENANT_GATEWAY_BASE_FACILITATOR_URL:'https://facilitator.example'};
+ const {workers}=boot(t,{env:{...secrets,COVENANT_GATEWAY_BASE_PAY_TO:'0x5fA1d0C0bfFE257a20027C523093F941834f5D66'}});
+ const [verifier,gateway]=workers;
+ for(const [key,value] of Object.entries(secrets)){assert.equal(verifier.env[key],value);assert.equal(Object.hasOwn(gateway.env,key),false);}
+ assert.equal(gateway.env.COVENANT_GATEWAY_BASE_PAY_TO,'0x5fA1d0C0bfFE257a20027C523093F941834f5D66');
+});

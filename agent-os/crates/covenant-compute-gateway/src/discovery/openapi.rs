@@ -92,6 +92,7 @@ pub(super) fn document(
     resource_url: &str,
     observed: u64,
     offers: &[DiscoveryOffer],
+    with_base: bool,
 ) -> Result<Value> {
     let resource = reqwest::Url::parse(resource_url)
         .map_err(|_| GatewayError::Invalid("invalid discovery resource URL".into()))?;
@@ -107,11 +108,16 @@ pub(super) fn document(
             "invalid discovery resource URL".into(),
         ));
     }
+    let paid_with = if with_base {
+        "exact USDC on Solana or Base"
+    } else {
+        "exact Solana USDC"
+    };
     let mut document = json!({
         "openapi":"3.1.0",
         "info":{
             "title":"Covenant Compute", "version":"1.0.0",
-            "description":"Text inference paid with exact Solana USDC through x402 v2. Use the Covenant x402 client SDK for purchases. Discovery is read-only and reports current availability; it does not reserve capacity or execute inference."
+            "description":format!("Text inference paid with {paid_with} through x402 v2. Use the Covenant x402 client SDK for purchases. Discovery is read-only and reports current availability; it does not reserve capacity or execute inference.")
         },
         "externalDocs":{"description":"Covenant x402 purchase client","url":"https://github.com/open-covenant/covenant/tree/deploy/compute-coordinator/sdk/compute-x402-client"},
         "servers":[{"url":resource.origin().ascii_serialization()}],
@@ -165,8 +171,13 @@ pub(super) fn document(
 
 impl Gateway {
     pub async fn discovery_openapi(&self) -> Result<Value> {
-        let (observed, offers) = self.live_discovery_offers().await?;
-        document(self.rail.resource_url(), observed, &offers)
+        let live = self.live_discovery_offers(true).await?;
+        document(
+            self.rail.resource_url(),
+            live.observed,
+            &live.offers,
+            !live.alternates.is_empty(),
+        )
     }
 }
 
@@ -319,7 +330,7 @@ mod tests {
                 offer.max_input_bytes = limit;
             }
             assert!(matches!(
-                document(RESOURCE, 123, &offers),
+                document(RESOURCE, 123, &offers, false),
                 Err(GatewayError::Unavailable(_))
             ));
         }
@@ -327,7 +338,7 @@ mod tests {
 
     #[test]
     fn openapi_uses_canonical_origin_and_real_payment_protocol() {
-        let document = document(RESOURCE, 123, &offers()).unwrap();
+        let document = document(RESOURCE, 123, &offers(), false).unwrap();
         assert_eq!(document["openapi"], "3.1.0");
         assert_eq!(document["info"]["title"], "Covenant Compute");
         assert_eq!(document["info"]["version"], "1.0.0");
@@ -348,13 +359,13 @@ mod tests {
             "https://compute.example/other",
             "https://compute.example/v1/chat/completions?key=secret",
         ] {
-            assert!(super::document(resource, 123, &offers()).is_err());
+            assert!(super::document(resource, 123, &offers(), false).is_err());
         }
     }
 
     #[test]
     fn no_capacity_has_no_paid_paths_or_sample() {
-        let document = document(RESOURCE, 123, &[]).unwrap();
+        let document = document(RESOURCE, 123, &[], false).unwrap();
         assert_eq!(document["paths"], json!({}));
         assert_eq!(document["x-covenant-available"], false);
         assert_eq!(document["x-covenant-observed-at-ms"], 123);

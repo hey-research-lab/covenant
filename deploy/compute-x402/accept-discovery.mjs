@@ -6,6 +6,9 @@ import {pathToFileURL} from 'node:url';
 
 export const NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 export const ASSET = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+// Optional USDC on Base, when the policy names a Base merchant (`basePayTo`).
+export const BASE_NETWORK = 'eip155:8453';
+export const BASE_ASSET = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const MAX_BYTES = 262144;
 const CLOCK_SKEW_MS = 5000;
 // Native freshness (120s) less the 45s delivery margin caps a new quote at 75s.
@@ -99,8 +102,10 @@ export function tariffPrice(tariff, cap) {
   return Number(amount);
 }
 export function validateExpected(expected, now = Date.now()) {
-  keys(expected, ['payTo', 'feePayer', 'model', 'legacyAmount', 'maxInputBytes', 'maxOutputTokens', 'tariff'], 'expected policy');
+  const base = plain(expected) && Object.hasOwn(expected, 'basePayTo') ? ['basePayTo'] : [];
+  keys(expected, ['payTo', 'feePayer', 'model', 'legacyAmount', 'maxInputBytes', 'maxOutputTokens', 'tariff', ...base], 'expected policy');
   requireThat(address(expected.payTo) && address(expected.feePayer), 'expected payment addresses');
+  if (base.length) requireThat(typeof expected.basePayTo === 'string' && /^0x[0-9a-fA-F]{40}$/.test(expected.basePayTo), 'expected Base merchant');
   requireThat(typeof expected.model === 'string' && /^[a-zA-Z0-9._:/-]{1,128}$/.test(expected.model), 'expected model');
   requireThat(integer(expected.legacyAmount, 1) && expected.maxInputBytes === 4096
     && expected.maxOutputTokens === 2048, 'expected release limits');
@@ -141,10 +146,12 @@ export function expectedRecords(expected, origin) {
     pricing: tariff, legacy_pricing: legacy}];
   const payment = {scheme: 'exact', network: NETWORK, asset: ASSET, assetDecimals: 6,
     payTo: expected.payTo, feePayer: expected.feePayer};
+  const payments = expected.basePayTo ? {payments: [payment, {scheme: 'exact', network: BASE_NETWORK, asset: BASE_ASSET,
+    assetDecimals: 6, payTo: expected.basePayTo, name: 'USD Coin', version: '2'}]} : {};
   const endpoints = [{path: '/v1/models', method: 'GET', price: 'free'}, ...[legacy, tariff].map((price, i) => ({
     path: '/v1/chat/completions', url: `${origin}/v1/chat/completions`, method: 'POST',
     description: 'Request a fresh HTTP 402 quote, then submit the identical body with Payment-Signature. Prices are fixed upfront; availability is an observation, not a reservation.',
-    payment, price, inputSchema: inputSchema(expected, i === 1), max_input_bytes: expected.maxInputBytes,
+    payment, ...payments, price, inputSchema: inputSchema(expected, i === 1), max_input_bytes: expected.maxInputBytes,
     paymentRequiredHeader: 'Payment-Required', paymentSignatureHeader: 'Payment-Signature', idempotencyHeader: 'Idempotency-Key',
   }))];
   return {models, endpoints};
@@ -159,7 +166,8 @@ export function validateSnapshot({health, manifest, catalog}, {expected, origin,
     && manifest.observedAtMs <= ended + CLOCK_SKEW_MS, 'manifest observation is not fresh');
   const records = expectedRecords(expected, origin);
   equal(manifest, {schemaVersion: 1, x402Version: 2, name: 'Covenant Compute',
-    description: 'Available text inference and its current exact Solana USDC payment terms.',
+    description: expected.basePayTo ? 'Available text inference and its current exact USDC payment terms on Solana and Base.'
+      : 'Available text inference and its current exact Solana USDC payment terms.',
     observedAtMs: manifest.observedAtMs, available: true, ...records}, 'manifest');
   equal(catalog, {object: 'list', data: records.models}, 'model catalog');
 }
@@ -199,7 +207,10 @@ export function validateQuote(body, header, {request, id, expected, origin, ende
     description: 'Covenant inference with a verified operator receipt', mimeType: 'application/json'},
   accepts: [{scheme: 'exact', network: NETWORK, asset: ASSET, amount: String(amount), payTo: expected.payTo,
     maxTimeoutSeconds: 90, extra: {feePayer: expected.feePayer, memo: shortMemo(id, hash),
-      quoteId: id, requestSha256: hash, expiresAtMs: expires}}]}, 'payment quote');
+      quoteId: id, requestSha256: hash, expiresAtMs: expires}},
+  ...(expected.basePayTo ? [{scheme: 'exact', network: BASE_NETWORK, asset: BASE_ASSET, amount: String(amount),
+    payTo: expected.basePayTo, maxTimeoutSeconds: 300, extra: {name: 'USD Coin', version: '2',
+      quoteId: id, requestSha256: hash, expiresAtMs: expires}}] : [])]}, 'payment quote');
   return {pricing: request.pricing ?? 'legacy', max_tokens: request.max_tokens, quote_id: id,
     request_sha256: hash, amount_micro_usdc: amount, expires_at_ms: expires};
 }

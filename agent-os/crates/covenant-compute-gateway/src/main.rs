@@ -1,7 +1,7 @@
 //! Explicitly configured, standalone inbound gateway. Running this executable
 //! without all reserve/budget/rail settings fails closed; no default network.
 use covenant_compute_buyer::{durable_budget::DurableBudget, BuyerConfig};
-use covenant_compute_gateway::{bridge::SvmBridge, buyer::BuyerExecutor, Gateway};
+use covenant_compute_gateway::{bridge::Bridge, buyer::BuyerExecutor, Gateway};
 use covenant_identity::LocalIdentity;
 use std::{
     io::Write,
@@ -81,15 +81,32 @@ async fn main() -> anyhow::Result<()> {
         "approved operators must be one to 32 comma-separated public keys"
     );
     let operator_namespace = approved_operators.join(",");
-    let rail = Arc::new(SvmBridge::new(
-        required("COVENANT_GATEWAY_BRIDGE_URL")?,
-        required("COVENANT_GATEWAY_BRIDGE_SECRET")?,
+    let bridge_url = required("COVENANT_GATEWAY_BRIDGE_URL")?;
+    let bridge_secret = required("COVENANT_GATEWAY_BRIDGE_SECRET")?;
+    let resource_url = required("COVENANT_GATEWAY_RESOURCE_URL")?;
+    let rail = Arc::new(Bridge::solana(
+        bridge_url.clone(),
+        bridge_secret.clone(),
         required("COVENANT_GATEWAY_NETWORK")?,
         required("COVENANT_GATEWAY_ASSET")?,
         required("COVENANT_GATEWAY_PAY_TO")?,
         required("COVENANT_GATEWAY_FEE_PAYER")?,
-        required("COVENANT_GATEWAY_RESOURCE_URL")?,
+        resource_url.clone(),
     )?);
+    // USDC on Base is offered beside Solana once a Base merchant is set. The
+    // verifier must be configured for the same network and merchant.
+    let base = match std::env::var("COVENANT_GATEWAY_BASE_PAY_TO") {
+        Ok(pay_to) if !pay_to.is_empty() => Some(Arc::new(Bridge::base(
+            bridge_url,
+            bridge_secret,
+            required("COVENANT_GATEWAY_BASE_NETWORK")?,
+            required("COVENANT_GATEWAY_BASE_ASSET")?,
+            pay_to,
+            resource_url,
+        )?)),
+        Ok(_) | Err(std::env::VarError::NotPresent) => None,
+        Err(_) => anyhow::bail!("COVENANT_GATEWAY_BASE_PAY_TO must be valid Unicode"),
+    };
     let model = required("COVENANT_GATEWAY_MODEL")?;
     let max_tokens: u32 = required("COVENANT_GATEWAY_MAX_TOKENS")?.parse()?;
     let tariff_configuration = std::env::var("COVENANT_GATEWAY_TARIFFS_FILE")
@@ -135,22 +152,27 @@ async fn main() -> anyhow::Result<()> {
         executor.model,
         executor.max_tokens
     );
-    let gateway = Arc::new(
-        Gateway::open_with_reserve_increase(
-            &directory,
-            &namespace,
-            reserve,
-            price,
-            rail,
-            executor,
-            std::env::var("COVENANT_GATEWAY_ALLOW_RESERVE_INCREASE").as_deref() == Ok("true"),
-        )?
-        .with_admissions_enabled(
-            tariff_configuration_ok
-                && std::env::var("COVENANT_GATEWAY_ADMISSIONS_ENABLED").as_deref() != Ok("false"),
-        )
-        .with_settlement_wait(covenant_compute_gateway::SETTLEMENT_WAIT),
-    );
+    let mut gateway = Gateway::open_with_reserve_increase(
+        &directory,
+        &namespace,
+        reserve,
+        price,
+        rail,
+        executor,
+        std::env::var("COVENANT_GATEWAY_ALLOW_RESERVE_INCREASE").as_deref() == Ok("true"),
+    )?
+    .with_admissions_enabled(
+        tariff_configuration_ok
+            && std::env::var("COVENANT_GATEWAY_ADMISSIONS_ENABLED").as_deref() != Ok("false"),
+    )
+    .with_settlement_wait(covenant_compute_gateway::SETTLEMENT_WAIT);
+    if let Some(base) = base {
+        gateway = gateway.with_alternate_rail(base)?;
+    }
+    gateway
+        .check_open_payments(covenant_compute_gateway::now_ms())
+        .await?;
+    let gateway = Arc::new(gateway);
     let _retention = covenant_compute_gateway::spawn_retention(gateway.clone());
     let address =
         std::env::var("COVENANT_GATEWAY_LISTEN").unwrap_or_else(|_| "127.0.0.1:4042".into());

@@ -18,9 +18,10 @@ assert.equal(fs.statSync('/data').mode&0o777,0o700);
 assert.equal(fs.statSync(root).mode&0o777,0o700);
 assert.equal(fs.statSync(`${root}/gateway.json`).mode&0o777,0o600);
 const journal=JSON.parse(fs.readFileSync(`${root}/gateway.json`,'utf8'));
-// The same smoke harness may qualify a pinned legacy image (v2) or the tariff
-// image (v3). Its exact revision and unchanged journal are checked separately.
-assert.ok([2,3,4].includes(journal.version));assert.deepEqual(journal.entries,{});
+// The same smoke harness may qualify a pinned older image or the current one,
+// so a fresh journal of any version from 2 to 5 passes. Its exact revision and
+// unchanged journal are checked separately.
+assert.ok([2,3,4,5].includes(journal.version));assert.deepEqual(journal.entries,{});
 assert.equal(journal.reserve_micro_usdc,Number(process.env.COVENANT_GATEWAY_RESERVE_MICRO_USDC));
 // Only the recovery clock is expected to advance between starts.
 snapshot.journal=hash(JSON.stringify({version:journal.version,namespace:journal.namespace,reserve:journal.reserve_micro_usdc,entries:journal.entries}));

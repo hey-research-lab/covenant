@@ -1,9 +1,11 @@
-# Batch inference candidate
+# Batch inference
 
 Prism package 12 introduces independent prompts under one paid call. This
-Covenant candidate adds `POST /v1/inference/batches` to the existing x402 Solana
+Covenant implementation adds `POST /v1/inference/batches` to the existing x402 Solana
 USDC gateway and adds `purchaseBatch` / `purchase_batch` to its JavaScript and
-Python clients. It is disabled by default and has no production acceptance yet.
+Python clients. Source `8ed36c4fe075bb097e90bfe8a009ca638083f0f3` passed one
+installed-client two-child production acceptance on 2026-10-21, and fresh
+admissions are enabled. Public batch SDK publication and discovery are separate. See the [release evidence](compute-inference-batches-release-evidence.md).
 
 ## Request and price
 
@@ -113,10 +115,14 @@ binary, retaining the verifier and volume so admitted work can reconcile. Inspec
 the live journal size and pending work before deployment. Do not restore a stale
 financial snapshot or downgrade its version number.
 
-Production qualification still requires an immutable Linux image and persistent
-volume restart smoke, an installed-client two-child paid test, finalized retail
-and native settlement, original-authorization recovery, zero-call completed replay
-and before/after accounting. Preserve the original identities and unknown outcomes
-if any step fails. No automatic retry of a new purchase is permitted. Deployment
-normally runs a paid provider startup probe, which is part of the rollout scope.
-Earlier feature-test allowances do not authorize this release's paid test.
+The deployed immutable Linux image passed isolated persistent-volume restart
+smoke. Its installed-client two-child test verified finalized retail and native
+settlement, full before/after accounting and zero-call completed replay. A private
+harness logging error after HTTP 200 required local recovery from the saved
+original response and finalized transaction through the normal SDK journal path;
+no second payment request or signature was used. The optional live restart and
+direct server replay were not run. Fresh admissions were restored after review
+without a restart, additional payment or financial change. Preserve original
+identities and unknown outcomes if a step
+fails; no automatic retry of a new purchase is permitted. Deployment normally
+runs a paid provider startup probe, which requires its own approved scope.

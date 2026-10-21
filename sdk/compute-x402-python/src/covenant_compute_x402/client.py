@@ -16,7 +16,7 @@ from x402.mechanisms.svm.utils import derive_ata
 
 from .journal import Journal, now_ms
 from .payment import (NETWORK, SOLANA_GENESIS, USDC, TOKEN_PROGRAM, create_payment,
-                      decode64, validate_transaction, wallet_address)
+                      decode64, short_memo, solana_quote, validate_transaction, wallet_address)
 from .proof import (CovenantError, compact, require, safe_integer, sha256, stable,
                     strict_json, verify_compute_result)
 
@@ -110,8 +110,7 @@ class CovenantX402Client:
 
     def validate_quote(self, required: dict, digest: str, expired_allowed=False) -> tuple[dict, int]:
         require(isinstance(required, dict) and required.get("x402Version") == 2 and required.get("resource", {}).get("url") == self.endpoint, "untrusted_payment_resource")
-        require(isinstance(required.get("accepts"), list) and len(required["accepts"]) == 1, "ambiguous_payment_requirements")
-        quote = required["accepts"][0]
+        quote = solana_quote(required)
         require(quote.get("scheme") == "exact" and quote.get("network") == NETWORK and quote.get("asset") == USDC and quote.get("payTo") == self.pay_to, "untrusted_payment_rail")
         require(isinstance(quote.get("amount"), str) and re.fullmatch(r"[1-9][0-9]*", quote["amount"]) and len(quote["amount"]) <= 16, "invalid_payment_amount")
         price = int(quote["amount"])
@@ -119,7 +118,7 @@ class CovenantX402Client:
         extra = quote.get("extra")
         require(isinstance(extra, dict) and isinstance(extra.get("quoteId"), str) and UUID_PATTERN.fullmatch(extra["quoteId"]) and extra.get("requestSha256") == digest, "quote_request_mismatch")
         require(safe_integer(extra.get("expiresAtMs")) and (expired_allowed or extra["expiresAtMs"] > now_ms() + 5000), "quote_expired")
-        require(extra.get("memo") == f"covenant.x402.v2:{extra['quoteId']}:{digest}", "quote_memo_mismatch")
+        require(extra.get("memo") in (short_memo(extra["quoteId"], digest), f"covenant.x402.v2:{extra['quoteId']}:{digest}"), "quote_memo_mismatch")
         Pubkey.from_string(extra["feePayer"])
         require(extra["feePayer"] != self.payer, "buyer_must_not_pay_solana_fees")
         return quote, price
@@ -130,7 +129,7 @@ class CovenantX402Client:
         data = decode64(mint["data"][0])
         require(len(data) == 82 and data[44] == 6 and data[45] == 1, "untrusted_usdc_mint")
         balance = (await self.rpc("getTokenAccountBalance", [derive_ata(self.payer, USDC, TOKEN_PROGRAM), {"commitment": "confirmed"}])).get("value", {})
-        require(balance.get("decimals") == 6 and isinstance(balance.get("amount"), str) and balance["amount"].isdigit() and int(balance["amount"]) >= int(required["accepts"][0]["amount"]), "insufficient_usdc")
+        require(balance.get("decimals") == 6 and isinstance(balance.get("amount"), str) and balance["amount"].isdigit() and int(balance["amount"]) >= int(solana_quote(required)["amount"]), "insufficient_usdc")
         blockhash = (await self.rpc("getLatestBlockhash", [{"commitment": "confirmed"}]))["value"]["blockhash"]
         payload = await create_payment(required, self.wallet, self.payer, data, blockhash)
         # Rust compares accepted terms as serde_json::Value: an integer expiry

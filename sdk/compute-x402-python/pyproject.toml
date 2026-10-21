@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "covenant-compute-x402"
-version = "0.2.0"
+version = "0.3.0"
 description = "Bounded, verified Solana USDC inference purchases for Python agents"
 readme = "README.md"
 requires-python = ">=3.11"

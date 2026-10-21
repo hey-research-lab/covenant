@@ -59,12 +59,16 @@ async def test_python_resumes_real_node_journal_without_resigning(pending, legac
       import{{ExactSvmScheme}}from '@x402/svm/exact/client';
       import{{getTransactionEncoder}}from '@solana/kit';
       import{{VersionedTransaction}}from '@solana/web3.js';
-      const f=await fixture({{pendingFirst:{str(pending).lower()},expectedUnits:{20000 if legacy else 60000}}});const c=new CovenantX402Client(f.config),r=input();
+      const f=await fixture({{pendingFirst:{str(pending).lower()},expectedUnits:{60000 if legacy else 20000},legacyMemo:{str(legacy).lower()}}});const c=new CovenantX402Client(f.config),r=input();
       if({str(tariff).lower()})r.pricing='model_tariff_v1';
       if({str(legacy).lower()}){{
-        const signer={{address:f.walletProvider.getAddress(),signTransactions:async txs=>Promise.all(txs.map(async tx=>{{
-          const signed=await f.walletProvider.signTransaction(VersionedTransaction.deserialize(getTransactionEncoder().encode(tx)));
-          return {{[f.walletProvider.getAddress()]:signed.signatures[1]}};
+        // A v2 quote paid at 60k CU by a client from before v3 memos.
+        const payer=f.walletProvider.getAddress();
+        const signer={{address:payer,modifyAndSignTransactions:async txs=>Promise.all(txs.map(async tx=>{{
+          const unsigned=VersionedTransaction.deserialize(getTransactionEncoder().encode(tx));
+          const limit=Buffer.from(unsigned.message.compiledInstructions[0].data);limit.writeUInt32LE(60000,1);unsigned.message.compiledInstructions[0].data=limit;
+          const message=Buffer.from(unsigned.message.serialize());const signed=await f.walletProvider.signTransaction(unsigned);
+          return {{...tx,messageBytes:Uint8Array.from(message),signatures:{{...tx.signatures,[payer]:Uint8Array.from(signed.signatures[1])}}}};
         }}))}};
         c.http=new x402HTTPClient(new x402Client().register('solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',new ExactSvmScheme(signer,{{rpcUrl:f.config.rpcUrl}})));
       }}
@@ -126,13 +130,15 @@ async def test_node_reads_python_completed_journal_without_network(tmp_path, tar
     assert json.loads(node(code, json.dumps(config), json.dumps(js_request))) == result
 
 
-async def test_python_tariff_and_legacy_authorizations_accepted_by_one_real_facilitator(tmp_path):
+@pytest.mark.parametrize("legacy_memo", [False, True])
+async def test_python_tariff_and_legacy_authorizations_accepted_by_one_real_facilitator(tmp_path, legacy_memo):
     from fixture import Fixture, request
     from covenant_compute_x402.payment import decode64
     bridge = JS.parents[1] / "services/compute-x402-facilitator/bridge.mjs"
     if not bridge.exists():
         pytest.skip("facilitator source required")
-    f = Fixture(tmp_path, price=lambda body: 12000 + 9 * body["max_tokens"] if body.get("pricing") else 50000)
+    f = Fixture(tmp_path, price=lambda body: 12000 + 9 * body["max_tokens"] if body.get("pricing") else 50000,
+                legacy_memo=legacy_memo)
     requests = [dict(request(), model="claude-haiku-4.5", max_tokens=256, pricing="model_tariff_v1"),
                 dict(request(), model="claude-haiku-4.5", max_tokens=2048, pricing="model_tariff_v1"),
                 dict(request(), model="claude-haiku-4.5", max_tokens=256)]

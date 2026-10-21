@@ -1,16 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateKeyPairSigner, getBase58Decoder, pipe, createTransactionMessage, setTransactionMessageFeePayer, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, partiallySignTransactionMessageWithSigners, getBase64EncodedWireTransaction } from '@solana/kit';
+import { getTransactionDecoder, getCompiledTransactionMessageDecoder, generateKeyPairSigner, getBase58Decoder, pipe, createTransactionMessage, setTransactionMessageFeePayer, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, partiallySignTransactionMessageWithSigners, getBase64EncodedWireTransaction } from '@solana/kit';
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS, getTransferCheckedInstruction } from '@solana-program/token';
 import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from '@solana-program/compute-budget';
 import { toFacilitatorSvmSigner } from '@x402/svm';
-import { createBridge, RAILS, Rejected } from './bridge.mjs';
+import { x402Client } from '@x402/core/client';
+import { ExactSvmScheme as OfficialClientScheme } from '@x402/svm/exact/client';
+import { createBridge, RAILS, Rejected, shortMemo } from './bridge.mjs';
 import { createPricingPolicy, readTariffConfig } from './pricing.mjs';
 import { mkdtemp, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
-import { generateKeyPairSync } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -22,7 +24,7 @@ async function setup(options = {}) {
   const config = { network, asset: RAILS[network].asset, payTo: merchant.address, feePayer: facilitator.address, resourceUrl: 'https://example.com/v1/chat/completions', priceAtomic: '1200', secret: 'test-secret-with-at-least-32-characters', ...options.config };
   const quoteId = '00000000-0000-4000-8000-000000000001';
   const requestSha256 = 'a'.repeat(64);
-  const terms = { scheme: 'exact', network, asset: config.asset, payTo: config.payTo, amount: options.amount ?? '1200', maxTimeoutSeconds: 90, extra: { feePayer: config.feePayer, memo: `covenant.x402.v2:${quoteId}:${requestSha256}`, quoteId, requestSha256, expiresAtMs: 90_000 } };
+  const terms = { scheme: 'exact', network, asset: config.asset, payTo: config.payTo, amount: options.amount ?? '1200', maxTimeoutSeconds: 90, extra: { feePayer: config.feePayer, memo: options.legacyMemo ? `covenant.x402.v2:${quoteId}:${requestSha256}` : shortMemo(quoteId, requestSha256), quoteId, requestSha256, expiresAtMs: 90_000 } };
   const source = (await findAssociatedTokenPda({ mint: config.asset, owner: payer.address, tokenProgram: TOKEN_PROGRAM_ADDRESS }))[0];
   const destination = (await findAssociatedTokenPda({ mint: config.asset, owner: merchant.address, tokenProgram: TOKEN_PROGRAM_ADDRESS }))[0];
   async function payload(overrides = {}) {
@@ -30,7 +32,7 @@ async function setup(options = {}) {
       m => setTransactionMessageFeePayer(facilitator.address, m),
       m => setTransactionMessageLifetimeUsingBlockhash({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 1000n }, m),
       m => appendTransactionMessageInstructions([
-        getSetComputeUnitLimitInstruction({ units: overrides.units ?? 60_000 }),
+        getSetComputeUnitLimitInstruction({ units: overrides.units ?? 20_000 }),
         getSetComputeUnitPriceInstruction({ microLamports: overrides.priority ?? 1n }),
         getTransferCheckedInstruction({ source, mint: config.asset, destination, authority: payer, amount: overrides.amount ?? BigInt(terms.amount), decimals: 6 }),
         { programAddress: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr', accounts: [], data: new TextEncoder().encode(overrides.memo ?? terms.extra.memo) },
@@ -54,7 +56,7 @@ async function setup(options = {}) {
   const reopen = (changes = {}, clock = 1000) => createBridge({ signer, config: { ...config, ...changes }, rpc, now: () => clock });
   const bridge = reopen();
   const verify = async (overrides = {}) => bridge.verify({ paymentPayload: await payload(overrides), paymentRequirements: terms, resourceUrl: config.resourceUrl });
-  return { bridge, verify, terms, state, payload, config, reopen, simulations: () => simulations, signatures: () => signatures };
+  return { bridge, verify, terms, state, payload, config, reopen, payer, simulations: () => simulations, signatures: () => signatures };
 }
 
 function tariffs() {
@@ -164,6 +166,60 @@ test('official verifier checks signed memo, amount and fee sponsorship before si
   assert.equal(f.state.sends.length, 0, 'verify must never broadcast');
 });
 
+test('short memo matches the published vector', () => {
+  assert.equal(shortMemo('00000000-0000-4000-8000-000000000001', 'a'.repeat(64)), '8bfb7fde3cb99c6b0f16b7a18d83a0e1');
+});
+
+test('verifier accepts a v3 payment built by the stock x402 client at 20,000 CU', async () => {
+  const f = await setup();
+  assert.equal(f.terms.extra.memo.length, 32);
+  // The stock client reads the mint and a blockhash; nothing else leaves the test.
+  const mint = Buffer.alloc(82); mint[44] = 6; mint[45] = 1;
+  const server = createServer((req, res) => {
+    let body = ''; req.on('data', c => { body += c; }); req.on('end', () => {
+      const { id, method } = JSON.parse(body);
+      const result = method === 'getAccountInfo'
+        ? { context: { slot: 1 }, value: { owner: TOKEN_PROGRAM_ADDRESS, data: [mint.toString('base64'), 'base64'], executable: false, lamports: 1, rentEpoch: 0, space: 82 } }
+        : method === 'getLatestBlockhash' ? { context: { slot: 1 }, value: { blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 1000 } } : null;
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id, result }));
+    });
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const client = new x402Client().register(f.terms.network, new OfficialClientScheme(f.payer, { rpcUrl: `http://127.0.0.1:${server.address().port}` }));
+    const paymentPayload = await client.createPaymentPayload({ x402Version: 2, resource: { url: f.config.resourceUrl }, accepts: [f.terms] });
+    const message = getCompiledTransactionMessageDecoder().decode(getTransactionDecoder().decode(Buffer.from(paymentPayload.payload.transaction, 'base64')).messageBytes);
+    const program = instruction => message.staticAccounts[instruction.programAddressIndex];
+    const limit = message.instructions.find(i => program(i) === 'ComputeBudget111111111111111111111111111111' && i.data[0] === 2);
+    assert.equal(Buffer.from(limit.data).readUInt32LE(1), 20_000);
+    const memo = message.instructions.find(i => program(i) === 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+    assert.equal(Buffer.from(memo.data).toString(), f.terms.extra.memo);
+    const payment = await f.bridge.verify({ paymentPayload, paymentRequirements: f.terms, resourceUrl: f.config.resourceUrl });
+    assert.ok(payment.transaction_id);
+    assert.equal(f.signatures(), 1);
+  } finally { server.close(); }
+});
+
+test('verifier refuses a memo that does not match the quote and request', async () => {
+  const f = await setup();
+  const { quoteId, requestSha256 } = f.terms.extra;
+  for (const memo of [shortMemo(quoteId, 'b'.repeat(64)), `covenant.x402.v2:00000000-0000-4000-8000-000000000009:${requestSha256}`,
+    f.terms.extra.memo.toUpperCase(), createHash('sha256').update(`covenant.x402.v3:${quoteId}:${requestSha256}`).digest('hex')]) {
+    const terms = structuredClone(f.terms); terms.extra.memo = memo;
+    const paymentPayload = await f.payload({ memo }); paymentPayload.accepted = terms;
+    await assert.rejects(f.bridge.verify({ paymentPayload, paymentRequirements: terms, resourceUrl: f.config.resourceUrl }), /invalid quote binding/);
+  }
+  assert.equal(f.simulations(), 0);
+  assert.equal(f.signatures(), 0);
+});
+
+test('a quote issued before v3 still verifies with its v2 memo and 60,000 units', async () => {
+  const f = await setup({ legacyMemo: true });
+  const payment = await f.verify({ units: 60_000 });
+  assert.ok(payment.transaction_id);
+  await assert.rejects(f.verify({ memo: shortMemo(f.terms.extra.quoteId, f.terms.extra.requestSha256) }), /memo/);
+});
+
 test('restart and lost send reconcile the exact persisted authorization', async () => {
   const f = await setup();
   const payment = await f.verify();
@@ -200,7 +256,7 @@ test('a copied authorization cannot change quote or request digest', async () =>
   const payload = await f.payload();
   const changed = structuredClone(f.terms);
   changed.extra.requestSha256 = 'b'.repeat(64);
-  changed.extra.memo = `covenant.x402.v2:${changed.extra.quoteId}:${changed.extra.requestSha256}`;
+  changed.extra.memo = shortMemo(changed.extra.quoteId, changed.extra.requestSha256);
   payload.accepted = changed;
   await assert.rejects(f.bridge.verify({ paymentPayload: payload, paymentRequirements: changed, resourceUrl: f.config.resourceUrl }), Rejected);
   assert.equal(f.state.sends.length, 0);

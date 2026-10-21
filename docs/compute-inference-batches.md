@@ -100,8 +100,11 @@ verifier. Leave it false until release qualification is complete. The free model
 catalog, discovery manifest and OpenAPI continue to advertise only the accepted
 single-chat product; batch discovery/indexing is a separate rollout step.
 
-This binary migrates gateway journals v2/v3/v4 to v5 without replacing identities,
-prices, balances, budgets, latches or original payment records. It preserves each
+This binary migrates gateway journals v2/v3/v4/v5 to v6 without replacing identities,
+prices, balances, budgets, latches, Base payment options or original payment records.
+Base remains available on single requests; this batch release offers Solana only.
+The independent pre-release batch v5 and production Base v5 fields both migrate
+without reinterpretation. It preserves each
 saved quote's memo binding: legacy v2 memos remain long, and v3 memos retain the
 32-character request binding accepted by standard x402 wallets. Fresh batch
 quotes use that same short binding over the ordered batch request. An older binary

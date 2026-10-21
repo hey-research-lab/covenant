@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
-import {acceptDiscovery, ASSET, NETWORK, baseUrl, expectedRecords, inputSchema, parseArgs,
+import {acceptDiscovery, ASSET, BASE_ASSET, BASE_NETWORK, NETWORK, baseUrl, expectedRecords, inputSchema, parseArgs,
   sha256, shortMemo, stable, strictJson, tariffPrice, validateExpected, validateQuote, validateSnapshot} from './accept-discovery.mjs';
 
 const now = 1800000000000;
@@ -228,4 +228,37 @@ test('fetch policy is closed and rejects payment results even on otherwise valid
 
 test('short memo matches the published vector', () => {
   assert.equal(shortMemo('00000000-0000-4000-8000-000000000001', 'a'.repeat(64)), '8bfb7fde3cb99c6b0f16b7a18d83a0e1');
+});
+
+test('a Base merchant in the policy requires Base in the manifest and in every quote', () => {
+  const base = {...policy(), basePayTo: '0x5fA1d0C0bfFE257a20027C523093F941834f5D66'};
+  validateExpected(base, now);
+  assert.throws(() => validateExpected({...base, basePayTo: 'not-an-address'}, now));
+  const records = expectedRecords(base, origin);
+  assert.equal(records.endpoints[1].payments[1].network, BASE_NETWORK);
+  const manifest = {schemaVersion: 1, x402Version: 2, name: 'Covenant Compute',
+    description: 'Available text inference and its current exact USDC payment terms on Solana and Base.',
+    observedAtMs: now, available: true, ...records};
+  const health = snapshot().health;
+  validateSnapshot({health, manifest, catalog: {object: 'list', data: records.models}}, {...context, expected: base});
+  assert.throws(() => validateSnapshot(snapshot(), {...context, expected: base}), /manifest/);
+  assert.throws(() => validateSnapshot({health, manifest, catalog: {object: 'list', data: records.models}}, context), /manifest/,
+    'Base advertised without an approved merchant');
+  const id = '11111111-1111-4111-8111-111111111111';
+  const request = {model: base.model, messages: [{role: 'user', content: 'fixture'}], max_tokens: 256};
+  const body = quote(request, id);
+  body.accepts.push({scheme: 'exact', network: BASE_NETWORK, asset: BASE_ASSET, amount: '50000', payTo: base.basePayTo,
+    maxTimeoutSeconds: 300, extra: {name: 'USD Coin', version: '2', quoteId: id, requestSha256: sha256(request),
+      expiresAtMs: body.accepts[0].extra.expiresAtMs}});
+  const ctx = {request, id, expected: base, origin, ended: now};
+  assert.equal(validateQuote(body, encoded(body), ctx).amount_micro_usdc, 50000);
+  const solanaOnly = quote(request, id);
+  assert.throws(() => validateQuote(solanaOnly, encoded(solanaOnly), ctx), /payment quote/);
+  assert.throws(() => validateQuote(body, encoded(body), {...ctx, expected: policy()}), /payment quote/,
+    'Base quoted without an approved merchant');
+  const reordered = structuredClone(body); reordered.accepts.reverse();
+  for (const changed of [reordered, ...[o => { o.payTo = '0x0000000000000000000000000000000000000001'; }, o => { o.amount = '50001'; },
+    o => { o.extra.name = 'USDC'; }].map(change => { const copy = structuredClone(body); change(copy.accepts[1]); return copy; })]) {
+    assert.throws(() => validateQuote(changed, encoded(changed), ctx), /payment quote/);
+  }
 });

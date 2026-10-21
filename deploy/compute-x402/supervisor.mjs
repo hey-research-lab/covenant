@@ -51,7 +51,12 @@ try{
     COVENANT_COMPUTE_OPENAI_API_KEY:process.env.COVENANT_INFERENCE_PROVIDER_BEARER_TOKEN};
   delete env.COVENANT_GATEWAY_IDENTITY_B64;delete env.COVENANT_COMPUTE_NODE_IDENTITY_B64;delete env.COVENANT_GATEWAY_FEE_PAYER_KEY_B64;
   delete env.COVENANT_GATEWAY_TARIFFS_JSON;
-  group.start('payment verifier',process.execPath,['services/compute-x402-facilitator/server.mjs'],env);
+  // Base facilitator credentials and the Base RPC URL, which may carry a
+  // provider key, are for the verifier only.
+  const verifierOnly=['CDP_API_KEY_ID','CDP_API_KEY_SECRET','COVENANT_GATEWAY_BASE_RPC','COVENANT_GATEWAY_BASE_FACILITATOR_URL'];
+  const verifierEnv=Object.fromEntries(verifierOnly.filter(key=>env[key]!==undefined).map(key=>[key,env[key]]));
+  for(const key of verifierOnly)delete env[key];
+  group.start('payment verifier',process.execPath,['services/compute-x402-facilitator/server.mjs'],{...env,...verifierEnv});
   await waitFor('http://127.0.0.1:4043/health',{headers:{authorization:`Bearer ${env.COVENANT_GATEWAY_BRIDGE_SECRET}`},group});
   // Public port starts in recovery-only mode while the starting latch exists.
   group.start('inference gateway','covenant-compute-gateway',[],env);

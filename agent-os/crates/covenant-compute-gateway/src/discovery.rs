@@ -162,8 +162,16 @@ fn model_records(offers: &[DiscoveryOffer]) -> Vec<Value> {
     models.into_values().collect()
 }
 
+/// Current offers and, if the caller asked for them, the alternate rails whose
+/// verifiers confirmed the same prices.
+pub(crate) struct LiveOffers {
+    observed: u64,
+    offers: Vec<DiscoveryOffer>,
+    alternates: Vec<Arc<dyn crate::PaymentRail>>,
+}
+
 impl Gateway {
-    async fn live_discovery_offers(&self) -> Result<(u64, Vec<DiscoveryOffer>)> {
+    async fn live_discovery_offers(&self, check_alternates: bool) -> Result<LiveOffers> {
         let _permit = self
             .discovery_reads
             .try_acquire()
@@ -171,7 +179,11 @@ impl Gateway {
         let observed = crate::now_ms();
         let started = Instant::now();
         if !self.admissions_open() {
-            return Ok((observed, Vec::new()));
+            return Ok(LiveOffers {
+                observed,
+                offers: Vec::new(),
+                alternates: Vec::new(),
+            });
         }
         let mut offers = tokio::time::timeout(
             Duration::from_secs(5),
@@ -185,10 +197,24 @@ impl Gateway {
         }
         let now = crate::after_wait(observed, started);
         offers.retain(|offer| offer.current(now));
+        let mut alternates = Vec::new();
         if !offers.is_empty() {
             tokio::time::timeout(Duration::from_secs(5), self.rail.check_offers(&offers, now))
                 .await
                 .map_err(|_| GatewayError::Unavailable("payment readiness timed out".into()))??;
+            // A rail that is not ready is left out; the primary still sells.
+            if check_alternates {
+                for rail in &self.alternates {
+                    let ready = tokio::time::timeout(
+                        Duration::from_secs(5),
+                        rail.check_offers(&offers, now),
+                    )
+                    .await;
+                    if matches!(ready, Ok(Ok(()))) {
+                        alternates.push(rail.clone());
+                    }
+                }
+            }
         }
         let disk = tokio::time::timeout(Duration::from_secs(2), self.disk.lock())
             .await
@@ -209,36 +235,67 @@ impl Gateway {
                 .count()
                 >= 1024
         {
-            return Ok((now, Vec::new()));
+            return Ok(LiveOffers {
+                observed: now,
+                offers: Vec::new(),
+                alternates: Vec::new(),
+            });
         }
         let remaining = disk
             .journal
             .reserve_micro_usdc
             .saturating_sub(disk.used_reserve());
         offers.retain_mut(|offer| offer.current(now) && offer.constrain_to_budget(remaining));
-        Ok((now, offers))
+        Ok(LiveOffers {
+            observed: now,
+            offers,
+            alternates,
+        })
     }
     pub async fn discovery(&self) -> Result<Value> {
-        let (observed, offers) = self.live_discovery_offers().await?;
-        let payment = json!({"scheme":"exact","network":self.rail.network(),"asset":self.rail.asset(),
-            "assetDecimals":self.rail.asset_decimals(),"payTo":self.rail.pay_to(),"feePayer":self.rail.fee_payer()});
+        let LiveOffers {
+            observed,
+            offers,
+            alternates,
+        } = self.live_discovery_offers(true).await?;
+        let record = |rail: &dyn crate::PaymentRail| match rail.token_domain() {
+            Some(domain) => json!({"scheme":"exact","network":rail.network(),"asset":rail.asset(),
+                "assetDecimals":rail.asset_decimals(),"payTo":rail.pay_to(),
+                "name":domain.name,"version":domain.version}),
+            None => json!({"scheme":"exact","network":rail.network(),"asset":rail.asset(),
+                "assetDecimals":rail.asset_decimals(),"payTo":rail.pay_to(),"feePayer":rail.fee_payer()}),
+        };
+        let payment = record(self.rail.as_ref());
+        let mut payments = vec![payment.clone()];
+        if !offers.is_empty() {
+            payments.extend(alternates.iter().map(|rail| record(rail.as_ref())));
+        }
         let mut endpoints = vec![json!({"path":"/v1/models","method":"GET","price":"free"})];
         for offer in &offers {
-            endpoints.push(json!({"path":"/v1/chat/completions","url":self.rail.resource_url(),"method":"POST",
+            let mut endpoint = json!({"path":"/v1/chat/completions","url":self.rail.resource_url(),"method":"POST",
                 "description":"Request a fresh HTTP 402 quote, then submit the identical body with Payment-Signature. Prices are fixed upfront; availability is an observation, not a reservation.",
                 "payment":payment,"price":offer.pricing_record(),"inputSchema":offer.input_schema(),
                 "max_input_bytes":offer.max_input_bytes,
                 "paymentRequiredHeader":"Payment-Required","paymentSignatureHeader":"Payment-Signature",
-                "idempotencyHeader":"Idempotency-Key"}));
+                "idempotencyHeader":"Idempotency-Key"});
+            if payments.len() > 1 {
+                endpoint["payments"] = json!(payments);
+            }
+            endpoints.push(endpoint);
         }
+        let description = if payments.len() > 1 {
+            "Available text inference and its current exact USDC payment terms on Solana and Base."
+        } else {
+            "Available text inference and its current exact Solana USDC payment terms."
+        };
         Ok(
             json!({"schemaVersion":1,"x402Version":2,"name":"Covenant Compute",
-            "description":"Available text inference and its current exact Solana USDC payment terms.",
+            "description":description,
             "observedAtMs":observed,"available":!offers.is_empty(),"models":model_records(&offers),"endpoints":endpoints}),
         )
     }
     pub async fn discovery_models(&self) -> Result<Value> {
-        let (_, offers) = self.live_discovery_offers().await?;
+        let offers = self.live_discovery_offers(false).await?.offers;
         Ok(json!({"object":"list","data":model_records(&offers)}))
     }
 }

@@ -6,7 +6,7 @@ operator and its private inference provider adapter. Only the gateway binds the
 public port. It uses the existing coordinator and staking/settlement rules.
 
 The [batch inference candidate](../../docs/compute-inference-batches.md) is a
-separate opt-in. It uses journal v5, so rollback must retain the capable binary
+separate opt-in. It uses journal v6, so rollback must retain the capable binary
 and disable batch admissions rather than downgrade the financial journal.
 
 Build `deploy/Dockerfile.compute-x402` from the repository root. The dedicated
@@ -107,7 +107,9 @@ and must never be broadcast or substituted into the original purchase.
 3. Confirm the provider can serve the exact configured model within price and
    latency limits. Enable the staked operator and confirm live inference capacity.
 4. Fund the gateway's dedicated buyer and read back its credited balance. Verify
-   the merchant/asset/network/fee payer against the public 402 quote.
+   that the merchant, asset, network and fee payer match the public 402 quote
+   and, when Base is offered, that the Base receiving address and USDC contract
+   do too.
 5. Under the remaining test cap, run the installed AgentKit demo. Retain signed
    request, native job/receipt, exact output, transaction readback and budget
    records. Repeat the original authorization and verify no second purchase.
@@ -239,13 +241,13 @@ latches new admissions off while the essential gateway and payment verifier
 continue recovery. Repair configuration and review the latch before clearing it;
 do not reset identities, budgets or journals.
 
-The gateway upgrades journals from versions 2, 3 or 4 to version 5 while retaining
-the exact namespace, financial entries, signed records and saved memo form.
-Version 3 freezes tariffs; version 4 preserves the original short or long payment
-memo. Version 5 adds durable batch execution and stops older single-request
-binaries from reinterpreting that state. Roll back by disabling new admissions
-on the new binary, preserving settlement and cleanup. Do not deploy a gateway
-that reads only versions 2 through 4, or restore an old monetary snapshot over
-the new journal.
+The gateway upgrades journals from versions 2 through 5 to version 6, preserving
+the namespace, financial entries, signed records, original memo form and Base
+payment options. Version 3 freezes tariffs; version 4 preserves the short or long
+payment memo; production version 5 preserves Base quotes and payments. The batch
+candidate also used version 5 before deployment. Version 6 preserves both feature
+fields and prevents either older binary from discarding recovery state. To stop
+taking work, disable new admissions on this binary and retain settlement recovery.
+Do not deploy an older binary or restore an old monetary snapshot over the journal.
 See [pricing and limits](../../docs/compute-inference-tariffs.md) and the
 [release evidence](../../docs/compute-model-pricing-release-evidence.md).

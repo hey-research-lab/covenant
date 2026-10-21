@@ -1,9 +1,10 @@
 # Covenant x402 payment verifier
 
-Private Solana payment component for `covenant-compute-gateway`. This service uses
-the pinned official `@x402/svm` 2.28.0 exact-payment verifier. It listens only on
-loopback, requires a shared bearer secret, and does not expose a public
-facilitator or signing endpoint.
+The verifier checks and settles payments for `covenant-compute-gateway`. Solana
+payments use the pinned official `@x402/svm` 2.28.0 exact-payment verifier;
+optional USDC on Base goes through an x402 facilitator (see below). The verifier
+listens only on loopback, requires a shared bearer secret, and does not expose a
+public facilitator or signing endpoint.
 
 ## Deployment contract
 
@@ -31,6 +32,38 @@ Verifier only:
 - `COVENANT_GATEWAY_FEE_PAYER_KEY_FILE`: private absolute JSON file containing the
   64-byte Solana keypair; no group/world permissions. Never put this in a repo.
 - `COVENANT_GATEWAY_BRIDGE_PORT`: optional, default `4043`.
+
+Every request to the verifier needs the header
+`Authorization: Bearer $COVENANT_GATEWAY_BRIDGE_SECRET`. `GET /health` reports
+that the process is up, `GET /readiness` returns the Solana payment terms and
+prices, and the gateway calls `POST /verify` and `POST /settle`. With Base
+configured, the same routes under `/evm` serve Base. At startup the verifier logs
+its port and whether Base is on.
+
+USDC on Base is optional. To offer it, set the variables below on both the
+gateway and the verifier, except those marked verifier only. To offer Solana
+only, leave `COVENANT_GATEWAY_BASE_PAY_TO` unset.
+
+- `COVENANT_GATEWAY_BASE_PAY_TO`: the `0x` address that receives Base payments.
+  Give each gateway its own address. If two gateways share one, a single
+  authorization could pay for a job on each of them.
+- `COVENANT_GATEWAY_BASE_NETWORK`: `eip155:8453` for Base mainnet. For testing,
+  use Base Sepolia, `eip155:84532`.
+- `COVENANT_GATEWAY_BASE_ASSET`: Circle's USDC contract for that network,
+  `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` on Base mainnet and
+  `0x036CbD53842c5426634e7929541eC2318f3dCF7e` on Base Sepolia.
+- `COVENANT_GATEWAY_BASE_RPC` (verifier only): an HTTPS RPC endpoint for that
+  network from a provider that answers `eth_getLogs` over a 200-block range and
+  `eth_getTransactionReceipt`; many free public endpoints refuse one or both. The
+  verifier confirms that the endpoint's chain ID matches the configured network
+  before Base is first offered and before each verification and settlement.
+- `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` (verifier only): Coinbase Developer
+  Platform credentials for Coinbase's x402 facilitator, which submits Base
+  payments. To use another x402 facilitator instead, leave these unset and set
+  `COVENANT_GATEWAY_BASE_FACILITATOR_URL` (verifier only); for example,
+  `https://x402.org/facilitator` serves Base Sepolia. With Base configured, the
+  verifier refuses to start if both the Coinbase credentials and a facilitator
+  URL are set, or if neither is.
 
 Rust gateway:
 
@@ -84,6 +117,41 @@ built by the official client at its fixed 20,000 compute units used 13,180. The
 verifier accepts either memo when it matches the quote, and for both it runs the
 official x402 checks on the signatures, memo and USDC transfer and simulates the
 transaction against the live network.
+
+With Base configured, each quote also offers USDC on Base at the same price, and
+the buyer chooses the network. Covenant's own SDKs pay on Solana: JavaScript
+0.4.0 and Python 0.3.0 ignore the Base offer, while earlier versions refuse any
+quote that lists two networks.
+
+A Base payment is an EIP-3009 `transferWithAuthorization` signed by the buyer's
+wallet; the buyer pays no gas. The verifier checks the authorization's
+recipient, amount and time window, and that its nonce is still unused, then asks
+the facilitator to verify it. At that point the authorization must have between
+two and six minutes of validity left; standard x402 clients sign a five-minute
+window. The authorization is not submitted on chain until the job has finished
+and the gateway has checked its result.
+
+At settlement, the verifier reads the chain first. The payment counts only once
+the USDC contract shows the authorization used by a transfer of the quoted amount
+to the receiving address, and two more blocks have followed the one that includes
+it. If the buyer spends the nonce some other way, or the authorization expires
+unused, the settlement fails and no result is released. While the authorization
+is still unused and valid, the verifier asks the facilitator to submit it, at
+most once every ten seconds. The nonce can be used only once, so a lost response
+never leads to a second transfer. Base marks a block safe one to two minutes
+after it is produced. The verifier does not wait for that, so the gateway can
+return a paid result within the 25 seconds it holds the buyer's request open.
+
+Once `COVENANT_GATEWAY_BASE_PAY_TO` is set, the verifier refuses to start when
+another Base setting is missing or invalid. It checks the RPC endpoint's chain
+and the facilitator's support for the network before Base is offered and again
+every 30 seconds. While either check fails, `GET /evm/readiness` answers 503,
+quotes leave Base out and Solana payments continue. The verifier logs each change
+with its reason, such as an unreachable endpoint or an RPC on another chain.
+
+Do not remove Base or change its receiving address while any Base payment is
+still settling or its result can still be fetched (up to five minutes after it
+completes). If you do, the gateway refuses to start.
 
 Only output whose native operator receipt verifies can trigger customer
 settlement. `/settle` always queries historical signature state before sending

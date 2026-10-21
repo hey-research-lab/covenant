@@ -68,6 +68,8 @@ pub type Result<T> = std::result::Result<T, GatewayError>;
 /// finality is about 13 s). Standard x402 clients never retry a 202, so
 /// without this they never see the result.
 pub const SETTLEMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(25);
+/// How long a completed result stays fetchable with its payment authorization.
+const OUTPUT_RETENTION_MS: u64 = 300_000;
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayError {
     #[error("invalid request: {0}")]
@@ -104,6 +106,17 @@ pub fn short_memo(quote_id: Uuid, request_sha256: &str) -> String {
     digest[..16].iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// EIP-712 domain of an EVM token, as its contract reports `name()` and `version()`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TokenDomain {
+    pub name: String,
+    pub version: String,
+}
+
+/// The official EVM client signs `validBefore = now + maxTimeoutSeconds`.
+/// Five minutes covers the job and its settlement.
+pub const EVM_TIMEOUT_SECONDS: u64 = 300;
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PaymentTerms {
     pub quote_id: Uuid,
@@ -122,6 +135,9 @@ pub struct PaymentTerms {
     /// Absent in journals written before v3 memos, which therefore read as V2.
     #[serde(default)]
     pub memo_binding: MemoBinding,
+    /// Set for EVM payments (EIP-3009), which carry no memo or fee payer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_domain: Option<TokenDomain>,
 }
 impl PaymentTerms {
     pub fn memo(&self) -> String {
@@ -133,6 +149,12 @@ impl PaymentTerms {
         }
     }
     pub fn accepted(&self) -> Value {
+        if let Some(domain) = &self.token_domain {
+            return json!({"scheme":"exact","network":self.network,"asset":self.asset,
+                "amount":self.amount_atomic.to_string(),"payTo":self.pay_to,"maxTimeoutSeconds":EVM_TIMEOUT_SECONDS,
+                "extra":{"name":domain.name,"version":domain.version,"quoteId":self.quote_id,
+                "requestSha256":self.request_sha256,"expiresAtMs":self.expires_at_ms}});
+        }
         let mut accepted = json!({"scheme":"exact","network":self.network,"asset":self.asset,
             "amount":self.amount_atomic.to_string(),"payTo":self.pay_to,"maxTimeoutSeconds":90,
             "extra":{"feePayer":self.fee_payer,"memo":self.memo(),"quoteId":self.quote_id,
@@ -146,6 +168,23 @@ impl PaymentTerms {
         json!({"x402Version":2,"resource":{"url":self.resource_url,
             "description":"Covenant inference with a verified operator receipt","mimeType":"application/json"},
             "accepts":[self.accepted()]})
+    }
+}
+
+/// One quote's payment options: the primary rail's terms, then any other
+/// rails offered for the same quote and amount.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Quote {
+    pub terms: PaymentTerms,
+    pub alternates: Vec<PaymentTerms>,
+}
+impl Quote {
+    pub fn requirements(&self) -> Value {
+        let mut required = self.terms.requirements();
+        if let Some(accepts) = required["accepts"].as_array_mut() {
+            accepts.extend(self.alternates.iter().map(PaymentTerms::accepted));
+        }
+        required
     }
 }
 
@@ -178,6 +217,9 @@ pub trait PaymentRail: Send + Sync {
     fn asset_decimals(&self) -> u8 {
         6
     }
+    fn token_domain(&self) -> Option<TokenDomain> {
+        None
+    }
     /// Read-only admission checks. Persisted executions and settlement must
     /// remain independent of current catalog configuration and availability.
     async fn check_offers(&self, _offers: &[discovery::DiscoveryOffer], _now: u64) -> Result<()> {
@@ -191,6 +233,11 @@ pub trait PaymentRail: Send + Sync {
         manifest: &batch::BatchPricingManifest,
         now: u64,
     ) -> Result<()> {
+        if self.token_domain().is_some() {
+            return Err(GatewayError::Unavailable(
+                "batches require the Solana payment rail".into(),
+            ));
+        }
         self.check_price(manifest.total()?, now).await
     }
     /// Must cryptographically bind the payer, merchant, asset, amount and
@@ -322,9 +369,20 @@ enum Phase {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Entry {
     terms: PaymentTerms,
+    /// Other rails offered for a quote not yet paid; cleared once one is paid.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    alternates: Vec<PaymentTerms>,
     phase: Phase,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     quoted_execution: Option<PreparedExecution>,
+}
+impl Entry {
+    fn quote(&self) -> Quote {
+        Quote {
+            terms: self.terms.clone(),
+            alternates: self.alternates.clone(),
+        }
+    }
 }
 #[derive(Serialize, Deserialize)]
 struct Journal {
@@ -408,7 +466,7 @@ impl Disk {
         let mut journal = match bounded_journal_read(&directory.join("gateway.json")) {
             Ok(bytes) => serde_json::from_slice::<Journal>(&bytes)?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Journal {
-                version: 5,
+                version: 6,
                 namespace: namespace.clone(),
                 watermark_ms: 0,
                 reserve_micro_usdc: reserve,
@@ -416,7 +474,7 @@ impl Disk {
             },
             Err(e) => return Err(e.into()),
         };
-        if !matches!(journal.version, 2..=5)
+        if !matches!(journal.version, 2..=6)
             || journal.namespace != namespace
             || reserve < journal.reserve_micro_usdc
             || (reserve > journal.reserve_micro_usdc && !allow_reserve_increase)
@@ -425,11 +483,11 @@ impl Disk {
                 "journal identity/rail/reserve configuration changed".into(),
             ));
         }
-        // Journal v3 freezes tariffs, v4 preserves short/long memo bindings,
-        // and v5 prevents pre-batch binaries from reinterpreting aggregate
-        // execution. Migration retains every identity and phase; rollback
-        // uses this binary with new admissions disabled.
-        journal.version = 5;
+        // v3 freezes tariffs; v4 preserves memo forms; production v5 preserves
+        // Base payment options. The unreleased batch candidate also used v5.
+        // v6 retains both independent fields and stops either older binary
+        // from discarding the other feature during recovery.
+        journal.version = 6;
         journal.reserve_micro_usdc = reserve;
         let mut disk = Self {
             directory: directory.into(),
@@ -477,7 +535,7 @@ impl Disk {
                 ..
             } = &mut e.phase
             {
-                if now.saturating_sub(*completed_at_ms) > 300_000 {
+                if now.saturating_sub(*completed_at_ms) > OUTPUT_RETENTION_MS {
                     *output = None;
                 }
             }
@@ -506,6 +564,7 @@ impl Disk {
 
 pub struct Gateway {
     rail: Arc<dyn PaymentRail>,
+    alternates: Vec<Arc<dyn PaymentRail>>,
     executor: Arc<dyn Executor>,
     disk: Mutex<Disk>,
     sale_price_atomic: u64,
@@ -518,7 +577,7 @@ pub struct Gateway {
 }
 #[derive(Debug)]
 pub enum GatewayReply {
-    PaymentRequired(PaymentTerms),
+    PaymentRequired(Quote),
     Pending {
         quote_id: Uuid,
     },
@@ -576,6 +635,7 @@ impl Gateway {
                 allow_reserve_increase,
             )?),
             rail,
+            alternates: Vec::new(),
             executor,
             sale_price_atomic: sale_price,
             admissions_enabled: true,
@@ -589,6 +649,66 @@ impl Gateway {
     pub fn with_admissions_enabled(mut self, enabled: bool) -> Self {
         self.admissions_enabled = enabled;
         self
+    }
+    /// Offer another rail beside the primary for every new quote, at the same
+    /// price, one rail per network. It stays out of the journal namespace, so
+    /// adding it keeps existing quotes and payments; see `check_open_payments`
+    /// before removing or changing it.
+    pub fn with_alternate_rail(mut self, rail: Arc<dyn PaymentRail>) -> Result<Self> {
+        if std::iter::once(&self.rail)
+            .chain(&self.alternates)
+            .any(|existing| existing.network() == rail.network())
+        {
+            return Err(GatewayError::Invalid(format!(
+                "a rail for {} is already configured",
+                rail.network()
+            )));
+        }
+        self.alternates.push(rail);
+        Ok(self)
+    }
+    /// The configured rail these terms were quoted on.
+    fn rail_for(&self, terms: &PaymentTerms) -> Result<&Arc<dyn PaymentRail>> {
+        std::iter::once(&self.rail)
+            .chain(&self.alternates)
+            .find(|rail| {
+                rail.network() == terms.network
+                    && rail.asset() == terms.asset
+                    && rail.pay_to() == terms.pay_to
+                    && rail.fee_payer() == terms.fee_payer
+                    && if terms.batch_pricing.is_some() {
+                        rail.token_domain().is_none()
+                            && batch::resource_url(rail.resource_url())
+                                .is_ok_and(|url| url == terms.resource_url)
+                    } else {
+                        rail.resource_url() == terms.resource_url
+                    }
+                    && rail.token_domain() == terms.token_domain
+            })
+            .ok_or_else(|| {
+                GatewayError::Unavailable(format!("no payment rail for {}", terms.network))
+            })
+    }
+    /// Fails if a payment in flight, or a paid result its buyer can still
+    /// fetch, has no configured rail (Base removed, or its merchant changed).
+    /// Without it the payment never settles and the result cannot be fetched.
+    pub async fn check_open_payments(&self, now: u64) -> Result<()> {
+        let mut disk = self.disk.lock().await;
+        disk.advance(now)?;
+        for entry in disk.journal.entries.values() {
+            let open = match &entry.phase {
+                Phase::Executing { .. } | Phase::Settling { .. } => true,
+                Phase::Complete { output, .. } => output.is_some(),
+                _ => false,
+            };
+            if open && self.rail_for(&entry.terms).is_err() {
+                return Err(GatewayError::Unavailable(format!(
+                    "quote {} has an open payment on {} and no matching rail is configured",
+                    entry.terms.quote_id, entry.terms.network
+                )));
+            }
+        }
+        Ok(())
     }
     /// Holds the paid request that dispatched the job open, polling its
     /// settlement, for up to `wait` from arrival before answering 202. The
@@ -676,6 +796,7 @@ impl Gateway {
                     "quote cannot cover execution or has expired".into(),
                 ));
             }
+            let mut offered = Vec::new();
             if let Some(manifest) = &quote.batch_pricing {
                 if manifest.total()? != quote.amount_atomic {
                     return Err(GatewayError::Invalid("batch retail total mismatch".into()));
@@ -683,6 +804,15 @@ impl Gateway {
                 self.rail.check_batch_price(manifest, now).await?;
             } else {
                 self.rail.check_price(quote.amount_atomic, now).await?;
+            }
+            // Initial batches remain Solana-only. Base single-request offers
+            // retain their independently checked availability and exact terms.
+            if quote.batch_pricing.is_none() {
+                for rail in &self.alternates {
+                    if rail.check_price(quote.amount_atomic, now).await.is_ok() {
+                        offered.push(rail.clone());
+                    }
+                }
             }
             disk = self.disk.lock().await;
             let now = after_wait(availability_now, availability_started);
@@ -697,7 +827,7 @@ impl Gateway {
                     ));
                 }
                 return if matches!(entry.phase, Phase::Quoted) {
-                    Ok(GatewayReply::PaymentRequired(entry.terms.clone()))
+                    Ok(GatewayReply::PaymentRequired(entry.quote()))
                 } else {
                     Err(GatewayError::Payment(
                         "original payment authorization required".into(),
@@ -738,17 +868,31 @@ impl Gateway {
                 },
                 batch_pricing: quote.batch_pricing,
                 memo_binding: MemoBinding::V3,
+                token_domain: self.rail.token_domain(),
             };
-            disk.journal.entries.insert(
-                terms.quote_id,
-                Entry {
-                    terms: terms.clone(),
-                    phase: Phase::Quoted,
-                    quoted_execution: Some(quote.prepared),
-                },
-            );
+            let alternates = offered
+                .iter()
+                .map(|rail| PaymentTerms {
+                    network: rail.network().into(),
+                    asset: rail.asset().into(),
+                    pay_to: rail.pay_to().into(),
+                    asset_decimals: rail.asset_decimals(),
+                    fee_payer: rail.fee_payer().into(),
+                    resource_url: rail.resource_url().into(),
+                    token_domain: rail.token_domain(),
+                    ..terms.clone()
+                })
+                .collect();
+            let entry = Entry {
+                terms,
+                alternates,
+                phase: Phase::Quoted,
+                quoted_execution: Some(quote.prepared),
+            };
+            let reply = entry.quote();
+            disk.journal.entries.insert(reply.terms.quote_id, entry);
             disk.save()?;
-            return Ok(GatewayReply::PaymentRequired(terms));
+            return Ok(GatewayReply::PaymentRequired(reply));
         };
         let entry = disk
             .journal
@@ -761,12 +905,13 @@ impl Gateway {
                 "quote bound to another request".into(),
             ));
         }
-        let mut phase = entry.phase;
+        let mut terms = entry.terms.clone();
+        let mut phase = entry.phase.clone();
         if matches!(phase, Phase::Quoted) {
             self.require_admissions()?;
             self.executor.validate_request(&request)?;
             let Some(header) = payment_header else {
-                return Ok(GatewayReply::PaymentRequired(entry.terms));
+                return Ok(GatewayReply::PaymentRequired(entry.quote()));
             };
             if now >= entry.terms.expires_at_ms {
                 return Err(GatewayError::Payment("quote expired".into()));
@@ -774,11 +919,24 @@ impl Gateway {
             if let Some(prepared) = &entry.quoted_execution {
                 self.executor.validate_admission(prepared, now)?;
             }
+            // With several rails offered, the payment names the one it uses,
+            // and that rail's terms become the entry's terms from here on.
+            if !entry.alternates.is_empty() {
+                let network = payment_payload(header)?["accepted"]["network"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .unwrap_or_default();
+                terms = std::iter::once(&entry.terms)
+                    .chain(&entry.alternates)
+                    .find(|offer| offer.network == network)
+                    .cloned()
+                    .ok_or_else(|| GatewayError::Payment("payment network not offered".into()))?;
+            }
             let verification_started = std::time::Instant::now();
-            let payment = self.rail.verify(header, &entry.terms).await?;
+            let payment = self.rail_for(&terms)?.verify(header, &terms).await?;
             self.require_admissions()?;
             let admission_now = after_wait(now, verification_started);
-            if admission_now >= entry.terms.expires_at_ms {
+            if admission_now >= terms.expires_at_ms {
                 return Err(GatewayError::Payment(
                     "quote expired during verification".into(),
                 ));
@@ -803,7 +961,7 @@ impl Gateway {
             self.executor.validate_admission(&prepared, admission_now)?;
             if prepared.job_envelopes.is_empty()
                 || prepared.maximum_cost_micro_usdc == 0
-                || prepared.maximum_cost_micro_usdc > entry.terms.amount_atomic
+                || prepared.maximum_cost_micro_usdc > terms.amount_atomic
                 || disk
                     .used_reserve()
                     .checked_add(prepared.maximum_cost_micro_usdc)
@@ -816,6 +974,8 @@ impl Gateway {
             disk.require_output_room(&prepared)?;
             phase = Phase::Executing { payment, prepared };
             let saved = disk.journal.entries.get_mut(&quote_id).unwrap();
+            saved.terms = terms.clone();
+            saved.alternates.clear();
             saved.phase = phase.clone();
             saved.quoted_execution = None;
             disk.save()?; // durable payer + chain + asset + request + stable job ids
@@ -830,7 +990,7 @@ impl Gateway {
         // would fail simulation on duplicate use). The exact header is hashed
         // and bound by the canonical transaction bytes below.
         if let Some(header) = payment_header {
-            let retry_id = self.rail.authorization_id(header)?;
+            let retry_id = self.rail_for(&terms)?.authorization_id(header)?;
             let expected = match &phase {
                 Phase::Executing { payment, .. } | Phase::Settling { payment, .. } => {
                     Some(&payment.authorization_id)
@@ -846,7 +1006,7 @@ impl Gateway {
         }
         let ran_job = matches!(phase, Phase::Executing { .. });
         let reply = self
-            .progress(&mut disk, quote_id, entry.terms, phase, now)
+            .progress(&mut disk, quote_id, terms, phase, now)
             .await?;
         // Only the request that ran the job waits for its payment to finalize,
         // so retries of a stuck payment cannot hold the gateway open.
@@ -954,7 +1114,12 @@ impl Gateway {
             )?;
             // The Settling record was fsynced before any broadcast. Unknown
             // sends stay here; the rail reconciles the same signature first.
-            match self.rail.settle(&payment, &terms).await {
+            // Startup refuses a journal whose open payments lack their rail;
+            // nothing is ever settled on another one.
+            let Ok(rail) = self.rail_for(&terms) else {
+                return Ok(GatewayReply::Pending { quote_id });
+            };
+            match rail.settle(&payment, &terms).await {
                 Ok(SettlementStatus::Finalized { transaction_id }) => {
                     phase = Phase::Complete {
                         authorization_id: payment.authorization_id,
@@ -1165,8 +1330,8 @@ async fn handle_http(
         None
     };
     match gateway.handle(request, id, payment, now_ms()).await {
-        Ok(GatewayReply::PaymentRequired(terms)) => {
-            let requirements = terms.requirements();
+        Ok(GatewayReply::PaymentRequired(quote)) => {
+            let requirements = quote.requirements();
             let encoded = base64::engine::general_purpose::STANDARD
                 .encode(serde_json::to_vec(&requirements).unwrap());
             let mut response = (StatusCode::PAYMENT_REQUIRED, Json(requirements)).into_response();

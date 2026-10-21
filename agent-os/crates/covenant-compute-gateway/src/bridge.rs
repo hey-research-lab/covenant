@@ -1,9 +1,10 @@
-//! Private, authenticated adapter to the pinned official x402 SVM verifier.
-//! The fully signed transaction is returned before broadcast and fsynced by
-//! the gateway. Settlement always retries those exact bytes and checks finality.
+//! Private, authenticated adapter to the loopback payment verifier. On Solana
+//! the fully signed transaction is returned before broadcast and fsynced by the
+//! gateway, and settlement retries those exact bytes. On Base the stored item is
+//! the signed EIP-3009 authorization, whose nonce the token accepts only once.
 use crate::{
     payment_payload, GatewayError, PaymentRail, PaymentTerms, Result, SettlementStatus,
-    VerifiedPayment,
+    TokenDomain, VerifiedPayment,
 };
 use async_trait::async_trait;
 use base64::Engine;
@@ -92,27 +93,64 @@ impl Readiness {
     }
 }
 
-pub struct SvmBridge {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Family {
+    Solana,
+    Base,
+}
+
+/// Base USDC on each supported chain, with the EIP-712 domain its contract
+/// reports. The verifier holds the same table.
+fn base_usdc(network: &str) -> Option<(&'static str, &'static str)> {
+    match network {
+        "eip155:8453" => Some(("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "USD Coin")),
+        "eip155:84532" => Some(("0x036CbD53842c5426634e7929541eC2318f3dCF7e", "USDC")),
+        _ => None,
+    }
+}
+
+/// Hex form only; the zero address is refused because USDC cannot pay it.
+fn is_evm_address(value: &str) -> bool {
+    value.len() == 42
+        && value.starts_with("0x")
+        && value[2..].bytes().all(|b| b.is_ascii_hexdigit())
+        && value[2..].bytes().any(|b| b != b'0')
+}
+
+fn is_transaction_hash(value: &str) -> bool {
+    value.len() == 66
+        && value.starts_with("0x")
+        && value[2..]
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// Matches `evmAuthorizationId` in the verifier: one id per payer and nonce.
+fn evm_authorization_id(from: &str, nonce: &str) -> String {
+    Sha256::digest(format!(
+        "eip3009:{}:{}",
+        from.to_ascii_lowercase(),
+        nonce.to_ascii_lowercase()
+    ))
+    .iter()
+    .map(|b| format!("{b:02x}"))
+    .collect()
+}
+
+pub struct Bridge {
     http: reqwest::Client,
     url: String,
     secret: String,
+    family: Family,
     network: String,
     asset: String,
     pay_to: String,
     fee_payer: String,
     resource_url: String,
 }
-impl SvmBridge {
-    pub fn new(
-        url: String,
-        secret: String,
-        network: String,
-        asset: String,
-        pay_to: String,
-        fee_payer: String,
-        resource_url: String,
-    ) -> Result<Self> {
-        let parsed = reqwest::Url::parse(&url)
+impl Bridge {
+    fn checked_client(url: &str, secret: &str, resource_url: &str) -> Result<reqwest::Client> {
+        let parsed = reqwest::Url::parse(url)
             .map_err(|_| GatewayError::Invalid("invalid bridge URL".into()))?;
         if parsed.scheme() != "http"
             || parsed.host_str() != Some("127.0.0.1")
@@ -124,6 +162,65 @@ impl SvmBridge {
                 "bridge must use authenticated loopback HTTP".into(),
             ));
         }
+        let resource = reqwest::Url::parse(resource_url)
+            .map_err(|_| GatewayError::Invalid("invalid resource URL".into()))?;
+        if resource.scheme() != "https"
+            || !resource.username().is_empty()
+            || resource.password().is_some()
+            || resource.path() != "/v1/chat/completions"
+            || resource.query().is_some()
+            || resource.fragment().is_some()
+        {
+            return Err(GatewayError::Invalid("invalid resource URL".into()));
+        }
+        reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| GatewayError::Unavailable(e.to_string()))
+    }
+    /// USDC on Base, paid with an EIP-3009 authorization. The facilitator pays
+    /// the gas, so there is no fee payer.
+    pub fn base(
+        url: String,
+        secret: String,
+        network: String,
+        asset: String,
+        pay_to: String,
+        resource_url: String,
+    ) -> Result<Self> {
+        let http = Self::checked_client(&url, &secret, &resource_url)?;
+        if base_usdc(&network).map(|(usdc, _)| usdc) != Some(asset.as_str()) {
+            return Err(GatewayError::Invalid(
+                "rail asset configuration mismatch".into(),
+            ));
+        }
+        if !is_evm_address(&pay_to) {
+            return Err(GatewayError::Invalid("invalid payment address".into()));
+        }
+        Ok(Self {
+            http,
+            url: url.trim_end_matches('/').into(),
+            secret,
+            family: Family::Base,
+            network,
+            asset,
+            pay_to,
+            fee_payer: String::new(),
+            resource_url,
+        })
+    }
+    /// USDC on Solana, with Covenant's fee payer sponsoring the transaction.
+    pub fn solana(
+        url: String,
+        secret: String,
+        network: String,
+        asset: String,
+        pay_to: String,
+        fee_payer: String,
+        resource_url: String,
+    ) -> Result<Self> {
+        let http = Self::checked_client(&url, &secret, &resource_url)?;
         let asset_expected = match network.as_str() {
             "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" => {
                 "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -133,18 +230,9 @@ impl SvmBridge {
             }
             _ => return Err(GatewayError::Invalid("unsupported Solana network".into())),
         };
-        let resource = reqwest::Url::parse(&resource_url)
-            .map_err(|_| GatewayError::Invalid("invalid resource URL".into()))?;
-        if asset != asset_expected
-            || resource.scheme() != "https"
-            || !resource.username().is_empty()
-            || resource.password().is_some()
-            || resource.path() != "/v1/chat/completions"
-            || resource.query().is_some()
-            || resource.fragment().is_some()
-        {
+        if asset != asset_expected {
             return Err(GatewayError::Invalid(
-                "rail asset/resource configuration mismatch".into(),
+                "rail asset configuration mismatch".into(),
             ));
         }
         for key in [&pay_to, &fee_payer] {
@@ -155,15 +243,11 @@ impl SvmBridge {
                 return Err(GatewayError::Invalid("invalid payment address".into()));
             }
         }
-        let http = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .map_err(|e| GatewayError::Unavailable(e.to_string()))?;
         Ok(Self {
             http,
             url: url.trim_end_matches('/').into(),
             secret,
+            family: Family::Solana,
             network,
             asset,
             pay_to,
@@ -177,7 +261,7 @@ impl SvmBridge {
             || GatewayError::Unavailable("payment bridge readiness unavailable".into());
         let mut response = self
             .http
-            .get(format!("{}/readiness", self.url))
+            .get(format!("{}{}/readiness", self.url, self.prefix()))
             .bearer_auth(&self.secret)
             .timeout(Duration::from_secs(3))
             .send()
@@ -235,10 +319,16 @@ impl SvmBridge {
         }
         Ok((snapshot, now))
     }
+    fn prefix(&self) -> &'static str {
+        match self.family {
+            Family::Solana => "",
+            Family::Base => "/evm",
+        }
+    }
     async fn call(&self, path: &str, body: Value) -> Result<Value> {
         let response = self
             .http
-            .post(format!("{}{path}", self.url))
+            .post(format!("{}{}{path}", self.url, self.prefix()))
             .bearer_auth(&self.secret)
             .json(&body)
             .send()
@@ -262,7 +352,7 @@ impl SvmBridge {
 }
 
 #[async_trait]
-impl PaymentRail for SvmBridge {
+impl PaymentRail for Bridge {
     fn network(&self) -> &str {
         &self.network
     }
@@ -277,6 +367,13 @@ impl PaymentRail for SvmBridge {
     }
     fn resource_url(&self) -> &str {
         &self.resource_url
+    }
+    fn token_domain(&self) -> Option<TokenDomain> {
+        let (_, name) = base_usdc(&self.network).filter(|_| self.family == Family::Base)?;
+        Some(TokenDomain {
+            name: name.into(),
+            version: "2".into(),
+        })
     }
     async fn check_offers(
         &self,
@@ -315,6 +412,11 @@ impl PaymentRail for SvmBridge {
         manifest: &crate::batch::BatchPricingManifest,
         now: u64,
     ) -> Result<()> {
+        if self.family != Family::Solana {
+            return Err(GatewayError::Unavailable(
+                "batches require the Solana payment rail".into(),
+            ));
+        }
         let (snapshot, now) = self.readiness(now).await?;
         if !snapshot.allows_batch(manifest, now) {
             return Err(GatewayError::Unavailable(
@@ -325,6 +427,23 @@ impl PaymentRail for SvmBridge {
     }
     fn authorization_id(&self, header: &str) -> Result<String> {
         let payload = payment_payload(header)?;
+        if self.family == Family::Base {
+            let authorization = &payload["payload"]["authorization"];
+            let (Some(from), Some(nonce)) = (
+                authorization["from"].as_str(),
+                authorization["nonce"].as_str(),
+            ) else {
+                return Err(GatewayError::Payment("authorization missing".into()));
+            };
+            if !is_evm_address(from)
+                || nonce.len() != 66
+                || !nonce.starts_with("0x")
+                || !nonce[2..].bytes().all(|b| b.is_ascii_hexdigit())
+            {
+                return Err(GatewayError::Payment("authorization invalid".into()));
+            }
+            return Ok(evm_authorization_id(from, nonce));
+        }
         let encoded = payload["payload"]["transaction"]
             .as_str()
             .ok_or_else(|| GatewayError::Payment("transaction missing".into()))?;
@@ -374,9 +493,22 @@ impl PaymentRail for SvmBridge {
             )
             .await?;
         Ok(match value["status"].as_str() {
-            Some("finalized") if value["transaction_id"] == payment.transaction_id => {
+            // Solana's signature is known before broadcast; Base's transaction
+            // hash only once the facilitator has submitted the authorization.
+            Some("finalized")
+                if self.family == Family::Solana
+                    && value["transaction_id"] == payment.transaction_id =>
+            {
                 SettlementStatus::Finalized {
                     transaction_id: payment.transaction_id.clone(),
+                }
+            }
+            Some("finalized") if self.family == Family::Base => {
+                match value["transaction_id"].as_str() {
+                    Some(hash) if is_transaction_hash(hash) => SettlementStatus::Finalized {
+                        transaction_id: hash.into(),
+                    },
+                    _ => SettlementStatus::Pending,
                 }
             }
             Some("failed") => SettlementStatus::Failed,
@@ -420,8 +552,8 @@ mod tests {
             "network":NETWORK,"asset":ASSET,"assetDecimals":6,"payTo":ADDRESS,"feePayer":ADDRESS,
             "resourceUrl":RESOURCE,"legacyPriceAtomic":"50000","retailTariffs":[tariff()]})
     }
-    fn bridge(url: String, resource: &str) -> Result<SvmBridge> {
-        SvmBridge::new(
+    fn bridge(url: String, resource: &str) -> Result<Bridge> {
+        Bridge::solana(
             url,
             SECRET.into(),
             NETWORK.into(),
@@ -440,7 +572,7 @@ mod tests {
         state.reads.fetch_add(1, Ordering::SeqCst);
         Json(state.value.lock().await.clone())
     }
-    async fn fixture() -> (SvmBridge, Arc<Fixture>, tokio::task::JoinHandle<()>) {
+    async fn fixture() -> (Bridge, Arc<Fixture>, tokio::task::JoinHandle<()>) {
         let state = Arc::new(Fixture {
             value: Mutex::new(snapshot()),
             reads: AtomicUsize::new(0),
@@ -630,5 +762,156 @@ mod tests {
             "https://user@example.com/v1/chat/completions"
         )
         .is_err());
+    }
+
+    const BASE: &str = "eip155:84532";
+    const BASE_USDC: &str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+    const MERCHANT: &str = "0x5fA1d0C0bfFE257a20027C523093F941834f5D66";
+
+    fn base(url: String) -> Result<Bridge> {
+        Bridge::base(
+            url,
+            SECRET.into(),
+            BASE.into(),
+            BASE_USDC.into(),
+            MERCHANT.into(),
+            RESOURCE.into(),
+        )
+    }
+    fn evm_header(from: &str, nonce: &str) -> String {
+        base64::engine::general_purpose::STANDARD.encode(
+            json!({"x402Version":2,"payload":{"authorization":{"from":from,"nonce":nonce}}})
+                .to_string(),
+        )
+    }
+
+    #[test]
+    fn base_authorization_id_matches_the_verifier_vector() {
+        let bridge = base("http://127.0.0.1:1".into()).unwrap();
+        let nonce = format!("0x{}2", "0".repeat(63));
+        // The verifier's evm.test.mjs asserts the same value.
+        let expected = "4d7d82ffcc60a251090b98c1a1be4dc739b50eab2d384fa083eba828bb25ad8e";
+        for from in [
+            "0xAbCdEf0000000000000000000000000000000001",
+            "0xABCDEF0000000000000000000000000000000001",
+        ] {
+            assert_eq!(
+                bridge.authorization_id(&evm_header(from, &nonce)).unwrap(),
+                expected
+            );
+        }
+        for (from, nonce) in [
+            ("0x01", nonce.as_str()),
+            ("0xAbCdEf0000000000000000000000000000000001", "0x02"),
+        ] {
+            assert!(bridge.authorization_id(&evm_header(from, nonce)).is_err());
+        }
+    }
+
+    #[test]
+    fn base_rail_names_usdc_and_its_domain_and_refuses_other_configuration() {
+        let rail = base("http://127.0.0.1:1".into()).unwrap();
+        assert_eq!(rail.network(), BASE);
+        assert_eq!(rail.fee_payer(), "");
+        assert_eq!(
+            rail.token_domain(),
+            Some(TokenDomain {
+                name: "USDC".into(),
+                version: "2".into()
+            })
+        );
+        let solana = bridge("http://127.0.0.1:1".into(), RESOURCE).unwrap();
+        assert_eq!(solana.token_domain(), None);
+        let other = |network: &str, asset: &str, pay_to: &str| {
+            Bridge::base(
+                "http://127.0.0.1:1".into(),
+                SECRET.into(),
+                network.into(),
+                asset.into(),
+                pay_to.into(),
+                RESOURCE.into(),
+            )
+            .is_err()
+        };
+        assert!(other("eip155:1", BASE_USDC, MERCHANT));
+        assert!(other(
+            BASE,
+            "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            MERCHANT
+        ));
+        assert!(other(BASE, BASE_USDC, ADDRESS));
+        assert!(other(
+            BASE,
+            BASE_USDC,
+            "0x0000000000000000000000000000000000000000"
+        ));
+    }
+
+    #[tokio::test]
+    async fn base_settlement_finalizes_only_on_a_lowercase_transaction_hash() {
+        let reply = Arc::new(Mutex::new(json!({})));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let served = reply.clone();
+        let app = Router::new().route(
+            "/evm/settle",
+            axum::routing::post(move |headers: HeaderMap| {
+                let served = served.clone();
+                async move {
+                    assert_eq!(headers["authorization"], format!("Bearer {SECRET}"));
+                    Json(served.lock().await.clone())
+                }
+            }),
+        );
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let bridge = base(url).unwrap();
+        let payment = VerifiedPayment {
+            payer: "0xAbCdEf0000000000000000000000000000000001".into(),
+            authorization_id: "a".repeat(64),
+            transaction_id: "reference".into(),
+            encoded_transaction: "{}".into(),
+        };
+        let terms = PaymentTerms {
+            batch_pricing: None,
+            quote_id: uuid::Uuid::nil(),
+            request_sha256: "a".repeat(64),
+            network: BASE.into(),
+            asset: BASE_USDC.into(),
+            pay_to: MERCHANT.into(),
+            amount_atomic: 1200,
+            asset_decimals: 6,
+            expires_at_ms: 90_000,
+            fee_payer: String::new(),
+            resource_url: RESOURCE.into(),
+            memo_binding: crate::MemoBinding::V3,
+            token_domain: bridge.token_domain(),
+        };
+        let hash = format!("0x{}", "ab".repeat(32));
+        *reply.lock().await = json!({"status":"finalized","transaction_id":hash});
+        assert_eq!(
+            bridge.settle(&payment, &terms).await.unwrap(),
+            SettlementStatus::Finalized {
+                transaction_id: hash.clone()
+            }
+        );
+        for bad in [
+            hash.to_uppercase().replace("0X", "0x"),
+            "0x12".into(),
+            "reference".into(),
+        ] {
+            *reply.lock().await = json!({"status":"finalized","transaction_id":bad});
+            assert_eq!(
+                bridge.settle(&payment, &terms).await.unwrap(),
+                SettlementStatus::Pending
+            );
+        }
+        *reply.lock().await = json!({"status":"failed"});
+        assert_eq!(
+            bridge.settle(&payment, &terms).await.unwrap(),
+            SettlementStatus::Failed
+        );
+        task.abort();
     }
 }

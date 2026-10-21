@@ -51,9 +51,17 @@ deployment policy, independently of the endpoint being tested:
 Replace the address placeholders and both timestamps with the actual approved
 values. The example deliberately cannot pass. Preserve the active tariff's ID,
 revision and validity window; a discovery release does not renew or rotate it.
-Only Solana mainnet, its exact USDC mint, six decimals and x402 version 2 are
-accepted. This release check requires the full qualified 2048-token cap even
-though the service can advertise a smaller affordable cap at other times.
+By default the checker accepts only Solana mainnet, the official USDC mint, six
+decimals and x402 version 2. When the gateway also offers USDC on Base, add
+`"basePayTo": "YOUR_BASE_PAY_TO_ADDRESS"` to the policy, using the same address
+as `COVENANT_GATEWAY_BASE_PAY_TO`. The checker then requires Base mainnet USDC
+in the manifest and in every quote, alongside the Solana terms and at the same
+amount. Without `basePayTo`, a gateway that offers Base fails the check. The
+checker covers mainnet only. To try Base on Base Sepolia first, test against the
+verifier directly, without the checker.
+
+This release check requires the full qualified 2048-token cap even though the
+service can advertise a smaller affordable cap at other times.
 
 ## Commands and evidence
 

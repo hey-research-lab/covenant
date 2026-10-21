@@ -421,6 +421,7 @@ fn x402scan_contract_fixture_uses_the_real_quote_serializer() {
         "https://example.test/v1/chat/completions",
         123,
         &offers(123),
+        false,
     )
     .unwrap();
     let request = &document["paths"]["/v1/chat/completions"]["post"]["requestBody"]["content"]
@@ -439,6 +440,7 @@ fn x402scan_contract_fixture_uses_the_real_quote_serializer() {
         expires_at_ms: 75_123,
         resource_url: "https://example.test/v1/chat/completions".into(),
         memo_binding: crate::MemoBinding::V3,
+        token_domain: None,
     };
     // Public, unpayable fixtures can be extracted with --nocapture for an
     // isolated run of the pinned indexer's parser. No wallet or network is used.
@@ -539,4 +541,102 @@ async fn merchant_branding_is_bounded_and_read_only_with_admissions_closed() {
         std::fs::read(dir.path().join("gateway.json")).unwrap()
     );
     task.abort();
+}
+
+struct BaseRail {
+    ready: AtomicBool,
+}
+#[async_trait]
+impl PaymentRail for BaseRail {
+    fn network(&self) -> &str {
+        "eip155:84532"
+    }
+    fn asset(&self) -> &str {
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    }
+    fn pay_to(&self) -> &str {
+        "0x5fA1d0C0bfFE257a20027C523093F941834f5D66"
+    }
+    fn token_domain(&self) -> Option<crate::TokenDomain> {
+        Some(crate::TokenDomain {
+            name: "USDC".into(),
+            version: "2".into(),
+        })
+    }
+    async fn check_offers(&self, _: &[DiscoveryOffer], _: u64) -> Result<()> {
+        if self.ready.load(Ordering::SeqCst) {
+            Ok(())
+        } else {
+            Err(GatewayError::Unavailable(
+                "Base verifier unavailable".into(),
+            ))
+        }
+    }
+    fn authorization_id(&self, _: &str) -> Result<String> {
+        panic!("discovery must not authorize")
+    }
+    async fn verify(&self, _: &str, _: &PaymentTerms) -> Result<VerifiedPayment> {
+        panic!("discovery must not verify")
+    }
+    async fn settle(&self, _: &VerifiedPayment, _: &PaymentTerms) -> Result<SettlementStatus> {
+        panic!("discovery must not settle")
+    }
+}
+
+#[tokio::test]
+async fn discovery_lists_base_only_while_its_verifier_confirms_the_prices() {
+    let dir = tempfile::tempdir().unwrap();
+    let executor = Arc::new(Catalog {
+        offers: offers(crate::now_ms()),
+        available: AtomicBool::new(true),
+        calls: AtomicUsize::new(0),
+        prepares: AtomicUsize::new(0),
+        identity: LocalIdentity::generate("discovery-base@local"),
+    });
+    let base = Arc::new(BaseRail {
+        ready: AtomicBool::new(true),
+    });
+    let gateway = Gateway::open(
+        dir.path(),
+        "fixture-base",
+        50_000,
+        50_000,
+        Arc::new(Rail {
+            ready: AtomicBool::new(true),
+        }),
+        executor,
+    )
+    .unwrap()
+    .with_alternate_rail(base.clone())
+    .unwrap();
+    let manifest = gateway.discovery().await.unwrap();
+    assert_eq!(
+        manifest["description"],
+        "Available text inference and its current exact USDC payment terms on Solana and Base."
+    );
+    let endpoint = &manifest["endpoints"][1];
+    assert_eq!(endpoint["payment"]["network"], "solana:test");
+    assert_eq!(
+        endpoint["payments"],
+        json!([endpoint["payment"], {"scheme":"exact","network":"eip155:84532",
+            "asset":"0x036CbD53842c5426634e7929541eC2318f3dCF7e","assetDecimals":6,
+            "payTo":"0x5fA1d0C0bfFE257a20027C523093F941834f5D66","name":"USDC","version":"2"}])
+    );
+    let openapi = gateway.discovery_openapi().await.unwrap();
+    assert!(openapi["info"]["description"]
+        .as_str()
+        .unwrap()
+        .starts_with("Text inference paid with exact USDC on Solana or Base through x402 v2."));
+    base.ready.store(false, Ordering::SeqCst);
+    let openapi = gateway.discovery_openapi().await.unwrap();
+    assert!(openapi["info"]["description"]
+        .as_str()
+        .unwrap()
+        .starts_with("Text inference paid with exact Solana USDC through x402 v2."));
+    let manifest = gateway.discovery().await.unwrap();
+    assert!(manifest["endpoints"][1].get("payments").is_none());
+    assert_eq!(
+        manifest["description"],
+        "Available text inference and its current exact Solana USDC payment terms."
+    );
 }

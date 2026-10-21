@@ -194,7 +194,7 @@ async fn quote(gateway: &Gateway) -> PaymentTerms {
     else {
         panic!("expected quote")
     };
-    terms
+    terms.terms
 }
 
 #[tokio::test]
@@ -723,4 +723,207 @@ fn journal_size_is_checked_before_reading_or_parsing_sparse_oversized_file() {
     .err()
     .unwrap();
     assert!(error.to_string().contains("size limit"));
+}
+
+#[tokio::test]
+async fn mixed_v5_base_payment_and_batch_migrate_to_v6_without_cross_rail_or_duplicate_execution() {
+    let root = tempfile::tempdir().unwrap();
+    let inner = Arc::new(Execute::new());
+    let rail = Arc::new(Rail {
+        verifies: AtomicUsize::new(0),
+        settles: AtomicUsize::new(0),
+        delay_ms: 0,
+    });
+    let base = super::tests::base_rail(true, super::tests::BASE_MERCHANT);
+    base.finalized.store(false, Ordering::SeqCst);
+    let gateway = Gateway::open(
+        root.path(),
+        "mixed-v5",
+        1000,
+        20,
+        rail.clone(),
+        wrapper(root.path(), inner.clone(), true),
+    )
+    .unwrap()
+    .with_alternate_rail(base.clone())
+    .unwrap();
+    let single = request()["requests"][0].clone();
+    let GatewayReply::PaymentRequired(single_quote) = gateway
+        .handle(single.clone(), None, None, now(&gateway).await)
+        .await
+        .unwrap()
+    else {
+        panic!("expected single quote")
+    };
+    assert_eq!(
+        single_quote.alternates.len(),
+        1,
+        "Base remains available on single requests"
+    );
+    let base_terms = single_quote.alternates[0].clone();
+    let base_header = base64::engine::general_purpose::STANDARD
+        .encode(json!({"x402Version":2,"accepted":base_terms.accepted()}).to_string());
+    assert!(matches!(
+        gateway
+            .handle(
+                single.clone(),
+                Some(base_terms.quote_id),
+                Some(&base_header),
+                now(&gateway).await
+            )
+            .await
+            .unwrap(),
+        GatewayReply::Pending { .. }
+    ));
+    assert_eq!(base.verifications.load(Ordering::SeqCst), 1);
+    assert_eq!(rail.verifies.load(Ordering::SeqCst), 0);
+    let GatewayReply::PaymentRequired(batch_quote) = gateway
+        .handle(request(), None, None, now(&gateway).await)
+        .await
+        .unwrap()
+    else {
+        panic!("expected batch quote")
+    };
+    assert!(
+        batch_quote.alternates.is_empty(),
+        "batch admission must not offer a Base fallback"
+    );
+    assert_eq!(
+        batch_quote.requirements()["accepts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let terms = batch_quote.terms;
+    let child_ids: Vec<_> = terms
+        .batch_pricing
+        .as_ref()
+        .unwrap()
+        .children
+        .iter()
+        .map(|c| c.job_id)
+        .collect();
+    inner.unknown_call.store(3, Ordering::SeqCst);
+    assert!(matches!(
+        gateway
+            .handle(
+                request(),
+                Some(terms.quote_id),
+                Some("original-batch-payment"),
+                now(&gateway).await
+            )
+            .await
+            .unwrap(),
+        GatewayReply::Pending { .. }
+    ));
+    assert_eq!(rail.verifies.load(Ordering::SeqCst), 1);
+    assert_eq!(rail.settles.load(Ordering::SeqCst), 0);
+    drop(gateway);
+    let journal_path = root.path().join("gateway.json");
+    let mut legacy: Value = serde_json::from_slice(&std::fs::read(&journal_path).unwrap()).unwrap();
+    legacy["version"] = json!(5);
+    assert!(
+        legacy["entries"][base_terms.quote_id.to_string()]["terms"]["token_domain"].is_object()
+    );
+    assert!(legacy["entries"][terms.quote_id.to_string()]["terms"]["batch_pricing"].is_object());
+    std::fs::write(&journal_path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+    // A Base payment cannot be silently redirected to the primary Solana rail.
+    let missing_base = Gateway::open(
+        root.path(),
+        "mixed-v5",
+        1000,
+        20,
+        rail.clone(),
+        wrapper(root.path(), inner.clone(), false),
+    )
+    .unwrap();
+    assert!(missing_base
+        .check_open_payments(now(&missing_base).await)
+        .await
+        .is_err());
+    assert_eq!(inner.calls.lock().unwrap().len(), 3);
+    drop(missing_base);
+    let gateway = Gateway::open(
+        root.path(),
+        "mixed-v5",
+        1000,
+        20,
+        rail.clone(),
+        wrapper(root.path(), inner.clone(), false),
+    )
+    .unwrap()
+    .with_alternate_rail(base.clone())
+    .unwrap()
+    .with_admissions_enabled(false);
+    let migrated: Value = serde_json::from_slice(&std::fs::read(&journal_path).unwrap()).unwrap();
+    assert_eq!(migrated["version"], 6);
+    assert_eq!(
+        migrated["entries"], legacy["entries"],
+        "neither v5 feature may lose frozen financial fields"
+    );
+    gateway
+        .check_open_payments(now(&gateway).await)
+        .await
+        .unwrap();
+    base.finalized.store(true, Ordering::SeqCst);
+    inner.unknown_call.store(0, Ordering::SeqCst);
+    gateway.recover_pending(now(&gateway).await).await.unwrap();
+    let calls = inner.calls.lock().unwrap().clone();
+    assert_eq!(calls.len(), 4);
+    assert_eq!(
+        &calls[1..],
+        &[child_ids[0], child_ids[1], child_ids[1]],
+        "completed child is skipped; unknown outcome reuses only its original ID"
+    );
+    assert_eq!(base.verifications.load(Ordering::SeqCst), 1);
+    assert_eq!(rail.verifies.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        base.settles.load(Ordering::SeqCst),
+        2,
+        "one pending Base settlement plus original-authorization recovery"
+    );
+    assert_eq!(rail.settles.load(Ordering::SeqCst), 1);
+    assert!(
+        matches!(gateway.handle(single, Some(base_terms.quote_id), Some(&base_header), now(&gateway).await).await.unwrap(), GatewayReply::Complete { network, .. } if network == base_terms.network)
+    );
+    assert!(
+        matches!(gateway.handle(request(), Some(terms.quote_id), Some("original-batch-payment"), now(&gateway).await).await.unwrap(), GatewayReply::Complete { network, .. } if network == terms.network)
+    );
+    gateway.recover_pending(now(&gateway).await).await.unwrap();
+    assert_eq!(inner.calls.lock().unwrap().len(), 4);
+    assert_eq!(base.settles.load(Ordering::SeqCst), 2);
+    assert_eq!(rail.settles.load(Ordering::SeqCst), 1);
+    assert_eq!(gateway.disk.lock().await.used_reserve(), 30);
+}
+
+#[tokio::test]
+async fn base_primary_cannot_admit_batch_or_fall_back_to_another_rail() {
+    let root = tempfile::tempdir().unwrap();
+    let inner = Arc::new(Execute::new());
+    let base = super::tests::base_rail(true, super::tests::BASE_MERCHANT);
+    let solana = Arc::new(Rail {
+        verifies: AtomicUsize::new(0),
+        settles: AtomicUsize::new(0),
+        delay_ms: 0,
+    });
+    let gateway = Gateway::open(
+        root.path(),
+        "no-base-batch",
+        1000,
+        20,
+        base.clone(),
+        wrapper(root.path(), inner.clone(), true),
+    )
+    .unwrap()
+    .with_alternate_rail(solana.clone())
+    .unwrap();
+    assert!(gateway
+        .handle(request(), None, None, now(&gateway).await)
+        .await
+        .is_err());
+    assert_eq!(base.verifications.load(Ordering::SeqCst), 0);
+    assert_eq!(solana.verifies.load(Ordering::SeqCst), 0);
+    assert!(inner.calls.lock().unwrap().is_empty());
+    assert!(gateway.disk.lock().await.journal.entries.is_empty());
 }

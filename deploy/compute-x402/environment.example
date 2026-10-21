@@ -59,6 +59,19 @@ COVENANT_INFERENCE_PROVIDER_UPSTREAM_TIMEOUT_MS=40000
 
 COVENANT_GATEWAY_APPROVED_OPERATOR_PUBKEYS=9fefASd52qfR2Q8P81yXtkHu9E4q9KvW58x2ixBAAvLR
 
+# Optional: accept USDC on Base alongside Solana, at the same prices. Leave
+# COVENANT_GATEWAY_BASE_PAY_TO unset to offer Solana only. The RPC, facilitator
+# URL and Coinbase credentials are passed to the verifier only.
+# COVENANT_GATEWAY_BASE_PAY_TO=0xYourBaseAddress
+# COVENANT_GATEWAY_BASE_NETWORK=eip155:8453
+# COVENANT_GATEWAY_BASE_ASSET=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+# An HTTPS endpoint from your own provider that answers eth_getLogs over 200
+# blocks and eth_getTransactionReceipt.
+# COVENANT_GATEWAY_BASE_RPC=https://your-base-rpc.example
+# Then either CDP_API_KEY_ID and CDP_API_KEY_SECRET (Coinbase Developer Platform
+# credentials for Coinbase's facilitator; keep them in your secret store), or
+# COVENANT_GATEWAY_BASE_FACILITATOR_URL for another x402 facilitator.
+
 # Optional external observer of the separate coordinator rental-check feed.
 # Uses this service's existing disk; no rental/provider/payment permissions.
 COVENANT_CANARY_WATCHDOG_ENABLED=false

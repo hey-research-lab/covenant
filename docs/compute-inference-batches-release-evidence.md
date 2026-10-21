@@ -5,7 +5,8 @@ not establish a paid batch, public SDK release or deployed image.
 
 The candidate is based on deployment commit
 `5146e46e6bae31bf6813ca85f099674e878a1ae9`, includes the standard-wallet fix
-`5fefb03d8eed2c1b48acfb8042cf8fd0a101cb55`, and implements the
+`5fefb03d8eed2c1b48acfb8042cf8fd0a101cb55` and live Base support
+`98a986cfadd0711c182143d90f959b705763ad5c`, and implements the
 [bounded batch contract](compute-inference-batches.md). Fresh batches contain
 one or two independent text requests. The generic 32-item proof/recovery format
 does not activate larger fresh purchases.
@@ -13,23 +14,23 @@ does not activate larger fresh purchases.
 ## Local qualification
 
 The combined source passed the checks below after integrating the
-standard-wallet update; its immutable image still requires qualification.
-The earlier batch image must not replace the wallet-compatible production image:
-both original branches used journal v4 for different additions. The combined
-runtime uses v5 and retains frozen short and long memo bindings, the standard
-client settlement wait, and existing financial records.
+standard-wallet and Base updates; its immutable image still requires qualification.
+Earlier batch images must not replace the current production image: independent
+branches used journal v5 for Base terms and batch execution. The combined runtime
+uses v6 and retains both, including frozen memo bindings, exact selected payment
+rail, the standard client settlement wait and original financial records. Base
+remains available for single requests; initial batches offer Solana only.
 
 | Check | Result |
 | --- | --- |
-| Gateway | 63 unit tests and 1 binary startup/recovery test passed; v4 migration preserves frozen short and long memos |
+| Gateway | 74 unit tests and 1 binary startup/recovery test passed; mixed v5 Base/batch migration preserves original terms, selected rail and jobs |
 | Protocol | Unchanged from the original batch candidate: 308 tests passed, including ordered proof vectors |
 | Rust quality | Gateway/protocol all-target Clippy with warnings denied; formatting passed |
 | JavaScript SDK | 111 tests passed with the real official SVM verifier integration enabled, including short and long batch memos |
 | Python SDK | 172 tests passed, including Node/Python shared-journal recovery with both memo forms |
 | Client packaging | Original batch archives qualified; new archives must be pinned to the combined source before live acceptance |
-| Payment verifier | 22 tests passed: exact child-price sum, short/long memo and route binding, default-off and sealed-payment recovery |
-| Discovery harness | 16 tests passed; single-chat discovery remains separate from batch activation |
-| Runtime and smoke harness | 24 tests passed, using isolated state and no paid dispatch |
+| Payment verifier | 45 tests passed: Solana batch pricing/memo binding and retained Base verification/finality/recovery |
+| Discovery, runtime and smoke harness | 42 tests passed, including both-rail single-chat discovery and Base credential isolation; batch discovery remains separate |
 | Repository guards | Passed; regenerated metrics and corrected the base branch's existing Knowledge-image knob inventory omission |
 
 The wallet and operator keys used in these tests are ephemeral and unfunded.
@@ -49,7 +50,7 @@ release notes; this change does not publish or rename an official release.
 1. Exact-commit CI and immutable Linux image build, anonymous image retrieval,
    and persistent-volume restart smoke with paid admission disabled.
 2. Fresh production journal/budget/identity review, including pending original
-   payments and the v5 migration/rollback boundary.
+   payments and the v6 migration/rollback boundary.
 3. Explicit deployment/test allowance covering provider startup probes, one
    two-child native batch, the single customer USDC transfer and sponsored fees.
 4. Installed-client paid acceptance: both child receipts, complete ordered

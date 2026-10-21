@@ -90,6 +90,45 @@ signed reads. `COVENANT_COMPUTE_REFERRAL_CODE` (optional) rides each
 dispatch so the partner who onboarded this buyer earns their disclosed
 share of the marketplace fee.
 
+## Codebase Knowledge
+
+Knowledge compiles supported repository files into local snapshots with source
+citations and observed dependencies. Local commands need no buyer wallet,
+coordinator, daemon or model key and do not execute the repository's programs.
+Guided setup requires **0.5.2**; the manual compile and MCP workflow also works
+in **0.5.1**. Check `covenant-compute --version` before using setup.
+
+```sh
+covenant-compute knowledge setup /path/to/repo --query SYMBOL --json
+```
+
+Replace the path and `SYMBOL` with your repository and a symbol to find, or omit
+`--query` to let setup choose one. Setup compiles a snapshot, searches it and
+verifies a citation's source hash, displayed fragment and line bounds. A missing
+usable citation is reported as `compiled_without_citation`; truncated evidence
+verifies only the displayed fragment of the cited source range.
+
+Copy the returned `mcp_config.mcpServers` entry into your MCP client's stdio
+configuration. It contains the absolute executable and store paths and binds
+the server to one project. Setup does not edit client configuration or start a
+watcher. This dedicated `covenant-compute knowledge mcp` server exposes only
+`knowledge.search`, `knowledge.get`, `knowledge.evidence`,
+`knowledge.dependencies`, `knowledge.changes` and `knowledge.status`; it does
+not buy Compute jobs.
+
+Use the returned `commands` for status, the loopback viewer and explicit
+recompilation. `knowledge status --project PROJECT_ID --json`, MCP status and
+the viewer report `freshness.state` as `current`, `stale` or `unavailable` by
+comparing admitted source with the selected saved snapshot. This bounded check
+does not recompile or update the snapshot; ignored content and Git metadata are
+outside its scope. `unavailable` never means current. Recompile explicitly with
+`knowledge compile /path/to/repo`, then use `knowledge diff` to inspect changes.
+
+Remote compilation is a separate opt-in `knowledge compile --remote` purchase
+for a clean, pinned public repository; local setup makes no remote purchase.
+See the [Knowledge guide](../../../docs/compute-knowledge.md) for the complete
+command reference, capture limits and remote evidence boundaries.
+
 ## Security audits
 
 Available in buyer version **0.4.1** or later. Check `covenant-compute --version`

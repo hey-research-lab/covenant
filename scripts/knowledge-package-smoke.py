@@ -161,11 +161,34 @@ def main() -> None:
         require(compiled["coverage"]["files"] == len(original_manifest), "example capture is incomplete")
         checks.extend(["offline-help", "offline-compile"])
 
+        setup = cli("setup", str(source), "--query", "calculate_total")
+        require(setup["status"] == "ready", "guided setup did not find a verified citation")
+        require(setup["compile"]["project"]["id"] == project
+                and setup["compile"]["snapshot_id"] == snapshot,
+                "guided setup changed the project or unchanged snapshot")
+        require(setup["configuration_written"] is False,
+                "guided setup unexpectedly wrote client configuration")
+        verified = setup["citation_verification"]
+        require(verified["status"] == "verified", "setup citation is not verified")
+        check_evidence(verified["citation"]["evidence"], source, snapshot,
+                       verified["citation"]["object"]["id"])
+        servers = setup["mcp_config"]["mcpServers"]
+        require(len(servers) == 1, "guided setup must emit exactly one project-bound server")
+        server = next(iter(servers.values()))
+        require(Path(server["command"]).is_absolute()
+                and Path(server["command"]).resolve() == binary,
+                "MCP configuration does not name the installed executable")
+        require(server["args"] == ["knowledge", "mcp", "--project", project,
+                                    "--store", str(store.resolve())],
+                "MCP configuration is not bound to the canonical store and project")
+        checks.extend(["guided-setup", "guided-citation", "guided-mcp-config"])
+
         def query(*arguments: str) -> dict:
             return cli(*arguments, "--project", project)
 
         status = query("status")
         require(status["snapshot_id"] == snapshot, "status selected a different snapshot")
+        require(status["freshness"]["state"] == "current", "fresh snapshot is not current")
         search = query("query", "calculate_total", "--limit", "50")
         require(search["results"], "example symbol search returned no objects")
         paths = {row["object"]["path"] for row in search["results"]}
@@ -203,7 +226,8 @@ def main() -> None:
         ], start=9):
             requests.append({"jsonrpc": "2.0", "id": identifier, "method": "tools/call",
                              "params": {"name": name, "arguments": arguments}})
-        output = run(["knowledge", "mcp", "--store", str(store), "--project", project],
+        # Execute the arguments emitted by setup, rather than reconstructing them.
+        output = run(server["args"],
                      b"".join(json.dumps(request).encode() + b"\n" for request in requests))
         responses = [json.loads(line) for line in output.splitlines()]
         require([row["id"] for row in responses] == list(range(1, 11)),
@@ -220,6 +244,7 @@ def main() -> None:
             require(row["result"]["isError"] is False, f"MCP read failed: {row}")
             results.append(json.loads(row["result"]["content"][0]["text"]))
         require(results[0]["snapshot_id"] == snapshot, "MCP status selected a different snapshot")
+        require(results[0]["freshness"]["state"] == "current", "MCP freshness differs")
         require(results[1]["results"], "MCP search returned no objects")
         check_evidence(results[2]["evidence"], source, snapshot, selected)
         check_evidence(results[3]["evidence"], source, snapshot, selected)
@@ -231,6 +256,23 @@ def main() -> None:
         checks.extend(["mcp-initialize", "mcp-notifications", "mcp-six-read-only-tools",
                        "mcp-all-six-reads", "mcp-citations", "mcp-no-mutation", "mcp-project-boundary"])
         require(file_manifest(source) == original_manifest, "read-only checks changed example source")
+        changed_file = source / "python/pricing.py"
+        original = changed_file.read_bytes()
+        changed_file.write_bytes(original + b"\n# local freshness acceptance\n")
+        stale = query("status")
+        require(stale["freshness"]["state"] == "stale"
+                and stale["freshness"]["changes"]["modified"] == 1,
+                "status failed to detect an admitted source edit")
+        require(stale["snapshot_id"] == snapshot, "status implicitly recompiled source")
+        # Saved evidence is still bound to its captured bytes while source is stale.
+        require(query("show", selected)["evidence"] == detail["evidence"],
+                "live source edit changed saved evidence")
+        changed_file.write_bytes(original)
+        require(query("status")["freshness"]["state"] == "current",
+                "restoring captured bytes did not restore current status")
+        require(file_manifest(source) == original_manifest, "freshness test did not restore fixture")
+        checks.extend(["mcp-emitted-config-execution", "freshness-current-stale-current",
+                       "stale-source-preserves-citations"])
         require(not (root / "unused-home").exists() and not (root / "unused-buyer").exists(),
                 "offline knowledge unexpectedly created buyer or HOME state")
         require(not any(root.rglob("identity.json")), "offline knowledge created an identity")
@@ -238,7 +280,7 @@ def main() -> None:
         print(json.dumps({
             "result": "pass", "mode": mode, "buyer_version": version,
             "binary_sha256": sha256(binary.read_bytes()), "snapshot_id": snapshot,
-            "example_files": len(original_manifest), "verified_citations": len(search["results"]) + 3,
+            "example_files": len(original_manifest), "verified_citations": len(search["results"]) + 4,
             "license_files": license_files, "checks": checks,
             "scope": "Offline local artifact checks. No source execution, purchase, release or deployment.",
         }, indent=2))

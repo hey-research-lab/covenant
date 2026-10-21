@@ -18,7 +18,7 @@ Both `covenant-compute` and `covenant-compute-mcp` refuse any single lease, task
 If you downloaded the archive in a browser on macOS, clear the quarantine flag
 on the unpacked commands so that macOS will open them. To check the archive
 first, follow "Verify a download" in the release notes. This archive contains
-version `0.5.1`. The website installer is pinned separately, so check
+version `0.5.2`. The website installer is pinned separately, so check
 `covenant-compute --version` after using it; an installer may still select an
 older release until its published archive has been verified.
 
@@ -54,19 +54,22 @@ back up `~/.covenant-compute-mcp/identity.json`.
 Compile supported source into saved snapshots, inspect exact source citations,
 trace static dependencies, compare snapshots, and connect an agent through six
 read-only MCP tools. The local viewer uses Covenant's typography and black,
-violet, blue and mint palette. Local commands need no wallet, daemon or model key.
+violet, blue and mint palette. Guided setup verifies a captured citation and emits
+project-bound MCP configuration without changing client settings. Status reports
+current, stale or unavailable source without recompiling. Local commands need no
+wallet, daemon or model key.
 
 From this unpacked folder:
 
 ```sh
-./covenant-compute knowledge compile ./examples/knowledge --json
-# Use the project ID printed by compile:
+./covenant-compute knowledge setup ./examples/knowledge --query calculate_total --json
+# Use compile.project.id from setup output:
 ./covenant-compute knowledge query calculate_total --project PROJECT_ID
 ./covenant-compute knowledge serve --project PROJECT_ID
 ```
 
 After installing, the same bundled example is available at
-`~/.local/share/covenant-compute/0.5.1/examples/knowledge` unless you override
+`~/.local/share/covenant-compute/0.5.2/examples/knowledge` unless you override
 `COVENANT_COMPUTE_DATA_DIR`. The index defaults to `~/.covenant/knowledge`, outside
 the example source. `serve` prints a private loopback URL for the selected project;
 do not publish that URL or its session token.
@@ -111,7 +114,7 @@ agent coordinates the audit, independent reviews, filesystem access, and require
 sandbox. These tools do not execute the workflow or add a remote audit job kind.
 The bundle includes Cloudflare's unchanged upstream documents and license at
 commit `c1c8a8c1471069fb0e188eeaff69b8e8db6564a8` with a hash manifest. The full guide is:
-https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-security-audit.md
+https://github.com/open-covenant/covenant/blob/compute-v0.5.2/docs/compute-security-audit.md
 
 ## Upfront model prices
 
@@ -132,7 +135,7 @@ reduce the agreed charge. `covenant-compute-mcp` exposes the same choice through
 Tariffs require a compatible coordinator and an operator advertising the exact
 offer. Installing the client does not activate a tariff on the network. Requests
 without a tariff ID retain their existing pricing behavior. The tariff guide is:
-https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-inference-tariffs.md
+https://github.com/open-covenant/covenant/blob/compute-v0.5.2/docs/compute-inference-tariffs.md
 
 ## Encrypted checkpoints
 
@@ -163,13 +166,13 @@ attestation. `workspace delete <workspace-uuid>` schedules stored ciphertext for
 cleanup after outstanding grants expire.
 
 The complete workspace workflow and storage limits are documented at:
-https://github.com/open-covenant/covenant/blob/compute-v0.5.1/docs/compute-workspaces.md
+https://github.com/open-covenant/covenant/blob/compute-v0.5.2/docs/compute-workspaces.md
 
 The guide at https://docs.opencovenant.org/compute covers funding your balance,
 renting a GPU, hiring a coding agent and running a node. Every command and flag
 of `covenant-compute` and `covenant-compute-mcp` is described in the command
 reference:
-https://github.com/open-covenant/covenant/tree/compute-v0.5.1/agent-os/crates/covenant-compute-buyer#readme
+https://github.com/open-covenant/covenant/tree/compute-v0.5.2/agent-os/crates/covenant-compute-buyer#readme
 
 The source is at https://github.com/open-covenant/covenant, licensed under
 Apache 2.0 (see `LICENSE` and `NOTICE.md`).

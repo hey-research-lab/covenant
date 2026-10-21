@@ -98,6 +98,12 @@ OpenAI-compatible backend as `image_url` content parts.
   (`COVENANT_COMPUTE_NODE_CONTAINER_IMAGE`, docker or podman, no
   network by default, memory/cpu/pids caps) — the right default for
   strangers' work.
+- **`knowledge`** — repository source compilation through the fixed Knowledge
+  compiler entrypoint in `COVENANT_COMPUTE_KNOWLEDGE_IMAGE`. The image must be
+  installed and pinned by digest before startup; the executor never pulls it.
+  Serves `batch_job` requests for the exact `knowledge-compile-v1:<digest>` model.
+  Source is JSON on stdin, with no source mounts, a read-only root filesystem,
+  no network, and fixed resource caps.
 - **`subprocess`** — batch commands directly on the host with env
   scrubbing, a scratch cwd, output caps and deadline kill, but no
   filesystem or network wall. The binary warns at boot when this
@@ -343,13 +349,15 @@ on its own. Run from a terminal instead and logs go to the console.
 ## Configuration reference
 
 `setup` writes the trust anchors and the capability profile into
-`node.env`; everything else has a sane default. A real environment
+`node.env`; executor-specific requirements are listed below. A real environment
 variable always wins over `node.env`, so a service unit or a one-off run
 can override any of these without re-running `setup`. A missing trust
 anchor fails the boot, named. The payout address and the marketplace-fee
 ceiling are validated and fail the boot if they won't parse; any other
-knob that won't parse logs a warning and falls back to its default
+knob with a fallback logs a warning and falls back to its default
 rather than refusing to start, so check the boot log after changing one.
+The Knowledge executor requires a valid compiler image digest pin and refuses
+startup if it is missing or malformed.
 
 **Trust anchors and home** (the three anchors are required to serve)
 
@@ -364,11 +372,11 @@ rather than refusing to start, so check the boot log after changing one.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `COVENANT_COMPUTE_NODE_EXECUTOR` | `subprocess` | `ollama`, `openai-compat`, `whisper`, `say`, `container`, `subprocess`, `broker`, `agent`, `imd`, `echo`, or `lease-stub`. |
+| `COVENANT_COMPUTE_NODE_EXECUTOR` | `subprocess` | `ollama`, `openai-compat`, `whisper`, `say`, `container`, `knowledge`, `subprocess`, `broker`, `agent`, `imd`, `echo`, or `lease-stub`. |
 | `COVENANT_COMPUTE_NODE_HARDWARE` | `cpu` | Hardware class advertised. A GPU (NVIDIA, or Apple Silicon on macOS) is auto-detected when this is unset. |
 | `COVENANT_COMPUTE_NODE_VRAM_GB` | `0` | Advertised VRAM, for jobs that require a minimum. An override of the width only: setting it does not suppress GPU detection, so a GPU box that sets just this still advertises its detected card. |
 | `COVENANT_COMPUTE_NODE_MODELS` | (backend's list) | Models advertised. An inference backend reports its own served models when this is unset. |
-| `COVENANT_COMPUTE_NODE_JOB_KINDS` | inference or batch | `inference_call` for the inference executors, `batch_job` otherwise. Set `embedding` to serve embeddings from an inference backend that hosts an embedding model (or pass `setup --job-kinds embedding`), and the boot benchmark proves that claim with a real embedding rather than a chat probe. Comma-separated to serve several. The boot fails if a kind isn't servable by the executor (inference and embedding need `ollama`/`openai-compat`; transcription needs `whisper`; speech synthesis needs `say`; batch needs `subprocess`/`container`/`imd`; a lease session needs `broker` or `lease-stub`), so a node never sells compute it would mis-execute. |
+| `COVENANT_COMPUTE_NODE_JOB_KINDS` | inference or batch | `inference_call` for the inference executors, `batch_job` otherwise. Set `embedding` to serve embeddings from an inference backend that hosts an embedding model (or pass `setup --job-kinds embedding`), and the boot benchmark proves that claim with a real embedding rather than a chat probe. Comma-separated to serve several. The boot fails if a kind isn't servable by the executor (inference and embedding need `ollama`/`openai-compat`; transcription needs `whisper`; speech synthesis needs `say`; batch needs `subprocess`/`container`/`knowledge`/`imd`; a lease session needs `broker` or `lease-stub`), so a node never sells compute it would mis-execute. |
 | `COVENANT_COMPUTE_NODE_PRICE_MICRO_USDC` | `1000` | This node's ask. |
 | `COVENANT_COMPUTE_NODE_PRICE_UNIT` | `per_job` | `per_job`, `per_million_tokens`, `per_gpu_second`, or `per_lease_hour`. |
 | `COVENANT_COMPUTE_NODE_TARIFFS_FILE` | unset | Optional absolute JSON file of measured, versioned inference tariffs. Exact signed model/revision/output-cap quotes may price below the legacy flat ask; missing, mismatched or expired tariffs are refused. See [tariffs](../../../docs/compute-inference-tariffs.md). |
@@ -463,6 +471,18 @@ The advertised model name is `say-1` unless `COVENANT_COMPUTE_NODE_MODELS` sets 
 | `COVENANT_COMPUTE_NODE_CONTAINER_CPUS` | `1` | CPU cap. |
 | `COVENANT_COMPUTE_NODE_CONTAINER_PIDS` | `256` | Process-count cap. |
 | `COVENANT_COMPUTE_NODE_CONTAINER_USER` | (image's default) | The user jobs run as, e.g. `1000:1000`. |
+
+**Knowledge compiler executor** (`COVENANT_COMPUTE_NODE_EXECUTOR=knowledge`)
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `COVENANT_COMPUTE_KNOWLEDGE_IMAGE` | (required) | Compiler image as `name@sha256:<64-lowercase-hex>`. Install and verify the exact image before starting the operator; it is never pulled automatically. Its digest determines the served `knowledge-compile-v1:<digest>` model. |
+
+Uses `COVENANT_COMPUTE_NODE_CONTAINER_RUNTIME` (default `docker`). The other
+container-executor knobs above do not configure Knowledge jobs: these always
+run with network `none`, a read-only root filesystem, no Linux capabilities,
+`no-new-privileges`, user `65532:65532`, and caps of 512 MiB, one CPU and 64
+processes. The fixed compiler entrypoint receives source data on stdin.
 
 **Broker executor** (rents a real GPU per lease from a cloud market; owns no hardware)
 

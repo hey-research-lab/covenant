@@ -1,0 +1,106 @@
+{
+  "schema": "covenant.compute.homebrew-readiness.v1",
+  "observed_at": "2026-10-21T00:38:50.109851+00:00",
+  "result": "candidate-verified-publication-blocked",
+  "repository": "https://github.com/open-covenant/homebrew-tap",
+  "public_main": "1e9ad904647bbae930a347be1414e00b4d0daccc",
+  "public_version": "0.4.1",
+  "candidate_branch": "codex/compute-0.5.1",
+  "candidate_commit": "2cec26210097920b6447a4d6f666d4a2b45fd8d0",
+  "candidate_version": "0.5.1",
+  "release_source": "809aa264c2c1cb965c11001052096eece5caf0cf",
+  "release_url": "https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1",
+  "pins": {
+    "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.1/covenant-compute-darwin-arm64.tar.gz": "8cf3b09bcd4ea950d59a753a98b026e010f6078ed26727fad4062620391b28b1",
+    "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.1/covenant-compute-darwin-x86_64.tar.gz": "ecd80b4bbb8bfb53093cdb9f0096f3f39bab0ffc7622b366b170ccc8f0d1c74e",
+    "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.1/covenant-compute-linux-x86_64.tar.gz": "4873355a9db5dbc18cb8a3e6a71fcddb8e3d77e779b3485cc3785a6e5b8ec484",
+    "https://github.com/open-covenant/covenant/releases/download/compute-v0.5.1/covenant-compute-linux-arm64.tar.gz": "f77c04008d6352df3b9c8daef9638715e6ea70fdd8540ac6f95434ba8fef2e96"
+  },
+  "checks": {
+    "actual_homebrew_install": "pass",
+    "formula_style": "pass",
+    "formula_strict_online_audit": "pass",
+    "formula_test": "pass",
+    "four_archive_pins": "pass",
+    "four_installed_binary_versions_and_signed_hashes": "pass",
+    "installed_data_files": 271,
+    "all_installed_data_matches_verified_archive": true,
+    "packaged_smoke": {
+      "result": "pass",
+      "mode": "development-binary",
+      "buyer_version": "covenant-compute 0.5.1",
+      "binary_sha256": "53dd131563dd6363d185e5bc185f185c179ed0ab27773e17fed6f9c6914cf823",
+      "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+      "example_files": 9,
+      "verified_citations": 18,
+      "license_files": [
+        "tree-sitter-0.25.10-LICENSE.txt",
+        "tree-sitter-rust-0.24.2-LICENSE.txt",
+        "tree-sitter-javascript-0.25.0-LICENSE.txt",
+        "tree-sitter-typescript-0.23.2-LICENSE.txt",
+        "tree-sitter-python-0.25.0-LICENSE.txt",
+        "tree-sitter-0.25.10-UNICODE-LICENSE.txt",
+        "OFL-Archivo.txt",
+        "OFL-JetBrainsMono.txt"
+      ],
+      "checks": [
+        "packaged-licenses",
+        "original-example-files",
+        "offline-help",
+        "offline-compile",
+        "status",
+        "multi-language-search",
+        "exact-source-citations",
+        "show",
+        "snapshot-verification",
+        "incremental-cache",
+        "mcp-initialize",
+        "mcp-notifications",
+        "mcp-six-read-only-tools",
+        "mcp-all-six-reads",
+        "mcp-citations",
+        "mcp-no-mutation",
+        "mcp-project-boundary",
+        "source-unchanged",
+        "no-buyer-identity"
+      ],
+      "scope": "Offline local artifact checks. No source execution, purchase, release or deployment."
+    }
+  },
+  "tested_platform": "macOS ARM64",
+  "homebrew_prefix": "isolated custom test prefix; user tooling unchanged",
+  "archive_transport": "cached previously public-downloaded and independently signature/attestation verified archive; all four hashes rechecked",
+  "permissions": {
+    "observed_at": "2026-10-21T00:34:44.210959+00:00",
+    "repository": "open-covenant/homebrew-tap",
+    "default_branch": "main",
+    "permissions": {
+      "admin": false,
+      "maintain": false,
+      "push": false,
+      "triage": false,
+      "pull": true
+    },
+    "credential_source": "existing configured git credential helper; values not retained",
+    "connector_permissions": {
+      "pull": true,
+      "push": false,
+      "admin": false,
+      "maintain": false
+    },
+    "public_main_sha": "1e9ad904647bbae930a347be1414e00b4d0daccc"
+  },
+  "missing_permission": "Write/push access to open-covenant/homebrew-tap for the existing authenticated identity, or an authorized maintainer applying the candidate patch. Branch protection must still be followed.",
+  "publication": {
+    "remote_branch_created": false,
+    "pull_request_created": false,
+    "main_changed": false,
+    "new_push_attempted": false
+  },
+  "scope_limits": [
+    "Native formula install tested on macOS ARM64 only; existing macOS/Linux tap CI cannot run until authorized branch/PR publication.",
+    "All four release archive pins and existing signed release attestations are verified; this is distinct from four-platform Homebrew installation.",
+    "Online audit was rerun using normal Homebrew API data after stopping an unnecessary local homebrew-core clone; final audit passed.",
+    "No Compute purchase, signing, job, wallet, daemon, or model key used."
+  ]
+}

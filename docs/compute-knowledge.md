@@ -1,8 +1,8 @@
 # Covenant Compute Knowledge
 
-**Release guide: Compute 0.5.1. Limited remote capacity was accepted on 20 October 2026.** This patch updates the viewer's Covenant typography and colors; the compiler, CLI, read-only MCP and remote protocol retain their 0.5.0 behavior. One dedicated operator offers the pinned remote compiler. Its [dedicated-operator paid acceptance](evidence/knowledge/dedicated-acceptance-2026-10-21/report.md) verified one job and an identical-key settled replay; its [finalized stake extension](evidence/knowledge/stake-extension-2026-10-21/report.md) now supports admission through 17 November 2026 at 22:10:13 UTC, subject to current capacity and operator health. Two earlier paid pilot jobs separately passed artifact, receipt and interrupted-client recovery checks. No speed, accuracy or token-savings claim follows from these checks.
+**Compute 0.5.2 guide.** This client adds guided local setup and a freshness check for saved source. Extraction, snapshot format, the six read-only MCP tools and the pinned remote compiler remain compatible with 0.5.1. One dedicated operator offers limited remote capacity. Its [dedicated-operator paid acceptance](evidence/knowledge/dedicated-acceptance-2026-10-21/report.md) verified one job and an identical-key settled replay with the installed 0.5.1 client; its [finalized stake extension](evidence/knowledge/stake-extension-2026-10-21/report.md) supports admission through 17 November 2026 at 22:10:13 UTC, subject to current capacity and operator health. Two earlier paid pilot jobs separately passed artifact, receipt and interrupted-client recovery checks. These are separate remote results, not a new paid acceptance of 0.5.2. No speed, accuracy or token-savings claim follows from these checks.
 
-See the [original 0.5.0 release evidence](evidence/knowledge/public-release-0.5.0/report.md), [original installer acceptance](evidence/knowledge/public-release-0.5.0/installer-promotion.md), [0.5.1 release notes](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1), [paid pilot report](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md). Homebrew promotion is separate; use the website installer or signed release archives for this version.
+See the [original 0.5.0 release evidence](evidence/knowledge/public-release-0.5.0/report.md), [original installer acceptance](evidence/knowledge/public-release-0.5.0/installer-promotion.md), [0.5.2 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.2), [paid pilot report](evidence/knowledge/paid-pilot-2026-10-20/report.md) and [dedicated operator activation](evidence/knowledge/remote-activation-2026-10-20/report.md). Homebrew promotion is separate. Confirm the installed version: guided setup requires 0.5.2, while manual compile and MCP setup work in 0.5.1.
 
 Compute Knowledge turns supported repository files into saved, queryable snapshots. It is part of `covenant-compute`, with no model API key required for local compilation or queries. It does not run the source repository's build scripts, tests or programs.
 
@@ -15,15 +15,22 @@ curl -fsSL https://opencovenant.org/install/compute.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 
 covenant-compute --version
-covenant-compute knowledge compile \
-  "$HOME/.local/share/covenant-compute/0.5.1/examples/knowledge"
+covenant-compute knowledge setup \
+  "$HOME/.local/share/covenant-compute/0.5.2/examples/knowledge" \
+  --query calculate_total --json
 ```
 
-The installer verifies the archive against pinned SHA256 checksums. The [0.5.1 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1) provides signatures and attestations for independent verification. Confirm the reported version before using its versioned example path.
+The installer verifies the archive against pinned SHA256 checksums. The [0.5.2 release](https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.2) provides signatures and attestations for independent verification. Confirm the reported version before using its versioned example path. If an installation channel still reports 0.5.1, use its manual `knowledge compile` workflow or the signed 0.5.2 archive; do not treat a version check as an automatic update.
+
+`setup` explicitly compiles the directory, searches for the requested symbol, and checks a citation against the captured file's hash, displayed source fragment and line range. Its JSON contains `compile`, `citation_verification`, `freshness`, and `mcp_config`. Copy the entry under `mcp_config.mcpServers` into your MCP client's stdio configuration. It includes the absolute executable and store paths and a fixed project ID; no shell-variable expansion is needed. The command does not modify client settings, create a buyer wallet, start a watcher or make a remote purchase.
+
+Without `--query`, setup chooses a searchable object. An empty capture or a query with no usable citation is reported as `compiled_without_citation`, not a successful first cited query. Inspect diagnostics or select another symbol. Truncated evidence verifies only the displayed fragment against its captured source. `show` and the viewer use the same excerpt limit; inspect the corresponding source at the captured revision for additional context, and check its hash before equating it with saved evidence.
+
+For your own checkout, use `covenant-compute knowledge setup /path/to/repo --query SYMBOL`. You can also keep using `knowledge compile /path/to/repo` when you only want a new snapshot. The emitted `commands` contain the exact arguments for status, the viewer and explicit recompilation.
 
 ### Optional source build
 
-Use the `compute-v0.5.1` tag and a Rust toolchain compatible with the workspace:
+Use the `compute-v0.5.2` tag and a Rust toolchain compatible with the workspace:
 
 ```sh
 cargo build --manifest-path agent-os/Cargo.toml \
@@ -42,6 +49,8 @@ export PATH="$PWD/agent-os/target/debug:$PATH"
 
 The command prints JSON including the project and snapshot IDs. Local source roots become separate projects. The optional `--store /absolute/path` overrides the store for one command. Keep the store outside the compiled directory; a store inside the source is rejected.
 
+In setup output, those IDs are under `compile.project.id` and `compile.snapshot_id`.
+
 Supported extraction covers Rust, Python, JavaScript, TypeScript and Markdown headings. Tree-sitter parsers recover syntax and a bounded set of imports, references and calls. This is not whole-program type checking. Dynamic calls, external targets and ambiguous names can remain unresolved.
 
 Source capture respects Git ignore rules, `.covenantignore`, built-in sensitive-path and generated-directory exclusions, and file/count/byte limits. Symlinks are not followed. Default limits are 20,000 files, 1 MiB per file and 64 MiB total source. Treat the built-in exclusions as a precaution, not a comprehensive secret scanner. Review capture diagnostics before using a repository outside your own machine.
@@ -59,6 +68,12 @@ covenant-compute knowledge impact OBJECT_ID --project PROJECT_ID \
 Replace uppercase placeholders with IDs from the preceding JSON. Search is lexical retrieval over admitted names, paths and source text; it does not call a language model. Source evidence includes the saved file, exact excerpt, line range and source hash. Dependencies distinguish resolved targets from unresolved references. The impact command explores bounded graph relationships; it does not prove all runtime callers have been found.
 
 Use `--snapshot SNAPSHOT_ID` on read commands to select historical evidence. Without it, queries use the selected project's latest snapshot. If more than one project exists, pass `--project PROJECT_ID` explicitly.
+
+### Check whether saved source is current
+
+`knowledge status`, MCP `knowledge.status` and the viewer compare the selected saved snapshot with a bounded read of its registered source directory. `freshness.state` is `current`, `stale` or `unavailable`; unavailable never means current. Changes include admitted additions, edits, deletions and the supported capture configuration and repository ignore files. Git metadata is excluded from this freshness check. Ignored content is outside the comparison; the check does not expand macros, execute source or infer runtime changes.
+
+This is an observation at the time of the request, not a continuous watcher. Status does not update the snapshot or parser cache. If source is unavailable, saved citations still work. If it is stale, explicitly recompile and use `knowledge diff` to inspect the update. The viewer labels freshness for the selected snapshot, including historical snapshots.
 
 ## Recompile and compare
 

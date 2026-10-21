@@ -134,6 +134,7 @@ The Linux host, `runsc`, rootfs, and CI adoption contract is maintained internal
 | Settlement | `covenant-settlement`, `covenant-stake-keeper`, `covenant-sap-bridge`, `programs/settlement`, `programs/stake` |
 | Service profiles | `covenant-zauth`, `covenant-metaplex`, `covenant-sns`, `covenant-acedata` |
 | Compute network | `covenant-compute-protocol`, `covenant-compute-coordinator`, `covenant-compute-node`, `covenant-compute-buyer`, `covenant-compute-control`, `covenant-compute-vast`, `covenant-compute-gateway` |
+| Local source knowledge | `covenant-knowledge` |
 
 ## Operating Model
 

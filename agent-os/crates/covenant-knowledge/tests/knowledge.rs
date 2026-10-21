@@ -676,14 +676,13 @@ fn committed_and_dirty_bytes_have_distinct_citations() {
             },
         )
         .unwrap();
-    assert_eq!(
-        store
+    assert!(
+        !store
             .snapshot(p, pinned["snapshot_id"].as_str())
             .unwrap()
             .source
             .git
-            .dirty,
-        false
+            .dirty
     );
     assert_eq!(
         fs::read_to_string(source.path().join("main.py")).unwrap(),
@@ -893,5 +892,232 @@ fn raw_git_blob_comparison_supports_sha256_and_subdirectory_scope() {
             .git
             .dirty,
         "source metadata compares only the selected directory"
+    );
+}
+
+fn stored_history(home: &Path) -> Vec<Vec<String>> {
+    let db = rusqlite::Connection::open(home.join("knowledge.sqlite3")).unwrap();
+    [
+        "SELECT id || root || coalesce(latest,'') FROM projects ORDER BY id",
+        "SELECT id || artifact FROM snapshots ORDER BY id",
+        "SELECT project || snapshot || sequence FROM project_snapshots ORDER BY project,sequence",
+        "SELECT sequence || project || kind || snapshot FROM events ORDER BY sequence",
+        "SELECT key || artifact || checksum FROM parse_cache ORDER BY key",
+        "SELECT snapshot || ordinal || from_id || coalesce(to_id,'') FROM relationship_index ORDER BY snapshot,ordinal",
+    ].iter().map(|sql| db.prepare(sql).unwrap().query_map([], |r| r.get(0)).unwrap()
+        .collect::<rusqlite::Result<Vec<String>>>().unwrap()).collect()
+}
+
+#[test]
+fn freshness_tracks_edits_additions_deletions_and_selected_snapshot_without_writes() {
+    let (source, home, store) = setup();
+    file(source.path(), "main.py", "def ready(): return True\n");
+    file(source.path(), "old.py", "def old(): pass\n");
+    let first = store
+        .compile(source.path(), CompileOptions::default())
+        .unwrap();
+    let project = first["project"]["id"].as_str().unwrap();
+    let snapshot = first["snapshot_id"].as_str().unwrap();
+    let before = stored_history(home.path());
+    let status = store.query(project, None, "status", &json!({})).unwrap();
+    assert_eq!(status["freshness"]["state"], "current");
+    file(source.path(), "main.py", "def ready(): return False\n");
+    file(source.path(), "added.ts", "export const value = 1;\n");
+    fs::remove_file(source.path().join("old.py")).unwrap();
+    let stale = store.query(project, None, "status", &json!({})).unwrap();
+    assert_eq!(stale["freshness"]["state"], "stale");
+    assert_eq!(stale["freshness"]["changes"]["added"], 1);
+    assert_eq!(stale["freshness"]["changes"]["modified"], 1);
+    assert_eq!(stale["freshness"]["changes"]["removed"], 1);
+    assert_eq!(
+        stale["freshness"]["changes"]["examples"]["removed"],
+        json!(["old.py"])
+    );
+    assert_eq!(stored_history(home.path()), before);
+    let second = store
+        .compile(source.path(), CompileOptions::default())
+        .unwrap();
+    assert_ne!(second["snapshot_id"], snapshot);
+    assert_eq!(
+        store.query(project, None, "status", &json!({})).unwrap()["freshness"]["state"],
+        "current"
+    );
+    assert_eq!(
+        store
+            .query(project, Some(snapshot), "status", &json!({}))
+            .unwrap()["freshness"]["state"],
+        "stale"
+    );
+    assert_eq!(
+        store
+            .snapshot(project, Some(snapshot))
+            .unwrap()
+            .source
+            .files[0]
+            .content,
+        "def ready(): return True\n"
+    );
+}
+
+#[test]
+fn freshness_compares_ignore_rules_and_default_limits_but_not_excluded_content_or_git_only_changes()
+{
+    let (source, _home, store) = setup();
+    file(source.path(), ".covenantignore", "ignored.py\n");
+    file(source.path(), "ignored.py", "def private(): pass\n");
+    file(source.path(), "main.py", "def ready(): return True\n");
+    let captured = capture_source(source.path(), &CompileOptions::default()).unwrap();
+    let mut historical_git = captured.clone();
+    historical_git.git.revision = Some("a".repeat(40));
+    historical_git.git.dirty = true;
+    let first = store
+        .import_snapshot(source.path(), compile_source(historical_git).unwrap())
+        .unwrap();
+    let project = first["project"]["id"].as_str().unwrap();
+    file(
+        source.path(),
+        "ignored.py",
+        "def changed_but_excluded(): pass\n",
+    );
+    let status = store.query(project, None, "status", &json!({})).unwrap();
+    assert_eq!(status["freshness"]["state"], "current");
+    assert_eq!(status["freshness"]["git_metadata_checked"], false);
+    assert_eq!(
+        status["freshness"]["git_metadata_changed"],
+        serde_json::Value::Null
+    );
+    file(source.path(), ".covenantignore", "ignored.py\nmain.py\n");
+    let stale = store.query(project, None, "status", &json!({})).unwrap();
+    assert_eq!(stale["freshness"]["state"], "stale");
+    assert_eq!(stale["freshness"]["ignore_rules_changed"], true);
+    assert_eq!(stale["freshness"]["changes"]["removed"], 1);
+    file(source.path(), ".covenantignore", "ignored.py\n");
+    let mut lower_limits = captured;
+    lower_limits.config.max_files = 100;
+    store
+        .import_snapshot(source.path(), compile_source(lower_limits).unwrap())
+        .unwrap();
+    let status = store.query(project, None, "status", &json!({})).unwrap();
+    assert_eq!(status["freshness"]["state"], "stale");
+    assert_eq!(status["freshness"]["config_changed"], true);
+    assert_eq!(status["freshness"]["changes"]["modified"], 0);
+}
+
+#[test]
+fn freshness_unavailable_preserves_saved_evidence_for_missing_or_unsafe_source() {
+    let parent = tempfile::tempdir().unwrap();
+    let source = parent.path().join("source");
+    let home = parent.path().join("store");
+    file(&source, "main.py", "def ready(): return True\n");
+    let store = Store::open(&home).unwrap();
+    let compiled = store.compile(&source, CompileOptions::default()).unwrap();
+    let project = compiled["project"]["id"].as_str().unwrap();
+    let before = stored_history(&home);
+    file(&source, ".covenantignore", &"x".repeat(1024 * 1024 + 1));
+    let status = store.query(project, None, "status", &json!({})).unwrap();
+    assert_eq!(status["freshness"]["state"], "unavailable");
+    fs::remove_file(source.join(".covenantignore")).unwrap();
+    let moved = parent.path().join("moved");
+    fs::rename(&source, &moved).unwrap();
+    assert_eq!(
+        store.query(project, None, "status", &json!({})).unwrap()["freshness"]["state"],
+        "unavailable"
+    );
+    assert!(!store
+        .query(project, None, "search", &json!({"query":"ready"}))
+        .unwrap()["results"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&moved, &source).unwrap();
+        assert_eq!(
+            store.query(project, None, "status", &json!({})).unwrap()["freshness"]["state"],
+            "unavailable"
+        );
+    }
+    assert_eq!(stored_history(&home), before);
+}
+
+#[test]
+fn freshness_reports_unavailable_when_ignore_policy_excludes_its_own_evidence() {
+    let (source, _home, store) = setup();
+    file(source.path(), ".gitignore", ".gitignore\n");
+    file(source.path(), "main.py", "def ready(): pass\n");
+    let compiled = store
+        .compile(source.path(), CompileOptions::default())
+        .unwrap();
+    let project = compiled["project"]["id"].as_str().unwrap();
+    let status = store.query(project, None, "status", &json!({})).unwrap();
+    assert_eq!(status["freshness"]["state"], "unavailable");
+    assert!(status["freshness"]["reason"]
+        .as_str()
+        .unwrap()
+        .contains("ignore file"));
+}
+
+#[test]
+fn citation_truncation_flag_counts_displayed_unicode_characters() {
+    let (source, _home, store) = setup();
+    file(source.path(), "short.txt", &"é".repeat(10_000));
+    file(source.path(), "long.txt", &"é".repeat(20_000));
+    let compiled = store
+        .compile(source.path(), CompileOptions::default())
+        .unwrap();
+    let project = compiled["project"]["id"].as_str().unwrap();
+    let snapshot = store.snapshot(project, None).unwrap();
+    for (path, expected, chars) in [("short.txt", false, 10_000), ("long.txt", true, 16_384)] {
+        let object = snapshot
+            .objects
+            .iter()
+            .find(|o| o.path == path && o.kind == "file")
+            .unwrap();
+        let evidence = store
+            .query(project, None, "evidence", &json!({"id":object.id}))
+            .unwrap();
+        assert_eq!(evidence["evidence"]["truncated"], expected);
+        assert_eq!(
+            evidence["evidence"]["fragment"]
+                .as_str()
+                .unwrap()
+                .chars()
+                .count(),
+            chars
+        );
+    }
+}
+
+#[test]
+fn freshness_refuses_policy_equivalence_when_ignore_file_was_skipped_as_binary() {
+    let (source, _home, store) = setup();
+    file(
+        source.path(),
+        ".covenantignore",
+        "ignored.py\n#\0 binary policy\n",
+    );
+    file(source.path(), "ignored.py", "def ignored(): pass\n");
+    file(source.path(), "main.py", "def ready(): pass\n");
+    let compiled = store
+        .compile(source.path(), CompileOptions::default())
+        .unwrap();
+    let project = compiled["project"]["id"].as_str().unwrap();
+    let snapshot = store.snapshot(project, None).unwrap();
+    assert!(snapshot
+        .source
+        .diagnostics
+        .iter()
+        .any(|d| d.path == ".covenantignore" && d.code == "binary"));
+    assert!(!snapshot.source.files.iter().any(|f| f.path == "ignored.py"));
+    assert_eq!(
+        store.query(project, None, "status", &json!({})).unwrap()["freshness"]["state"],
+        "unavailable"
+    );
+    // Even if current capture admits the same source under a now-readable rule,
+    // the historical policy bytes were not saved and cannot be checked.
+    file(source.path(), ".covenantignore", "ignored.py\n");
+    assert_eq!(
+        store.query(project, None, "status", &json!({})).unwrap()["freshness"]["state"],
+        "unavailable"
     );
 }

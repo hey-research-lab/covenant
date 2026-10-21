@@ -1,0 +1,67 @@
+{
+  "result": "pass",
+  "checks": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "current",
+      "label": "Source current",
+      "horizontalOverflow": false,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "stale",
+      "label": "Source changed",
+      "horizontalOverflow": false,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "unavailable",
+      "label": "Freshness unavailable",
+      "horizontalOverflow": false,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "current",
+      "label": "Source current",
+      "horizontalOverflow": false,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "stale",
+      "label": "Source changed",
+      "horizontalOverflow": false,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "unavailable",
+      "label": "Freshness unavailable",
+      "horizontalOverflow": false,
+      "errors": []
+    }
+  ],
+  "source": "Actual candidate loopback viewer with copied bundled example",
+  "paid": false
+}

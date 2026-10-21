@@ -1,3 +1,25 @@
+# Client release 0.5.2
+
+This client adds guided local setup and read-only source freshness. Its
+release notes are `notes/compute-v0.5.2.md`. The snapshot format and deployed
+compiler capability remain unchanged. This client work does not authorize a
+new paid acceptance job, operator deployment or stake change.
+
+Run the candidate through the same four native jobs below before tagging.
+Publication requires the 0.5.2 tag pipeline, independent signature/attestation
+verification and fresh installation to complete. A candidate build is not a
+published release.
+Website and Homebrew pins are separate promotions; never infer them from a tag.
+For validation on `codex/knowledge-onboarding`, dispatch `compute-release`
+against the reviewed branch revision and verify its returned head SHA.
+The configured push trigger on the older candidate branch is not needed.
+
+The original 0.5.0 instructions below are retained as historical release
+evidence. For the current operator admission cutoff, use the finalized
+[21 October extension report](../../docs/evidence/knowledge/stake-extension-2026-10-21/report.md):
+17 November 2026 at 22:10:13 UTC, subject to current health and eligibility.
+The older October cutoff in the historical activation text is superseded.
+
 # Knowledge release 0.5.0
 
 The local Knowledge feature ships inside the existing four-command Compute

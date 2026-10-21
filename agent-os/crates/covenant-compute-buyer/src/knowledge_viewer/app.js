@@ -53,8 +53,11 @@ async function loadStatus(){
     $('project-name').textContent=name;$('project-id').textContent=short(project.id);
     const selected=array(status.snapshots).find(item=>item.id===status.snapshot_id)||{};const c=status.coverage||{};
     clear($('metrics'));$('metrics').append(metric('Source files',c.files,'Frozen in this snapshot'),metric('Source objects',c.objects,'Symbols and sections'),metric('Relationships',c.relationships,`${c.resolved??0} resolved references`),metric('Snapshots',array(status.snapshots).length,'Recorded in this project'));
-    $('snapshot-state').textContent=selected.dirty?'Working tree':'Source snapshot';
-    details($('snapshot-details'),[['Snapshot',status.snapshot_id],['Revision',selected.revision||'No Git revision'],['Source',root],['State',selected.dirty?'Includes uncommitted source':'Recorded source snapshot']]);
+    const freshness=status.freshness||{state:'unavailable',reason:'Source freshness was not checked.'};
+    const freshnessLabel={current:'Source current',stale:'Source changed',unavailable:'Freshness unavailable'}[freshness.state]||'Freshness unavailable';
+    $('snapshot-state').textContent=freshnessLabel;
+    const changes=freshness.changes;const changeSummary=changes?`${changes.added} added · ${changes.modified} modified · ${changes.removed} removed${freshness.config_changed?' · capture policy changed':''}${freshness.ignore_rules_changed?' · ignore rules changed':''}`:'';
+    details($('snapshot-details'),[['Snapshot',status.snapshot_id],['Revision',selected.revision||'No Git revision'],['Source',root],['Capture',selected.dirty?'Includes uncommitted source':'Recorded source snapshot'],['Source freshness',freshness.reason],...(changeSummary?[['Changes',changeSummary]]:[])]);
     $('snapshot-footer').textContent=`Snapshot ${short(status.snapshot_id)} · Local evidence`;
     $('verify').disabled=!status.snapshot_id;$('verify-result').textContent='';coverage(status);snapshotOptions(status);
   }catch(e){error(e.message);$('snapshot-state').textContent='Unavailable';$('project-name').textContent='Project unavailable';}

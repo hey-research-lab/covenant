@@ -1,5 +1,6 @@
 //! Offline source knowledge. Evidence is a frozen source observation, not a proof
 //! of semantic correctness. No repository code, macros or build hooks execute.
+mod freshness;
 mod parser;
 mod source;
 mod store;
@@ -308,7 +309,7 @@ pub(crate) fn evidence(snapshot: &Snapshot, object: &Object) -> Result<serde_jso
         .content
         .get(object.start_byte..object.end_byte)
         .context("invalid evidence byte range")?;
-    let truncated = fragment.len() > 16 * 1024;
+    let truncated = fragment.chars().count() > 16 * 1024;
     let fragment: String = fragment.chars().take(16 * 1024).collect();
     Ok(serde_json::json!({
         "object_id":object.id, "snapshot_id":snapshot.id, "path":object.path,

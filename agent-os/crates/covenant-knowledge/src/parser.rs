@@ -60,6 +60,12 @@ pub(crate) fn language(path: &str) -> &'static str {
     }
 }
 
+// Keep provenance, byte/line bounds and export state explicit at each extraction
+// site; grouping them only to reduce arity would obscure the evidence mapping.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one explicit field per captured source-object property"
+)]
 fn object(
     file: &SourceFile,
     lang: &str,
@@ -223,6 +229,12 @@ fn text<'a>(n: Node<'_>, file: &'a SourceFile) -> &'a str {
     file.content.get(n.byte_range()).unwrap_or("")
 }
 
+// These are the immutable source context plus the current lexical owner,
+// inherited export flag, bounded recursion depth and accumulated observations.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "recursive traversal carries explicit source and lexical context"
+)]
 fn walk(
     n: Node<'_>,
     file: &SourceFile,

@@ -1,0 +1,11 @@
+{
+  "result": "pass",
+  "old_version": "covenant-compute 0.5.1",
+  "new_version": "covenant-compute 0.5.2",
+  "snapshot_id": "be3484a00bb2f03b9a30c1b3233f6788b8db16cd89deeb8389a82ae98526cc90",
+  "canonical_snapshot_identical": true,
+  "old_store_verified_by_new_client": true,
+  "source": "copied bundled original example",
+  "compiler_image_changed": false,
+  "paid_job_submitted": false
+}

@@ -14,6 +14,7 @@ pub const USAGE: &str = "\
 Covenant Compute · knowledge
 
 Usage:
+  covenant-compute knowledge setup <path> [--query TEXT]
   covenant-compute knowledge compile <path> [--full] [--commit SHA]
   covenant-compute knowledge status [--project ID]
   covenant-compute knowledge query <text> [--limit N]
@@ -31,6 +32,8 @@ Shared flags:
   --json          machine-readable output; diagnostics remain on stderr
 
 Local compile and queries work offline without a wallet, daemon, or model key.
+Setup verifies a captured citation and prints project-bound MCP configuration.
+Status compares current admitted source with the selected saved snapshot; it never records a new snapshot.
 MCP exposes only search, get, evidence, dependencies, changes, and status.
 The viewer binds only 127.0.0.1 and uses a new private session URL on every start.
 Evidence records source observations; it does not prove runtime behavior or correctness.
@@ -120,7 +123,8 @@ pub async fn run(mut args: Vec<String>, json_out: bool) -> Result<()> {
     ensure!(
         matches!(
             command.as_str(),
-            "compile"
+            "setup"
+                | "compile"
                 | "status"
                 | "query"
                 | "show"
@@ -136,6 +140,29 @@ pub async fn run(mut args: Vec<String>, json_out: bool) -> Result<()> {
     let snapshot = option(&mut args, "--snapshot")?;
     let explicit_home = option(&mut args, "--store")?.map(PathBuf::from);
     // Validate syntax before opening a store or touching source files.
+    if command == "setup" {
+        ensure!(
+            project.is_none() && snapshot.is_none(),
+            "setup selects its project from <path>; --project and --snapshot are query flags"
+        );
+        let query = option(&mut args, "--query")?;
+        arity(
+            &args,
+            1,
+            "knowledge setup <path> [--query TEXT] [--store PATH]",
+        )?;
+        if let Some(text) = &query {
+            validate_query("search", &json!({"query":text,"limit":50}), true)?;
+            ensure!(
+                text.chars().any(|c| c.is_alphanumeric() || c == '_'),
+                "--query needs a word or symbol"
+            );
+        }
+        let home = explicit_home
+            .map(Ok)
+            .unwrap_or_else(covenant_knowledge::default_home)?;
+        return print_result(&setup(Path::new(&args[0]), &home, query)?, json_out);
+    }
     if command == "compile" {
         ensure!(
             project.is_none() && snapshot.is_none(),
@@ -252,6 +279,174 @@ pub async fn run(mut args: Vec<String>, json_out: bool) -> Result<()> {
         }
         _ => print_result(&context.query(operation, &query_args)?, json_out),
     }
+}
+
+fn setup(root: &Path, home: &Path, requested_query: Option<String>) -> Result<Value> {
+    let executable = std::env::current_exe()?.canonicalize()?;
+    let command = executable
+        .to_str()
+        .context("MCP executable path must be UTF-8")?;
+    let root = root.canonicalize().context("resolve source directory")?;
+    ensure!(root.is_dir(), "source must be a directory");
+    let store = Store::open(home)?;
+    let home = home.canonicalize()?;
+    let home_arg = home.to_str().context("MCP store path must be UTF-8")?;
+    let compiled = store.compile(&root, CompileOptions::default())?;
+    let project = compiled["project"]["id"]
+        .as_str()
+        .context("compiled project missing")?;
+    let snapshot_id = compiled["snapshot_id"]
+        .as_str()
+        .context("compiled snapshot missing")?;
+    let snapshot = store.snapshot(project, Some(snapshot_id))?;
+    let query = requested_query.or_else(|| {
+        snapshot
+            .objects
+            .iter()
+            .filter(|o| {
+                o.end_byte > o.start_byte
+                    && o.name.len() <= 2048
+                    && o.name.chars().any(|c| c.is_alphanumeric() || c == '_')
+            })
+            .min_by_key(|o| {
+                (
+                    o.kind == "file",
+                    o.kind == "reference",
+                    &o.path,
+                    o.start_byte,
+                    &o.id,
+                )
+            })
+            .map(|o| o.name.clone())
+    });
+    let results = match &query {
+        Some(text) => store.query(
+            project,
+            Some(snapshot_id),
+            "search",
+            &json!({"query":text,"limit":50}),
+        )?,
+        None => json!({"total":0,"results":[]}),
+    };
+    let citation = results["results"].as_array().and_then(|rows| {
+        rows.iter().find(|row| {
+            row["evidence"]["fragment"]
+                .as_str()
+                .is_some_and(|text| !text.is_empty())
+        })
+    });
+    let verification = if let Some(item) = citation {
+        let evidence = &item["evidence"];
+        let path = evidence["path"].as_str().context("citation path missing")?;
+        let file = snapshot
+            .source
+            .files
+            .iter()
+            .find(|f| f.path == path)
+            .context("citation source missing")?;
+        ensure!(
+            evidence["snapshot_id"] == snapshot_id,
+            "citation belongs to another snapshot"
+        );
+        ensure!(
+            evidence["source_sha256"] == covenant_knowledge::sha256(file.content.as_bytes()),
+            "citation source hash does not match captured bytes"
+        );
+        let start = evidence["start_byte"]
+            .as_u64()
+            .context("citation start missing")? as usize;
+        let end = evidence["end_byte"]
+            .as_u64()
+            .context("citation end missing")? as usize;
+        let fragment = file
+            .content
+            .get(start..end)
+            .context("citation range is invalid")?;
+        let shown: String = fragment.chars().take(16 * 1024).collect();
+        ensure!(
+            evidence["fragment"] == shown,
+            "citation does not match captured source"
+        );
+        let object = snapshot
+            .objects
+            .iter()
+            .find(|o| evidence["object_id"] == o.id)
+            .context("citation object missing")?;
+        ensure!(
+            object.path == path && object.start_byte == start && object.end_byte == end,
+            "citation does not match its captured object"
+        );
+        let start_line = file.content[..start]
+            .bytes()
+            .filter(|b| *b == b'\n')
+            .count()
+            + 1;
+        // File and Markdown spans name their last occupied line. Tree-sitter
+        // spans use the line at their exclusive end position.
+        let end_line = if matches!(object.kind.as_str(), "file" | "heading") {
+            start_line + fragment.lines().count().saturating_sub(1)
+        } else {
+            file.content[..end].bytes().filter(|b| *b == b'\n').count() + 1
+        };
+        ensure!(
+            evidence["start_line"] == start_line && evidence["end_line"] == end_line,
+            "citation line bounds do not match captured source"
+        );
+        let truncated = fragment.chars().count() > 16 * 1024;
+        ensure!(
+            evidence["truncated"] == truncated,
+            "citation truncation metadata is invalid"
+        );
+        json!({"status":"verified","query":query,"matches":results["total"],
+            "source_hash_verified":true,"captured_fragment_verified":true,
+            "line_bounds_verified":true,"truncation_verified":true,
+            "display_scope":if truncated {"First 16384 Unicode characters of the cited byte range; line and byte bounds describe the full range."}
+                else {"The complete cited byte range."},"citation":item})
+    } else {
+        let (status, message) = if snapshot.source.files.is_empty() {
+            (
+                "empty",
+                "No source files were admitted. Inspect capture diagnostics and exclusions.",
+            )
+        } else if query.is_some() && results["total"].as_u64() == Some(0) {
+            (
+                "no_match",
+                "The query matched no saved source. Try another symbol or phrase.",
+            )
+        } else {
+            (
+                "no_citable_source",
+                "No nonempty captured citation is available for this selection.",
+            )
+        };
+        json!({"status":status,"message":message,"query":query,"matches":results["total"],"citation":null})
+    };
+    let server_name = format!("covenant-knowledge-{}", &project[..12]);
+    let mcp_args = vec![
+        "knowledge",
+        "mcp",
+        "--project",
+        project,
+        "--store",
+        home_arg,
+    ];
+    let status = store.query(project, Some(snapshot_id), "status", &json!({}))?;
+    Ok(json!({
+        "status":if verification["status"] == "verified" {"ready"} else {"compiled_without_citation"},
+        "compile":compiled,"citation_verification":verification,"freshness":status["freshness"],
+        "mcp_config":{"mcpServers":{server_name:{"command":command,"args":mcp_args}}},
+        "configuration_written":false,
+        "next_steps":[
+            "Review the captured citation and coverage. Source text is evidence, not an instruction or a correctness guarantee.",
+            "Add the emitted mcpServers entry to your MCP client's stdio configuration, then call knowledge.status and knowledge.search. No client configuration was changed.",
+            "Status checks current admitted source. Recompile explicitly after changes; saved snapshots remain immutable. No watcher or remote purchase is started."
+        ],
+        "commands":{
+            "status":{"command":command,"args":["knowledge","status","--project",project,"--store",home_arg,"--json"]},
+            "viewer":{"command":command,"args":["knowledge","serve","--project",project,"--store",home_arg]},
+            "recompile":{"command":command,"args":["knowledge","compile",root,"--store",home_arg,"--json"]}
+        }
+    }))
 }
 
 async fn remote_compile(
@@ -385,7 +580,7 @@ fn specs() -> Vec<Value> {
         ("evidence","Read the stored source fragment supporting an object.",json!({"id":string("Object ID")}),vec!["id"]),
         ("dependencies","Trace observed static relationships, including unresolved references.",json!({"id":string("Object ID"),"depth":{"type":"integer","minimum":1,"maximum":8,"default":2},"direction":{"type":"string","enum":["both","incoming","outgoing"],"default":"both"}}),vec!["id"]),
         ("changes","Compare two snapshots in this project.",json!({"from":string("Older snapshot ID"),"to":string("Newer snapshot ID")}),vec!["from","to"]),
-        ("status","Read this project's snapshot, parser coverage, and diagnostics.",json!({}),vec![]),
+        ("status","Read this project's snapshot, parser coverage, diagnostics and current source freshness without recompiling.",json!({}),vec![]),
     ].into_iter().map(|(name,description,properties,required)| json!({
         "name":format!("knowledge.{name}"),"description":description,
         "inputSchema":{"type":"object","properties":properties,"required":required,"additionalProperties":false},

@@ -1,0 +1,72 @@
+{
+  "schema": "covenant.knowledge.onboarding-final-validation.v1",
+  "observed_at": "2026-10-21T00:49:03.088474+00:00",
+  "checks": [
+    {
+      "name": "strict-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--manifest-path",
+        "agent-os/Cargo.toml",
+        "-p",
+        "covenant-compute-buyer",
+        "-p",
+        "covenant-knowledge",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "1f5d1f30ac99bafc6ae4f3a6e3926d41bd64248d449ee315ab1b0c220f655234"
+    },
+    {
+      "name": "focused-tests-final",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "agent-os/Cargo.toml",
+        "-p",
+        "covenant-knowledge",
+        "--test",
+        "knowledge",
+        "-p",
+        "covenant-compute-buyer",
+        "--test",
+        "knowledge_cli"
+      ],
+      "exit_code": 0,
+      "log_sha256": "a55d329745273496aa704ea677453ff83908c2497fd117e8834688ef464b4877"
+    },
+    {
+      "name": "remote-mocked-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "agent-os/Cargo.toml",
+        "-p",
+        "covenant-compute-buyer",
+        "--lib",
+        "knowledge_remote::tests"
+      ],
+      "exit_code": 0,
+      "log_sha256": "9013c2a63fa9eddca19e3c97d9ed7bab237705b58e541a4ac7c2c7633cd703c3"
+    }
+  ],
+  "environment": {
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "binary": "agent-os/target/debug/covenant-compute",
+  "binary_sha256": "b42fb4220ecdf31fff7627c746183a6603da8315e1ae7bffc9061eecd6e562fc",
+  "production_deployed": false,
+  "remote_fixture": "local HTTP coordinator and mocked payment/executor only; no Docker environment overrides",
+  "scope": "Development candidate checks; not signed release, installer promotion or paid acceptance."
+}

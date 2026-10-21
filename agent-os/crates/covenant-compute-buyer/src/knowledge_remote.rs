@@ -34,7 +34,7 @@ pub enum RemoteCompileOutcome {
     Preview(Value),
     Compiled {
         result: KnowledgeCompileResult,
-        outcome: DispatchOutcome,
+        outcome: Box<DispatchOutcome>,
     },
 }
 
@@ -302,7 +302,10 @@ async fn compile_remote_with(
     let snapshot: covenant_knowledge::Snapshot = serde_json::from_value(result.snapshot.clone())?;
     covenant_knowledge::validate_snapshot(&snapshot)?;
     drop(lock);
-    Ok(RemoteCompileOutcome::Compiled { result, outcome })
+    Ok(RemoteCompileOutcome::Compiled {
+        result,
+        outcome: Box::new(outcome),
+    })
 }
 
 async fn quote(
@@ -361,7 +364,11 @@ mod tests {
     }
     #[async_trait]
     impl JobExecutor for FixtureCompiler {
-        fn admit(&self, job: &JobEnvelopePayload, remaining: Duration) -> std::result::Result<(), String> {
+        fn admit(
+            &self,
+            job: &JobEnvelopePayload,
+            remaining: Duration,
+        ) -> std::result::Result<(), String> {
             if let Some(docker) = &self.docker {
                 return docker.admit(job, remaining);
             }
@@ -543,7 +550,10 @@ mod tests {
             let executor = covenant_compute_node::knowledge::KnowledgeExecutor::new(config)
                 .with_operator(&operator.agent_id());
             executor.health().await.expect("installed Docker compiler");
-            executor.reap_orphans().await.expect("scoped orphan cleanup");
+            executor
+                .reap_orphans()
+                .await
+                .expect("scoped orphan cleanup");
             Some(executor)
         } else {
             None

@@ -335,7 +335,41 @@ fn read_bounded(root: &Path, path: &Path, max: usize) -> Result<Vec<u8>> {
 
 fn capture_worktree(root: &Path) -> Result<SourceSet> {
     let canonical = root.canonicalize()?;
-    let root = canonical.as_path();
+    capture_canonical_worktree(&canonical, true)
+}
+
+/// A status request is already bound to a registered canonical directory.
+/// Never follow a replacement root symlink to expand that session's scope.
+pub(crate) fn capture_registered_source(root: &Path) -> Result<SourceSet> {
+    let before = root.symlink_metadata()?;
+    ensure!(
+        before.is_dir() && !before.file_type().is_symlink(),
+        "registered source is not a directory"
+    );
+    ensure!(
+        root.canonicalize()? == root,
+        "registered source changed path"
+    );
+    // Git metadata is not a source-freshness signal. Skipping Git also keeps
+    // status bounded by admitted files rather than the repository's tree size.
+    let source = capture_canonical_worktree(root, false)?;
+    let after = root.symlink_metadata()?;
+    ensure!(
+        after.is_dir() && !after.file_type().is_symlink() && root.canonicalize()? == root,
+        "registered source changed while captured"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        ensure!(
+            before.dev() == after.dev() && before.ino() == after.ino(),
+            "registered source directory was replaced while captured"
+        );
+    }
+    Ok(source)
+}
+
+fn capture_canonical_worktree(root: &Path, include_git: bool) -> Result<SourceSet> {
     let config = CompileConfig::default();
     let mut source = SourceSet {
         files: vec![],
@@ -343,9 +377,11 @@ fn capture_worktree(root: &Path) -> Result<SourceSet> {
         diagnostics: vec![],
         config,
     };
-    if let Ok(output) = git(root, &["rev-parse", "HEAD"]) {
-        if output.status.success() {
-            source.git.revision = Some(String::from_utf8_lossy(&output.stdout).trim().into());
+    if include_git {
+        if let Ok(output) = git(root, &["rev-parse", "HEAD"]) {
+            if output.status.success() {
+                source.git.revision = Some(String::from_utf8_lossy(&output.stdout).trim().into());
+            }
         }
     }
     let mut stack = vec![(root.to_path_buf(), Vec::<PathBuf>::new())];
@@ -377,14 +413,17 @@ fn capture_worktree(root: &Path) -> Result<SourceSet> {
             }
         }
         let ignores = builder.build()?;
-        let mut entries = fs::read_dir(&dir)?.collect::<std::io::Result<Vec<_>>>()?;
-        entries.sort_by_key(|e| e.file_name());
-        for entry in entries {
+        let mut entries = Vec::new();
+        for entry in fs::read_dir(&dir)? {
             seen += 1;
             ensure!(
                 seen <= source.config.max_files * 4,
                 "directory entry limit exceeded"
             );
+            entries.push(entry?);
+        }
+        entries.sort_by_key(|e| e.file_name());
+        for entry in entries {
             let path = entry.path();
             let relative = path
                 .strip_prefix(root)?
@@ -474,7 +513,9 @@ fn capture_worktree(root: &Path) -> Result<SourceSet> {
         }
     }
     source.files.sort_by(|a, b| a.path.cmp(&b.path));
-    compare_captured_source_to_head(root, &mut source)?;
+    if include_git {
+        compare_captured_source_to_head(root, &mut source)?;
+    }
     source.diagnostics.sort();
     validate_source(&source)?;
     Ok(source)

@@ -1,0 +1,8 @@
+{
+  "observed_at": "2026-10-21T00:50:50.097681+00:00",
+  "tests": 37,
+  "result": "pass",
+  "command": "python3 -m unittest discover -s scripts/tests -p test_knowledge_health_check.py -q",
+  "helper_sha256": "d45051978ad6f6cb943bc10b3c8db03c663e4d00fac47fa0049c551e56ecae8c",
+  "scope": "Offline synthetic transition/transport/state tests; separate initial public GET observation retained locally; hourly app heartbeat active; no job submission or remediation."
+}

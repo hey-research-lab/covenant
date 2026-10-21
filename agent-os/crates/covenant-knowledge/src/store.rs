@@ -333,6 +333,7 @@ impl Store {
                 Ok(
                     json!({"project":project_record,"snapshots":snapshots,"snapshot_id":s.id,
                     "coverage":coverage(&s),"diagnostics":s.diagnostics,
+                    "freshness":crate::freshness::freshness(Path::new(&project_record.root), &s.source),
                     "limitations":["Static observations only. Dynamic dispatch, macros and external package resolution are not evaluated."]}),
                 )
             }

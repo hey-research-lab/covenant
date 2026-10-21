@@ -30,6 +30,12 @@ official x402 verification are exercised; live provider execution and blockchain
 settlement are not established by these tests. No production identities, latches,
 reserves, provider budgets or financial journals were changed.
 
+The inherited CLI packaging check also needed a PR-only snapshot mode: the
+deployment branch has a 0.5.0 node alongside 0.4.1 buyer/staking tools. Snapshot
+archives validate each extracted binary against its own manifest and include
+source and binary provenance. Tag releases still require aligned versions and
+release notes; this change does not publish or rename an official release.
+
 ## Remaining release gates
 
 1. Exact-commit CI and immutable Linux image build, anonymous image retrieval,

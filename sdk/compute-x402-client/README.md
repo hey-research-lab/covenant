@@ -2,7 +2,7 @@
 
 Buy inference from Covenant with Solana USDC using standard x402 V2. The package provides a Coinbase AgentKit action and an official LangChain tool usable in LangGraph agents. Both use the same payment journal, spending limits and signed-result verification. The configured Solana wallet signs the actual SPL-token transfer through `walletProvider.signTransaction`.
 
-Version 0.1.0 completed funded AgentKit acceptance and is available as an immutable [GitHub release](https://github.com/open-covenant/covenant/releases/tag/codex-compute-x402-client-v0.1.0). Version 0.2.0 added LangChain/LangGraph support. Version 0.3.0 is the model-tariff release candidate; its local qualification does not establish production deployment or funded acceptance. Compatibility does not imply a partnership or endorsement.
+Version 0.1.0 completed funded AgentKit acceptance and is available as an immutable [GitHub release](https://github.com/open-covenant/covenant/releases/tag/codex-compute-x402-client-v0.1.0). Version 0.2.0 added LangChain/LangGraph support. Version 0.3.0 added model tariffs. Version 0.4.0 supports quotes with a 32-character payment memo, which earlier versions refuse before signing. This branch also contains the unpublished batch candidate described below; the package version does not establish batch deployment or funded acceptance. Compatibility does not imply a partnership or endorsement.
 
 ## Install
 
@@ -12,15 +12,17 @@ Until a registry release is published, install the checked source package from
 this release branch:
 
 ```sh
-git clone --filter=blob:none --branch codex/compute-model-pricing \
+git clone --filter=blob:none --branch deploy/compute-coordinator \
   https://github.com/open-covenant/covenant.git covenant-x402
 cd covenant-x402/sdk/compute-x402-client
 npm ci --ignore-scripts
-npm test
+# Include the tests that pay through the real payment verifier (install its
+# dependencies first with npm ci in services/compute-x402-facilitator):
+COVENANT_X402_BRIDGE_PATH=$PWD/../../services/compute-x402-facilitator/bridge.mjs npm test
 npm pack
 
 # In the application that will use the client:
-npm install /absolute/path/to/covenant-compute-x402-client-0.3.0.tgz
+npm install /absolute/path/to/covenant-compute-x402-client-0.4.0.tgz
 ```
 
 The packaged `demo.mjs` is also available at
@@ -112,7 +114,7 @@ const result = JSON.parse(await action.invoke({
 provider.close(walletProvider);
 ```
 
-`walletProvider` must expose AgentKit's Solana transaction-signing interface on mainnet. The demo uses `CovenantSolanaKeypairWalletProvider`, a subclass of Coinbase's `SolanaKeypairWalletProvider`. It disables only the upstream initialization analytics hook, whose unawaited HTTP error can terminate Node in AgentKit 0.10.4. All custody and signing behavior remains the original AgentKit implementation. The official Solana Kit modifying-signer interface raises the unsigned x402 transaction’s compute limit from 20,000 to a fixed 60,000 units before the wallet signs. The transfer with its request-bound memo consumed 43,642 units in a read-only mainnet simulation. The adapter changes only that instruction, rejects transactions that already carry signatures, and rejects any further message change by the wallet. Transfer, memo, priority fee and blockhash remain unchanged.
+`walletProvider` must expose AgentKit's Solana transaction-signing interface on mainnet. The demo uses `CovenantSolanaKeypairWalletProvider`, a subclass of Coinbase's `SolanaKeypairWalletProvider`. It disables only the upstream initialization analytics hook, whose unawaited HTTP error can terminate Node in AgentKit 0.10.4. All custody and signing behavior remains the original AgentKit implementation. If a quote also offers payment on other networks, such as USDC on Base, the SDK pays the Solana offer and ignores the others. For quotes with the 32-character memo, the wallet signs the transaction exactly as the official x402 client (`@x402/svm`) builds it, with the client's default limit of 20,000 compute units; such a payment used 13,180 units in a read-only mainnet simulation. Earlier gateway versions issue a 118-byte memo, which needs 43,642 units; for those quotes the SDK raises the compute-unit limit to 60,000 before the wallet signs and changes nothing else. Before the wallet signs, the SDK checks that the transaction carries no signatures yet, and after signing it rejects the result if the wallet has changed the transaction message.
 
 Configure the gateway origin, receiving wallet, gateway Compute buyer and allowed operator public keys from the verified deployment. HTTPS is mandatory; an explicit `allowLocalhost` option exists only for local fixtures. A redirect is an error. The RPC genesis hash must be Solana mainnet before any quote or payment signature. Requests contain at most 32 text messages. `maxInputBytes` defaults to the launch limit of 4096 UTF-8 bytes of the normalized JSON message array, including JSON framing and escaping. A different deployed limit may be configured explicitly, up to 65536 bytes. Oversized input is refused before quoting or reserving money.
 
@@ -166,7 +168,7 @@ if (result.status === 'completed') {
 
 This first sequential-operator candidate admits 1–2 independent supported text-chat requests per new purchase. The proof format and recovery of already-signed historical authorizations retain the 32-child bound. Each child may opt into `model_tariff_v1`; omitting it retains that child's legacy fixed-price behavior. Nested batches and unsupported generation parameters are refused. The configured input-byte limit applies to each child's messages, with a 128,000-byte bound on the complete canonical request. The complete batch response is limited to 10 MiB; single responses retain their 4 MiB limit.
 
-The gateway offers one aggregate USDC payment. Its accepted `extra.batchPricing` freezes the batch ID and each ordered job ID, model, output cap, pricing mode and retail amount. The client validates that manifest against the original request and exact aggregate charge before signing. Both the per-payment ceiling and cumulative ceiling apply to the whole batch; single and batch purchases share the same existing journal and cumulative budget.
+The gateway offers one aggregate USDC payment. Its accepted `extra.batchPricing` freezes the batch ID and each ordered job ID, model, output cap, pricing mode and retail amount. The client validates that manifest against the original request and exact aggregate charge before signing. Fresh short memos use the official 20,000-unit transaction; saved long memos retain their original authorization and 60,000-unit compatibility path. Both memo forms bind the aggregate quote ID and ordered request digest, including during standalone batch verification. Both the per-payment ceiling and cumulative ceiling apply to the whole batch; single and batch purchases share the same existing journal and cumulative budget.
 
 A completed batch requires every child result, its original native job and operator receipt signatures, its model tariff when requested, and the ordered RFC6962 inclusion proofs. The paid quote's frozen batch and job IDs prevent substituting valid results from another purchase. Native operator tariffs remain separate from retail customer charges. Merkle consistency alone is not a signature or proof of model quality.
 

@@ -29,10 +29,14 @@ function url(value, local = false) {
   return u;
 }
 
-// The request-bound memo needs more than the upstream client's default 20k CU.
-// Kit's modifying-signer contract returns the changed message as well as its
-// signature; returning signatures alone would invalidate the SDK's final wire.
-export const PAYMENT_COMPUTE_UNITS = 60_000;
+// The official client's limit. A v3 memo (32 hex characters) keeps the whole
+// payment near 13k CU, so the transaction is signed exactly as built.
+export const PAYMENT_COMPUTE_UNITS = 20_000;
+// A v2 memo (118 bytes) needs 43,642 CU. Quotes from a gateway that still
+// issues them are signed at this limit.
+export const LEGACY_PAYMENT_COMPUTE_UNITS = 60_000;
+const LEGACY_MEMO_PREFIX = Buffer.from('covenant.x402.v2:');
+export const shortMemo = (quoteId, digest) => sha256(`covenant.x402.v3:${quoteId}:${digest}`).slice(0, 32);
 export function agentKitSvmSigner(wallet) {
   const network = wallet.getNetwork();
   assert(network.protocolFamily === 'svm' && network.chainId === SOLANA_GENESIS, 'agentkit_wallet_not_solana_mainnet');
@@ -49,9 +53,13 @@ export function agentKitSvmSigner(wallet) {
         const limits = unsigned.message.compiledInstructions.filter(instruction =>
           unsigned.message.staticAccountKeys[instruction.programIdIndex].toBase58() === 'ComputeBudget111111111111111111111111111111' && instruction.data[0] === 2);
         const limit = limits[0];
-        assert(limits.length === 1 && unsigned.message.compiledInstructions[0] === limit && limit.accountKeyIndexes.length === 0 && limit.data.length === 5 && Buffer.from(limit.data).readUInt32LE(1) === 20_000, 'unexpected_payment_compute_limit');
-        // No account, transfer, memo, priority fee or lifetime field is changed.
-        const data = Buffer.from(limit.data); data.writeUInt32LE(PAYMENT_COMPUTE_UNITS, 1); limit.data = data;
+        assert(limits.length === 1 && unsigned.message.compiledInstructions[0] === limit && limit.accountKeyIndexes.length === 0 && limit.data.length === 5 && Buffer.from(limit.data).readUInt32LE(1) === PAYMENT_COMPUTE_UNITS, 'unexpected_payment_compute_limit');
+        // Only a v2 memo changes anything, and only the compute limit. Kit's
+        // modifying-signer contract returns the changed message with its
+        // signature; signatures alone would invalidate the SDK's final wire.
+        const legacy = unsigned.message.compiledInstructions.some(instruction =>
+          unsigned.message.staticAccountKeys[instruction.programIdIndex].toBase58() === 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr' && Buffer.from(instruction.data).subarray(0, LEGACY_MEMO_PREFIX.length).equals(LEGACY_MEMO_PREFIX));
+        if (legacy) { const data = Buffer.from(limit.data); data.writeUInt32LE(LEGACY_PAYMENT_COMPUTE_UNITS, 1); limit.data = data; }
         const message = Buffer.from(unsigned.message.serialize());
         const signed = await wallet.signTransaction(unsigned);
         assert(Buffer.from(signed.message.serialize()).equals(message), 'wallet_changed_payment_transaction');
@@ -65,6 +73,16 @@ export function agentKitSvmSigner(wallet) {
       return results;
     },
   };
+}
+
+// A gateway may list other networks beside Solana (USDC on Base); this client
+// pays the Solana mainnet offer and ignores the rest.
+function solanaQuote(required) {
+  assert(Array.isArray(required.accepts), 'ambiguous_payment_requirements');
+  const offers = required.accepts.filter(quote => quote?.network === NETWORK);
+  assert(offers.length > 0, 'untrusted_payment_rail');
+  assert(offers.length === 1, 'ambiguous_payment_requirements');
+  return offers[0];
 }
 
 async function bodyText(response, limit = 4 * 1024 * 1024) {
@@ -104,7 +122,7 @@ export class CovenantX402Client {
   }
   validateQuote(required, digest, expiredAllowed = false, endpoint = this.endpoint) {
     assert(required.x402Version === 2 && required.resource?.url === endpoint, 'untrusted_payment_resource');
-    assert(required.accepts?.length === 1, 'ambiguous_payment_requirements'); const quote = required.accepts[0];
+    const quote = solanaQuote(required);
     assert(quote.scheme === 'exact' && quote.network === NETWORK && quote.asset === USDC && quote.payTo === this.payTo, 'untrusted_payment_rail');
     assert(typeof quote.amount === 'string' && /^[1-9][0-9]*$/.test(quote.amount), 'invalid_payment_amount');
     const price = BigInt(quote.amount); assert(price <= BigInt(this.maxPayment), 'per_payment_cap_exceeded');
@@ -112,7 +130,7 @@ export class CovenantX402Client {
     assert(extra && /^[0-9a-f-]{36}$/.test(extra.quoteId) && extra.requestSha256 === digest, 'quote_request_mismatch');
     if (endpoint === this.endpoint) assert(!Object.hasOwn(extra, 'batchPricing'), 'unexpected_batch_pricing');
     assert(Number.isSafeInteger(extra.expiresAtMs) && (expiredAllowed || extra.expiresAtMs > Date.now() + 5000), 'quote_expired');
-    assert(extra.memo === `covenant.x402.v2:${extra.quoteId}:${digest}`, 'quote_memo_mismatch');
+    assert(extra.memo === shortMemo(extra.quoteId, digest) || extra.memo === `covenant.x402.v2:${extra.quoteId}:${digest}`, 'quote_memo_mismatch');
     address(extra.feePayer); assert(extra.feePayer !== this.payer, 'buyer_must_not_pay_solana_fees');
     return { quote, price: Number(price) };
   }
@@ -198,8 +216,8 @@ export class CovenantX402Client {
       if (batch) verifyBatchQuote(quote, request);
       assert(row.amount === price, 'reserved_amount_mismatch');
       if (!row.payment) {
-        const payload = await this.http.createPaymentPayload(required);
-        assert(payload.x402Version === 2 && stable(payload.accepted) === stable(required.accepts[0]), 'sdk_changed_payment_requirements');
+        const payload = await this.http.createPaymentPayload({ ...required, accepts: [quote] });
+        assert(payload.x402Version === 2 && stable(payload.accepted) === stable(quote), 'sdk_changed_payment_requirements');
         const headers = this.http.encodePaymentSignatureHeader(payload);
         const payment = new Headers(headers).get('PAYMENT-SIGNATURE'); assert(payment, 'missing_payment_signature');
         this.validateQuote(required, digest, false, endpoint);
@@ -211,7 +229,7 @@ export class CovenantX402Client {
       if (response.status === 202) { await response.body?.cancel(); return { status: 'pending', requestId, requestSha256: digest }; }
       assert(response.status === 200, `paid_http_${response.status}_authorization_retained`);
       const result = strictJson(await bodyText(response, (batch ? 10 : 4) * 1024 * 1024));
-      const verified = (batch ? verifyBatchResult : verifyComputeResult)(result, { request, requestSha256: digest, quoteId: required.accepts[0].extra.quoteId, quote, gatewayBuyer: this.gatewayBuyer, operators: this.operators });
+      const verified = (batch ? verifyBatchResult : verifyComputeResult)(result, { request, requestSha256: digest, quoteId: quote.extra.quoteId, quote, gatewayBuyer: this.gatewayBuyer, operators: this.operators });
       const settlement = await this.verifySettlement(response.headers.get('PAYMENT-RESPONSE'), row.payment);
       const complete = { status: 'completed', requestId, requestSha256: digest, amountMicroUsdc: row.amount, settlement,
         ...(batch ? { texts: verified.texts } : { text: verified.text }), result };

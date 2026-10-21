@@ -10,7 +10,7 @@ from solders.transaction import VersionedTransaction
 
 from covenant_compute_x402 import NETWORK, USDC
 from covenant_compute_x402.journal import now_ms
-from covenant_compute_x402.payment import decode64, validate_transaction
+from covenant_compute_x402.payment import decode64, short_memo, validate_transaction
 from covenant_compute_x402.proof import compact, sha256, stable, strict_json
 from fixture import Fixture, encode, wrapper
 
@@ -108,7 +108,7 @@ class BatchFixture(Fixture):
                      "amount": str(sum(child["amount_atomic"] for child in children)), "payTo": str(self.seller.pubkey()),
                      "maxTimeoutSeconds": 90, "extra": {"feePayer": str(self.fee.pubkey()), "quoteId": quote_id,
                      "requestSha256": digest, "expiresAtMs": now_ms()+90_000,
-                     "memo": f"covenant.x402.v2:{quote_id}:{digest}",
+                     "memo": f"covenant.x402.v2:{quote_id}:{digest}" if self.legacy_memo else short_memo(quote_id, digest),
                      "batchPricing": {"version": 1, "batch_id": batch_id, "children": children}}}
             self.results[quote_id] = build_result(batch_id, digest, outputs)
         if "payment-signature" not in req.headers:
@@ -117,7 +117,7 @@ class BatchFixture(Fixture):
                 self.bad_quote(quote)
             self.saved_quotes[quote_id] = quote
             return httpx.Response(402, headers={"PAYMENT-REQUIRED": encode({"x402Version": 2,
-                                  "resource": {"url": str(req.url)}, "accepts": [quote]})}, content="{}")
+                                  "resource": {"url": str(req.url)}, "accepts": self.offers(quote) if self.offers else [quote]})}, content="{}")
         self.sends += 1
         self.payments.append(req.headers["payment-signature"])
         payload = strict_json(decode64(self.payments[-1]))

@@ -84,12 +84,13 @@ test('SDK tariff and legacy payments pass one independently configured real faci
 });
 
 
-test('official SVM batch payment passes independent facilitator policy before signed batch completion', {
+for (const legacyMemo of [false, true]) test(`official SVM ${legacyMemo ? 'legacy long' : 'standard short'} memo batch payment passes independent facilitator policy before signed batch completion`, {
   skip: !process.env.COVENANT_X402_BRIDGE_PATH,
 }, async () => {
   const { createBridge, Rejected } = await import(pathToFileURL(process.env.COVENANT_X402_BRIDGE_PATH).href);
   let bridge, verified, sponsorSignatures = 0, simulations = 0;
   const f = await fixture({
+    legacyMemo, expectedUnits: legacyMemo ? 60_000 : 20_000,
     childPrice: request => 12000 + 9 * request.max_tokens,
     verifyPayment: async (paymentPayload, resourceUrl) => {
       verified = await bridge.verify({ paymentPayload, paymentRequirements: paymentPayload.accepted, resourceUrl });

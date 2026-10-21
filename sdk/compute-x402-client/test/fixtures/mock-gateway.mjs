@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { createPrivateKey, sign, randomUUID, createPublicKey, verify, createHash } from 'node:crypto';
 import { Keypair, VersionedTransaction } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { SOLANA_GENESIS, NETWORK, USDC, PAYMENT_COMPUTE_UNITS } from '../../index.mjs';
+import { SOLANA_GENESIS, NETWORK, USDC, PAYMENT_COMPUTE_UNITS, shortMemo } from '../../index.mjs';
 import { CovenantSolanaKeypairWalletProvider } from '../../agentkit.mjs';
 import { sha256, stable } from '../../proof.mjs';
 import { pathToFileURL } from 'node:url';
@@ -42,7 +42,7 @@ export async function fixture(options = {}) {
         res.end(JSON.stringify({jsonrpc:'2.0',id:body.id,result}));return;
       }
       assert.ok(['/v1/chat/completions', '/v1/inference/batches'].includes(req.url)); const batch = req.url === '/v1/inference/batches'; const digest=sha256(stable(body));const quoteId=req.headers['idempotency-key'];
-      const quote=savedQuotes.get(quoteId)??{scheme:'exact',network:NETWORK,asset:USDC,amount:String(options.price?.(body)??1000),payTo:seller.publicKey.toBase58(),maxTimeoutSeconds:90,extra:{feePayer:fee.publicKey.toBase58(),quoteId,requestSha256:digest,expiresAtMs:Date.now()+90000,memo:`covenant.x402.v2:${quoteId}:${digest}`}};
+      const quote=savedQuotes.get(quoteId)??{scheme:'exact',network:NETWORK,asset:USDC,amount:String(options.price?.(body)??1000),payTo:seller.publicKey.toBase58(),maxTimeoutSeconds:90,extra:{feePayer:fee.publicKey.toBase58(),quoteId,requestSha256:digest,expiresAtMs:Date.now()+90000,memo:options.legacyMemo?`covenant.x402.v2:${quoteId}:${digest}`:shortMemo(quoteId,digest)}};
       if (batch && !quote.extra.batchPricing) {
         quote.extra.batchPricing = {version:1,batch_id:randomUUID(),children:body.requests.map(child=>({job_id:randomUUID(),model:child.model,max_output_tokens:child.max_tokens,...(child.pricing ? {pricing:child.pricing} : {}),amount_atomic:options.childPrice?.(child)??1000}))};
         quote.amount = String(quote.extra.batchPricing.children.reduce((sum, child) => sum + child.amount_atomic, 0));
@@ -50,7 +50,7 @@ export async function fixture(options = {}) {
       if(!req.headers['payment-signature']) {
         quotes++; if(options.badQuote) options.badQuote(quote);
         savedQuotes.set(quoteId,quote);
-        const required={x402Version:2,resource:{url:base+req.url,description:'Covenant inference',mimeType:'application/json'},accepts:[quote]};
+        const required={x402Version:2,resource:{url:base+req.url,description:'Covenant inference',mimeType:'application/json'},accepts:options.offers?options.offers(quote):[quote]};
         if(options.badRequired)options.badRequired(required);
         res.statusCode=402;res.setHeader('PAYMENT-REQUIRED',encode(required));res.end('{}');return;
       }

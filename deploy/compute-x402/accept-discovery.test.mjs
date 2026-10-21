@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {acceptDiscovery, ASSET, NETWORK, baseUrl, expectedRecords, inputSchema, parseArgs,
-  sha256, stable, strictJson, tariffPrice, validateExpected, validateQuote, validateSnapshot} from './accept-discovery.mjs';
+  sha256, shortMemo, stable, strictJson, tariffPrice, validateExpected, validateQuote, validateSnapshot} from './accept-discovery.mjs';
 
 const now = 1800000000000;
 const revision = 'a'.repeat(40);
@@ -29,7 +29,7 @@ function quote(request, id, url = origin, serverNow = now) {
   return {x402Version: 2, resource: {url: `${url}/v1/chat/completions`,
     description: 'Covenant inference with a verified operator receipt', mimeType: 'application/json'},
   accepts: [{scheme: 'exact', network: NETWORK, asset: ASSET, amount: String(amount), payTo: expected.payTo,
-    maxTimeoutSeconds: 90, extra: {feePayer: expected.feePayer, memo: `covenant.x402.v2:${id}:${hash}`,
+    maxTimeoutSeconds: 90, extra: {feePayer: expected.feePayer, memo: shortMemo(id, hash),
       quoteId: id, requestSha256: hash, expiresAtMs: serverNow + 75000}}]};
 }
 const encoded = body => Buffer.from(JSON.stringify(body)).toString('base64');
@@ -224,4 +224,8 @@ test('fetch policy is closed and rejects payment results even on otherwise valid
   };
   await assert.rejects(acceptDiscovery({base: origin, revision, expected: policy(), now: () => now, fetchImpl}), /unexpected payment result/);
   assert.equal(calls, 1);
+});
+
+test('short memo matches the published vector', () => {
+  assert.equal(shortMemo('00000000-0000-4000-8000-000000000001', 'a'.repeat(64)), '8bfb7fde3cb99c6b0f16b7a18d83a0e1');
 });

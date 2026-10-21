@@ -23,6 +23,12 @@ export function canonical(value) {
   return JSON.stringify(value);
 }
 function digest(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
+// v3 memos are 32 hex characters, which fit the official client's 20k compute units.
+export function shortMemo(quoteId, requestSha256) { return digest(`covenant.x402.v3:${quoteId}:${requestSha256}`).slice(0, 32); }
+// Quotes issued before v3 keep their v2 memo until they settle.
+function validMemo(extra) {
+  return extra.memo === shortMemo(extra.quoteId, extra.requestSha256) || extra.memo === `covenant.x402.v2:${extra.quoteId}:${extra.requestSha256}`;
+}
 function decode(wire) {
   if (typeof wire !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(wire)) throw new Rejected('invalid transaction');
   const bytes = Buffer.from(wire, 'base64');
@@ -34,7 +40,8 @@ export function createBridge({ signer, config, rpc, now = Date.now, verifier }) 
   if (!RAILS[network] || asset !== RAILS[network].asset || secret.length < 32) throw new Error('invalid rail configuration');
   const pricing = createPricingPolicy(config);
   const batchResourceUrl = new URL('/v1/inference/batches', resourceUrl).href;
-  // The request-bound memo consumed 43,642 CU in a read-only mainnet simulation.
+  // A v3 payment from the official client uses about 13k of its 20k CU; the
+  // 60k ceiling admits v2 memos (43,642 CU) signed by earlier Covenant clients.
   // Bound sponsorship: <= 2 signatures, 60k CU and 1000 microlamports/CU.
   // This bounds fees to 10,060 lamports per admitted authorization.
   verifier ??= new ExactSvmScheme(signer, undefined, { enableSmartWalletVerification: false, maxRequiredSignatures: 2, maxComputeUnits: 60_000, maxPriorityFeeMicroLamports: 1_000 });
@@ -44,7 +51,7 @@ export function createBridge({ signer, config, rpc, now = Date.now, verifier }) 
     const batch = Object.hasOwn(extra, 'batchPricing');
     if (batch && batchPricingTotal(extra.batchPricing) !== BigInt(terms.amount)) throw new Rejected('invalid batch pricing binding');
     if (fresh && !(batch ? pricing.allowsBatch(extra.batchPricing, terms.amount, now()) : pricing.allows(terms.amount, now()))) throw new Rejected('payment amount is not configured for admission');
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(extra.quoteId) || !/^[0-9a-f]{64}$/.test(extra.requestSha256) || extra.memo !== `covenant.x402.v2:${extra.quoteId}:${extra.requestSha256}` || !Number.isSafeInteger(extra.expiresAtMs)) throw new Rejected('invalid quote binding');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(extra.quoteId) || !/^[0-9a-f]{64}$/.test(extra.requestSha256) || !validMemo(extra) || !Number.isSafeInteger(extra.expiresAtMs)) throw new Rejected('invalid quote binding');
     if (fresh && (now() > extra.expiresAtMs || extra.expiresAtMs > now() + 90_000)) throw new Rejected('quote expired');
     return batch ? batchResourceUrl : resourceUrl;
   }

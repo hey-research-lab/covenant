@@ -41,7 +41,9 @@ export function validatePaymentTransaction(tx, quote, payer) {
   assert(tx.message.version === 0, 'payment_must_be_v0');
   assert(tx.signatures.length === 2 && tx.signatures[0].every(byte => byte === 0), 'payment_fee_payer_must_be_unsigned');
   const actual = shape(tx.message);
-  assert([20_000, 60_000].some(units => actual === shape(expected(quote, payer, tx.message.recentBlockhash, units))), 'payment_transaction_not_approved');
+  // Only a 118-byte v2 memo needs more than the official client's 20k limit.
+  const allowed = quote.extra.memo.startsWith('covenant.x402.v2:') ? [20_000, 60_000] : [20_000];
+  assert(allowed.some(units => actual === shape(expected(quote, payer, tx.message.recentBlockhash, units))), 'payment_transaction_not_approved');
   const publicKey = createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), new PublicKey(payer).toBuffer()]), format: 'der', type: 'spki' });
   assert(verify(null, Buffer.from(tx.message.serialize()), publicKey, tx.signatures[1]), 'invalid_payment_signature');
 }

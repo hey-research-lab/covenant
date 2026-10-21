@@ -218,6 +218,20 @@ async fn unknown_child_restart_skips_completed_preserves_original_ids_and_disabl
     .unwrap();
     let terms = quote(&gateway).await;
     assert_eq!(terms.amount_atomic, 40);
+    assert_eq!(terms.memo_binding, MemoBinding::V3);
+    assert_eq!(terms.memo().len(), 32);
+    assert_eq!(terms.request_sha256, request_digest(&request()).unwrap());
+    assert_eq!(
+        terms.memo(),
+        short_memo(terms.quote_id, &terms.request_sha256)
+    );
+    let mut reordered = request();
+    reordered["requests"].as_array_mut().unwrap().reverse();
+    assert_ne!(
+        terms.memo(),
+        short_memo(terms.quote_id, &request_digest(&reordered).unwrap())
+    );
+
     assert_eq!(
         terms.resource_url,
         "https://compute.example/v1/inference/batches"

@@ -5,9 +5,12 @@ import pytest
 import httpx2 as httpx
 from solders.keypair import Keypair
 from solders.signature import Signature
+from solders.message import to_bytes_versioned
+from solders.transaction import VersionedTransaction
 
 from covenant_compute_x402 import CovenantError
 from covenant_compute_x402.batch import verify_batch_result, verify_batch_proof, validate_batch_pricing
+from covenant_compute_x402.payment import decode64, short_memo, solana_quote
 from covenant_compute_x402.proof import compact, sha256, stable, strict_json
 from batch_fixture import BatchFixture, batch_request, build_result
 from fixture import request, wrapper
@@ -48,6 +51,21 @@ def test_standalone_verifier_derives_request_digest_and_requires_quote_binding(f
                             operators=fixture["operators"])
 
 
+@pytest.mark.parametrize("mutation", [
+    lambda extra: extra.update(memo="0" * 32),
+    lambda extra: extra.update(quoteId="11111111-1111-1111-1111-111111111111"),
+    lambda extra: extra.update(memo=extra["memo"].upper()),
+])
+def test_standalone_batch_verifier_checks_quote_memo_binding(mutation):
+    fixture = strict_json((Path(__file__).parent / "fixtures/native-batch-response.json").read_bytes())
+    mutation(fixture["quote"]["extra"])
+    with pytest.raises(CovenantError, match="quote_memo_mismatch"):
+        verify_batch_result(fixture["response"], request=fixture["request"],
+                            request_sha256=sha256(stable(fixture["request"])),
+                            quote=fixture["quote"], gateway_buyer=fixture["gatewayBuyer"],
+                            operators=fixture["operators"])
+
+
 def test_proof_verifier_all_supported_tree_shapes():
     for size in range(1, 33):
         outputs = [{"covenant": {"job_id": f"00000000-0000-0000-0000-{i+1:012x}"}, "value": i} for i in range(size)]
@@ -70,6 +88,57 @@ async def test_batch_complete_all_leaves_and_native_tariffs_with_one_payment(tmp
     async with f.client() as client:
         assert await client.purchase_batch(**item) == result
     assert len(f.calls) == calls
+
+
+@pytest.mark.parametrize("legacy_memo", [False, True])
+async def test_batch_memo_uses_standard_20k_or_legacy_60k_and_freezes_recovery(tmp_path, legacy_memo, monkeypatch):
+    from covenant_compute_x402 import payment
+    built = []
+    original = payment._SnapshotScheme.create_payment_payload
+
+    def capture(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        built.append(result)
+        return result
+    monkeypatch.setattr(payment._SnapshotScheme, "create_payment_payload", capture)
+    # A non-Solana offer first must not change selection or the saved quote.
+    f = BatchFixture(tmp_path, legacy_memo=legacy_memo, first_status=202,
+                     offers=lambda q: [{"network": "eip155:8453", "amount": "999999999999"}, q])
+    item = batch_request()
+    async with f.client() as client:
+        assert (await client.purchase_batch(**item))["status"] == "pending"
+        before = client.journal.get(item["request_id"])
+    quote = solana_quote(strict_json(before["quote"]))
+    payload = strict_json(decode64(before["payment"]))
+    tx = VersionedTransaction.from_bytes(decode64(payload["payload"]["transaction"]))
+    assert payload["accepted"] == quote
+    assert int.from_bytes(bytes(tx.message.instructions[0].data)[1:5], "little") == (60_000 if legacy_memo else 20_000)
+    if not legacy_memo:
+        unsigned = VersionedTransaction.from_bytes(decode64(built[0]["transaction"]))
+        assert to_bytes_versioned(tx.message) == to_bytes_versioned(unsigned.message)
+        assert quote["extra"]["memo"] == short_memo(item["request_id"], before["digest"])
+    # Gateway defaults and other-network offers may change after signing.
+    f.legacy_memo = not legacy_memo
+    f.offers = lambda q: [q]
+    async with f.client() as client:
+        assert (await client.purchase_batch(**item))["status"] == "completed"
+        after = client.journal.get(item["request_id"])
+        assert all(before[key] == after[key] for key in ("body", "digest", "quote", "payment", "amount"))
+    assert f.quotes == f.wallet.signatures == 1 and f.sends == 2
+    assert f.payments[0] == f.payments[1]
+
+
+@pytest.mark.parametrize("offers,code", [
+    (lambda q: [{"network": "eip155:8453"}], "untrusted_payment_rail"),
+    (lambda q: [q, copy.deepcopy(q)], "ambiguous_payment_requirements"),
+])
+async def test_batch_without_one_solana_offer_stops_before_reservation(tmp_path, offers, code):
+    f, item = BatchFixture(tmp_path, offers=offers), batch_request()
+    async with f.client() as client:
+        with pytest.raises(CovenantError, match=code):
+            await client.purchase_batch(**item)
+        assert client.journal.get(item["request_id"])["quote"] is None
+    assert f.wallet.signatures == f.sends == 0
 
 
 @pytest.mark.parametrize("status", [202, 503, 402])

@@ -56,27 +56,34 @@ an explicit migration/recovery review; they cannot silently reinterpret old work
 
 ## Public protocol and recovery
 
-POST `/v1/chat/completions` with `model`, text-only `messages`, `max_tokens` and
-optional `temperature`. A UUID `Idempotency-Key` reuses the initial quote. A 402
+POST `/v1/chat/completions` with `model`, text-only `messages`, `max_tokens`,
+optional `temperature` and optional `pricing: "model_tariff_v1"`. A UUID
+`Idempotency-Key` reuses the initial quote. A 402
 responds with the standard Base64 `PAYMENT-REQUIRED` V2 header. Clients sign the
 returned exact-SVM requirements and repeat the same request with
 `PAYMENT-SIGNATURE`; no Covenant-specific payment header is required.
 
-The official SDK's `extra.memo` binds quote UUID and sorted-JSON request SHA-256
-inside the signed payment transaction. The gateway verifies it, signs stable
-native Compute job IDs, then fsyncs the payment and jobs before dispatch. The
-verifier signs the fee-payer slot locally during admission; it never broadcasts
-from `/verify`. Static validation caps each sponsored transaction at two required
-signatures, 60,000 compute units and 1,000 microlamports per CU (at most 10,060
-lamports). Smart-wallet/CPI payments are disabled for this release.
+Each quote includes a memo in `extra.memo`, and the official x402 client
+(`@x402/svm`) copies it into the payment transaction it signs. Once the verifier
+accepts a payment, the gateway assigns Covenant Compute job IDs to the request
+and records the payment and its jobs before any job starts; a retry of the same
+paid request reuses them and is not charged again. The verifier adds its
+fee-payer signature to a local copy of the transaction and never submits from
+`/verify`. Before simulating or signing, it rejects any transaction with more than
+two signatures, a compute-unit limit above 60,000 or a priority fee above 1,000
+microlamports per unit, so Covenant pays at most 10,060 lamports in fees per
+payment. Payments from smart wallets or through cross-program invocation (CPI)
+are not supported.
 
-The full quote/request memo consumed 43,642 compute units in a read-only mainnet
-simulation. The installed Covenant client raises the official SDK's unsigned
-20,000-unit instruction to a fixed 60,000 before AgentKit signs; every other
-instruction and the blockhash remain unchanged. The bridge still runs the
-official signature, memo, transfer and live simulation checks. A transaction
-above 60,000 units or 1,000 microlamports per unit is rejected before simulation
-or fee-payer signing.
+The memo is the first 16 bytes, as 32 lowercase hexadecimal characters, of the
+SHA-256 hash of `covenant.x402.v3:<quote ID>:<request hash>`, using `extra.quoteId`
+and `extra.requestSha256` from the quote. The [deployment guide](../../deploy/compute-x402/README.md)
+gives an example and covers quotes from earlier gateway versions, whose 118-byte
+memo standard wallets cannot pay. In a read-only mainnet simulation, a payment
+built by the official client at its fixed 20,000 compute units used 13,180. The
+verifier accepts either memo when it matches the quote, and for both it runs the
+official x402 checks on the signatures, memo and USDC transfer and simulates the
+transaction against the live network.
 
 Only output whose native operator receipt verifies can trigger customer
 settlement. `/settle` always queries historical signature state before sending

@@ -14,7 +14,14 @@ const hash = value => createHash('sha256').update(value).digest();
 // Retail prices and native operator tariffs are separate. The one accepted
 // payment freezes each retail amount and child identity, not a native-price sum.
 export function verifyBatchQuote(quote, request) {
-  const pricing = quote.extra?.batchPricing;
+  const digest = sha256(stable(request));
+  const extra = quote.extra;
+  assert(extra && uuid(extra.quoteId) && extra.requestSha256 === digest, 'batch_request_mismatch');
+  // Standalone receipt verification has the same request-bound memo policy as
+  // the purchase path. Saved long memos remain valid and are never rewritten.
+  const shortMemo = sha256(`covenant.x402.v3:${extra.quoteId}:${digest}`).slice(0, 32);
+  assert(extra.memo === shortMemo || extra.memo === `covenant.x402.v2:${extra.quoteId}:${digest}`, 'quote_memo_mismatch');
+  const pricing = extra.batchPricing;
   assert(fields(pricing, ['version', 'batch_id', 'children']) && pricing.version === 1 && uuid(pricing.batch_id)
     && Array.isArray(pricing.children) && pricing.children.length === request.requests.length, 'invalid_batch_quote');
   const ids = new Set(); let total = 0n;

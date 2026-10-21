@@ -5,6 +5,7 @@ import hashlib
 import re
 from uuid import UUID
 
+from .payment import short_memo
 from .proof import CovenantError, require, safe_integer, sha256, stable, verify_compute_result
 
 LEAF_DOMAIN = b"covenant.compute.inference-batch.leaf.v1\n"
@@ -115,6 +116,9 @@ def verify_batch_result(result: dict, *, request: dict, request_sha256: str,
         digest = sha256(stable(request))
         require(request_sha256 == digest and quote["extra"].get("requestSha256") == digest,
                 "batch_request_mismatch")
+        quote_id = quote["extra"].get("quoteId")
+        require(_uuid(quote_id) and quote["extra"].get("memo") in (
+            short_memo(quote_id, digest), f"covenant.x402.v2:{quote_id}:{digest}"), "quote_memo_mismatch")
         require(isinstance(quote.get("amount"), str) and re.fullmatch(r"[1-9][0-9]{0,15}", quote["amount"]),
                 "invalid_batch_pricing_amount")
         validate_batch_pricing(quote["extra"], request["requests"], int(quote["amount"]))

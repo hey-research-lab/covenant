@@ -63,6 +63,11 @@ fn bounded_journal_read(path: &Path) -> std::io::Result<Vec<u8>> {
     Ok(bytes)
 }
 pub type Result<T> = std::result::Result<T, GatewayError>;
+
+/// Longest a paid request is held open for its payment to finalize (Solana
+/// finality is about 13 s). Standard x402 clients never retry a 202, so
+/// without this they never see the result.
+pub const SETTLEMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(25);
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayError {
     #[error("invalid request: {0}")]
@@ -75,6 +80,28 @@ pub enum GatewayError {
     Io(#[from] std::io::Error),
     #[error("encoding: {0}")]
     Json(#[from] serde_json::Error),
+}
+
+/// How the payment memo commits to the quote and request. Saved quotes keep
+/// the form they were issued with, so a recovered payment is checked against
+/// the memo the payer signed.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoBinding {
+    /// `covenant.x402.v2:<quote>:<request sha256>`. Its 118 bytes need about
+    /// 43k compute units, more than the official x402 client's 20k limit.
+    #[default]
+    V2,
+    /// 32 hex characters (about 13k compute units in total), so any standard
+    /// x402 wallet can pay. See [`short_memo`].
+    V3,
+}
+
+/// First 16 bytes of SHA-256 over `covenant.x402.v3:<quote>:<request sha256>`,
+/// as lowercase hex. Anyone holding the quote can recompute it.
+pub fn short_memo(quote_id: Uuid, request_sha256: &str) -> String {
+    let digest = Sha256::digest(format!("covenant.x402.v3:{quote_id}:{request_sha256}"));
+    digest[..16].iter().map(|b| format!("{b:02x}")).collect()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -92,10 +119,18 @@ pub struct PaymentTerms {
     pub resource_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub batch_pricing: Option<batch::BatchPricingManifest>,
+    /// Absent in journals written before v3 memos, which therefore read as V2.
+    #[serde(default)]
+    pub memo_binding: MemoBinding,
 }
 impl PaymentTerms {
     pub fn memo(&self) -> String {
-        format!("covenant.x402.v2:{}:{}", self.quote_id, self.request_sha256)
+        match self.memo_binding {
+            MemoBinding::V2 => {
+                format!("covenant.x402.v2:{}:{}", self.quote_id, self.request_sha256)
+            }
+            MemoBinding::V3 => short_memo(self.quote_id, &self.request_sha256),
+        }
     }
     pub fn accepted(&self) -> Value {
         let mut accepted = json!({"scheme":"exact","network":self.network,"asset":self.asset,
@@ -373,7 +408,7 @@ impl Disk {
         let mut journal = match bounded_journal_read(&directory.join("gateway.json")) {
             Ok(bytes) => serde_json::from_slice::<Journal>(&bytes)?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Journal {
-                version: 4,
+                version: 5,
                 namespace: namespace.clone(),
                 watermark_ms: 0,
                 reserve_micro_usdc: reserve,
@@ -381,7 +416,7 @@ impl Disk {
             },
             Err(e) => return Err(e.into()),
         };
-        if !matches!(journal.version, 2..=4)
+        if !matches!(journal.version, 2..=5)
             || journal.namespace != namespace
             || reserve < journal.reserve_micro_usdc
             || (reserve > journal.reserve_micro_usdc && !allow_reserve_increase)
@@ -390,10 +425,11 @@ impl Disk {
                 "journal identity/rail/reserve configuration changed".into(),
             ));
         }
-        // Old binaries must not reinterpret frozen tariff quotes as their flat
-        // native offer. Migration retains every existing identity and phase;
-        // rollback uses this binary with new admissions disabled.
-        journal.version = 4;
+        // Journal v3 freezes tariffs, v4 preserves short/long memo bindings,
+        // and v5 prevents pre-batch binaries from reinterpreting aggregate
+        // execution. Migration retains every identity and phase; rollback
+        // uses this binary with new admissions disabled.
+        journal.version = 5;
         journal.reserve_micro_usdc = reserve;
         let mut disk = Self {
             directory: directory.into(),
@@ -477,6 +513,8 @@ pub struct Gateway {
     admissions_directory: PathBuf,
     quote_preflights: tokio::sync::Semaphore,
     discovery_reads: tokio::sync::Semaphore,
+    settlement_wait: std::time::Duration,
+    settlement_waiters: tokio::sync::Semaphore,
 }
 #[derive(Debug)]
 pub enum GatewayReply {
@@ -544,10 +582,19 @@ impl Gateway {
             admissions_directory: directory.into(),
             quote_preflights: tokio::sync::Semaphore::new(4),
             discovery_reads: tokio::sync::Semaphore::new(4),
+            settlement_wait: std::time::Duration::ZERO,
+            settlement_waiters: tokio::sync::Semaphore::new(16),
         })
     }
     pub fn with_admissions_enabled(mut self, enabled: bool) -> Self {
         self.admissions_enabled = enabled;
+        self
+    }
+    /// Holds the paid request that dispatched the job open, polling its
+    /// settlement, for up to `wait` from arrival before answering 202. The
+    /// journal lock is released between polls.
+    pub fn with_settlement_wait(mut self, wait: std::time::Duration) -> Self {
+        self.settlement_wait = wait;
         self
     }
     /// Supervisor latches are checked for each new quote/payment, including
@@ -690,6 +737,7 @@ impl Gateway {
                     self.rail.resource_url().into()
                 },
                 batch_pricing: quote.batch_pricing,
+                memo_binding: MemoBinding::V3,
             };
             disk.journal.entries.insert(
                 terms.quote_id,
@@ -796,8 +844,55 @@ impl Gateway {
                 return Err(GatewayError::Payment("authorization changed".into()));
             }
         }
-        self.progress(&mut disk, quote_id, entry.terms, phase, now)
-            .await
+        let ran_job = matches!(phase, Phase::Executing { .. });
+        let reply = self
+            .progress(&mut disk, quote_id, entry.terms, phase, now)
+            .await?;
+        // Only the request that ran the job waits for its payment to finalize,
+        // so retries of a stuck payment cannot hold the gateway open.
+        let settling = matches!(
+            disk.journal.entries.get(&quote_id).map(|e| &e.phase),
+            Some(Phase::Settling { .. })
+        );
+        if !ran_job || !settling || !matches!(reply, GatewayReply::Pending { .. }) {
+            return Ok(reply);
+        }
+        drop(disk);
+        self.await_settlement(quote_id, handling_started, now).await
+    }
+    async fn await_settlement(
+        &self,
+        quote_id: Uuid,
+        started: std::time::Instant,
+        now: u64,
+    ) -> Result<GatewayReply> {
+        let pending = GatewayReply::Pending { quote_id };
+        let Ok(_waiter) = self.settlement_waiters.try_acquire() else {
+            return Ok(pending);
+        };
+        let Some(deadline) = started.checked_add(self.settlement_wait) else {
+            return Ok(pending);
+        };
+        loop {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Ok(pending);
+            }
+            tokio::time::sleep(left.min(std::time::Duration::from_secs(1))).await;
+            let mut disk = self.disk.lock().await;
+            let now = after_wait(now, started).max(disk.journal.watermark_ms);
+            disk.advance(now)?;
+            let Some(entry) = disk.journal.entries.get(&quote_id).cloned() else {
+                return Ok(pending);
+            };
+            // Recovery may have finished it meanwhile; progress returns that.
+            let reply = self
+                .progress(&mut disk, quote_id, entry.terms, entry.phase, now)
+                .await?;
+            if !matches!(reply, GatewayReply::Pending { .. }) {
+                return Ok(reply);
+            }
+        }
     }
     async fn progress(
         &self,
@@ -967,6 +1062,8 @@ pub fn now_ms() -> u64 {
 pub fn spawn_retention(gateway: Arc<Gateway>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut ticks = tokio::time::interval(std::time::Duration::from_secs(2));
+        // A long journal hold must not be followed by a burst of recoveries.
+        ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             ticks.tick().await;
             let _ = gateway.recover_pending(now_ms()).await;

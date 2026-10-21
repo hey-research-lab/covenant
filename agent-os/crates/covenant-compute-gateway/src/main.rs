@@ -153,7 +153,8 @@ async fn main() -> anyhow::Result<()> {
         .with_admissions_enabled(
             tariff_configuration_ok
                 && std::env::var("COVENANT_GATEWAY_ADMISSIONS_ENABLED").as_deref() != Ok("false"),
-        ),
+        )
+        .with_settlement_wait(covenant_compute_gateway::SETTLEMENT_WAIT),
     );
     let _retention = covenant_compute_gateway::spawn_retention(gateway.clone());
     let address =

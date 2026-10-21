@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { CovenantX402Client } from '../index.mjs';
+import { CovenantX402Client, shortMemo, LEGACY_PAYMENT_COMPUTE_UNITS, PAYMENT_COMPUTE_UNITS } from '../index.mjs';
 import { verifyBatchProof, verifyBatchResult } from '../batch.mjs';
 import { sha256, stable, strictJson } from '../proof.mjs';
 import { batchProof, fixture, input } from './fixtures/mock-gateway.mjs';
@@ -268,4 +268,58 @@ test('single purchases reject batch pricing before signing or reserving money', 
     await assert.rejects(client.purchase(request), /unexpected_batch_pricing/);
     assert.equal(f.counts().signatures, 0); assert.equal(f.counts().sends, 0); assert.equal(client.journal.get(request.requestId).amount, 0);
   } finally { client.close(); await f.cleanup(); }
+});
+
+
+for (const legacyMemo of [false, true]) {
+  test(`${legacyMemo ? 'legacy long' : 'standard short'} batch memo survives mixed-network quote selection and pending recovery`, async () => {
+    const f = await fixture({ pendingFirst: true, legacyMemo,
+      expectedUnits: legacyMemo ? LEGACY_PAYMENT_COMPUTE_UNITS : PAYMENT_COMPUTE_UNITS,
+      offers: quote => [{ scheme: 'exact', network: 'eip155:8453', extra: { quoteId: 'unrelated-other-network' } }, quote] });
+    let client = new CovenantX402Client(config(f)); const request = batch();
+    try {
+      assert.equal((await client.purchaseBatch(request)).status, 'pending');
+      const original = client.journal.get(request.requestId);
+      const selected = JSON.parse(original.quote).accepts[1];
+      assert.equal(selected.extra.memo, legacyMemo ? `covenant.x402.v2:${selected.extra.quoteId}:${original.digest}` : shortMemo(selected.extra.quoteId, original.digest));
+      client.close(); client = new CovenantX402Client(config(f));
+      const completed = await client.purchaseBatch(request);
+      assert.equal(completed.status, 'completed');
+      const recovered = client.journal.get(request.requestId);
+      assert.equal(recovered.quote, original.quote); assert.equal(recovered.payment, original.payment);
+      assert.equal(f.counts().signatures, 1); assert.equal(f.counts().quotes, 1);
+      assert.equal(f.counts().payments[0], f.counts().payments[1]);
+      const before = f.counts().requests;
+      assert.equal(stable(await client.purchaseBatch(request)), stable(completed));
+      assert.equal(f.counts().requests, before);
+    } finally { client.close(); await f.cleanup(); }
+  });
+}
+
+for (const [label, options, error] of [
+  ['a short memo for another request', { badQuote: quote => { quote.extra.memo = shortMemo(quote.extra.quoteId, 'ff'.repeat(32)); } }, 'quote_memo_mismatch'],
+  ['two Solana offers', { offers: quote => [quote, structuredClone(quote)] }, 'ambiguous_payment_requirements'],
+  ['no Solana offer', { offers: () => [{ network: 'eip155:8453' }] }, 'untrusted_payment_rail'],
+]) test(`batch refuses ${label} before wallet or budget reservation`, async () => {
+  const f = await fixture(options), client = new CovenantX402Client(config(f)), request = batch();
+  try {
+    await assert.rejects(client.purchaseBatch(request), new RegExp(error));
+    assert.equal(client.journal.get(request.requestId).quote, null);
+    assert.equal(f.counts().signatures, 0); assert.equal(f.counts().sends, 0);
+  } finally { client.close(); await f.cleanup(); }
+});
+
+test('standalone batch verification binds both memo formats to the original quote and ordered request', () => {
+  const f = strictJson(readFileSync(new URL('./fixtures/signed-batch-response.json', import.meta.url), 'utf8'));
+  const digest = sha256(stable(f.request));
+  const verify = quote => verifyBatchResult(f.response, { request: f.request, quote, gatewayBuyer: f.gatewayBuyer, operators: f.operators });
+  for (const memo of [shortMemo(f.quote.extra.quoteId, digest), `covenant.x402.v2:${f.quote.extra.quoteId}:${digest}`]) {
+    const quote = structuredClone(f.quote); quote.extra.memo = memo;
+    assert.equal(verify(quote).texts.length, 2);
+    quote.extra.memo = memo + '0'; assert.throws(() => verify(quote), /quote_memo_mismatch/);
+  }
+  const changed = structuredClone(f.quote); changed.extra.quoteId = randomUUID();
+  assert.throws(() => verify(changed), /quote_memo_mismatch/);
+  changed.extra.quoteId = '00000000-0000-0000-0000-000000000000';
+  assert.throws(() => verify(changed), /batch_request_mismatch/);
 });

@@ -17,7 +17,7 @@ from solders.transaction import VersionedTransaction
 
 from covenant_compute_x402 import CovenantError
 from covenant_compute_x402.journal import Journal
-from covenant_compute_x402.payment import decode64, expected_message, validate_transaction
+from covenant_compute_x402.payment import decode64, expected_message, payment_units, short_memo, validate_transaction
 from covenant_compute_x402.proof import stable, strict_json, sha256, verify_compute_result, compact
 from fixture import Fixture, request, encode
 
@@ -72,7 +72,14 @@ async def test_wrong_quote_no_signing_dispatch(tmp_path, field, value):
     assert f.wallet.signatures == 0 and f.sends == 0
 
 
-@pytest.mark.parametrize("field,value", [("memo", "different"), ("expiresAtMs", 0), ("requestSha256", "0" * 64)])
+OTHER_QUOTE = "00000000-0000-4000-8000-000000000009"
+
+
+@pytest.mark.parametrize("field,value", [
+    ("memo", "different"), ("expiresAtMs", 0), ("requestSha256", "0" * 64),
+    ("memo", f"covenant.x402.v2:{OTHER_QUOTE}:{'a' * 64}"),
+    ("memo", short_memo(OTHER_QUOTE, "a" * 64)),
+])
 async def test_wrong_binding_no_signing_dispatch(tmp_path, field, value):
     f = Fixture(tmp_path, bad_quote=lambda q: q["extra"].update({field: value}))
     async with f.client() as client:
@@ -296,3 +303,88 @@ async def test_sdk_unsigned_mutations_fail_before_wallet_signing(tmp_path, monke
         with pytest.raises(CovenantError):
             await client.purchase(**request())
     assert f.wallet.signatures == f.sends == 0
+
+
+def test_short_memo_matches_the_published_vector():
+    assert short_memo("00000000-0000-4000-8000-000000000001", "a" * 64) == "8bfb7fde3cb99c6b0f16b7a18d83a0e1"
+
+
+async def test_v2_memo_quote_paid_at_60k(tmp_path):
+    f = Fixture(tmp_path, legacy_memo=True)
+    async with f.client() as client:
+        assert (await client.purchase(**request()))["status"] == "completed"
+    assert f.wallet.signatures == 1 and f.sends == 1
+    tx = VersionedTransaction.from_bytes(decode64(strict_json(decode64(f.payments[-1]))["payload"]["transaction"]))
+    assert int.from_bytes(bytes(tx.message.instructions[0].data)[1:5], "little") == 60_000
+
+
+@pytest.mark.parametrize("mutate", [str.upper, lambda memo: f"covenant.x402.v2:{memo}"])
+async def test_altered_short_memo_refused_before_signing(tmp_path, mutate):
+    f = Fixture(tmp_path, bad_quote=lambda q: q["extra"].update(memo=mutate(q["extra"]["memo"])))
+    async with f.client() as client:
+        with pytest.raises(CovenantError):
+            await client.purchase(**request())
+    assert f.wallet.signatures == 0 and f.sends == 0
+
+
+async def test_short_memo_signed_unchanged_at_20k(tmp_path, monkeypatch):
+    from covenant_compute_x402 import payment
+    built = []
+    original = payment._SnapshotScheme.create_payment_payload
+
+    def capture(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        built.append(result)
+        return result
+    monkeypatch.setattr(payment._SnapshotScheme, "create_payment_payload", capture)
+    f = Fixture(tmp_path)
+    async with f.client() as client:
+        assert (await client.purchase(**request()))["status"] == "completed"
+    tx = VersionedTransaction.from_bytes(decode64(strict_json(decode64(f.payments[-1]))["payload"]["transaction"]))
+    assert int.from_bytes(bytes(tx.message.instructions[0].data)[1:5], "little") == 20_000
+    unsigned = VersionedTransaction.from_bytes(decode64(built[0]["transaction"]))
+    assert to_bytes_versioned(tx.message) == to_bytes_versioned(unsigned.message)
+
+
+def test_payment_units_requires_matching_memo():
+    quote = {"extra": {"quoteId": OTHER_QUOTE, "requestSha256": "a" * 64}}
+    quote["extra"]["memo"] = short_memo(OTHER_QUOTE, "a" * 64)
+    assert payment_units(quote) == 20_000
+    quote["extra"]["memo"] = f"covenant.x402.v2:{OTHER_QUOTE}:{'a' * 64}"
+    assert payment_units(quote) == 60_000
+    for memo in (f"covenant.x402.v2:{OTHER_QUOTE}:{'b' * 64}", None, 5, "x"):
+        quote["extra"]["memo"] = memo
+        with pytest.raises(CovenantError):
+            payment_units(quote)
+    with pytest.raises(CovenantError):
+        payment_units({})
+
+
+def base_offer(q):
+    return {"scheme": "exact", "network": "eip155:8453", "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "amount": q["amount"],
+            "payTo": "0x5fA1d0C0bfFE257a20027C523093F941834f5D66", "maxTimeoutSeconds": 300,
+            "extra": {"name": "USD Coin", "version": "2", "quoteId": q["extra"]["quoteId"],
+                      "requestSha256": q["extra"]["requestSha256"], "expiresAtMs": q["extra"]["expiresAtMs"]}}
+
+
+@pytest.mark.parametrize("offers", [lambda q: [base_offer(q), q], lambda q: [q, base_offer(q)],
+                                    lambda q: [None, "offer", {"network": "eip155:1"}, q]],
+                         ids=["base-first", "base-last", "malformed"])
+async def test_quote_listing_other_offers_paid_on_solana(tmp_path, offers):
+    f = Fixture(tmp_path, offers=offers)
+    async with f.client() as client:
+        assert (await client.purchase(**request()))["status"] == "completed"
+    assert f.wallet.signatures == 1 and f.sends == 1
+
+
+@pytest.mark.parametrize("offers,code", [(lambda q: [base_offer(q)], "untrusted_payment_rail"),
+                                         (lambda q: [q, dict(q)], "ambiguous_payment_requirements"),
+                                         (lambda q: [], "untrusted_payment_rail")],
+                         ids=["base-only", "two-solana", "empty"])
+async def test_quote_without_one_solana_offer_refused_before_reserving(tmp_path, offers, code):
+    f, item = Fixture(tmp_path, offers=offers), request()
+    async with f.client() as client:
+        with pytest.raises(CovenantError, match=code):
+            await client.purchase(**item)
+        assert client.journal.get(item["request_id"])["quote"] is None
+    assert f.wallet.signatures == 0 and f.sends == 0

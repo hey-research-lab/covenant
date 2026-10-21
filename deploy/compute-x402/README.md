@@ -6,7 +6,7 @@ operator and its private inference provider adapter. Only the gateway binds the
 public port. It uses the existing coordinator and staking/settlement rules.
 
 The [batch inference candidate](../../docs/compute-inference-batches.md) is a
-separate opt-in. It uses journal v4, so rollback must retain the capable binary
+separate opt-in. It uses journal v5, so rollback must retain the capable binary
 and disable batch admissions rather than downgrade the financial journal.
 
 Build `deploy/Dockerfile.compute-x402` from the repository root. The dedicated
@@ -57,13 +57,38 @@ part of this release allowance. Reconcile unknown outcomes before any retry or
 budget increase. Unspent gateway balance remains owned by Covenant; the gateway
 does not automatically recycle customer receipts into a fresh spending ceiling.
 
-Customer authorization sponsorship is capped at two signatures, 60,000 compute
-units and 1,000 microlamports per unit: at most 10,060 lamports per transaction.
-The installed client uses 60,000 units because the full request-bound memo
-consumed 43,642 units in a read-only mainnet simulation. The official SDK's default
-20,000 units cannot execute that memo. Do not shorten the binding, bypass
-simulation, alter an existing authorization, or raise the priority fee to work
-around a rejected payment.
+Covenant pays the Solana fee for customer payments with at most two signatures,
+60,000 compute units and 1,000 microlamports per unit, so at most 10,060 lamports
+per transaction; anything outside those limits is rejected.
+
+Every quote from the current gateway includes a memo of 32 lowercase hexadecimal
+characters, and the payment transaction must carry it unchanged. The memo is the
+first 16 bytes of the SHA-256 hash of `covenant.x402.v3:<quote ID>:<request hash>`.
+The quote states both inputs: the quote ID (a UUID) in `extra.quoteId` and the
+request hash in `extra.requestSha256`, so anyone holding the quote can recompute
+the memo. The request hash is the SHA-256 of the request body as the gateway
+received it, serialized as compact UTF-8 JSON with object keys sorted at every
+level; Covenant's SDKs compute the same hash and refuse a quote whose hash
+differs. For example, quote ID `00000000-0000-4000-8000-000000000001` with a
+request hash of 64 `a` characters gives the memo
+`8bfb7fde3cb99c6b0f16b7a18d83a0e1`. In a read-only mainnet simulation, a payment
+built by the official x402 client (`@x402/svm`) used 13,180 compute units,
+within the 20,000 the client always sets, so standard wallets need no changes.
+
+Earlier gateway versions issue the 118-byte memo
+`covenant.x402.v2:<quote ID>:<request hash>` instead, and paying it needs 43,642
+compute units. The official client always sets 20,000, so standard wallets cannot
+pay those quotes; the memo's length tells the two kinds apart. Covenant's
+JavaScript SDK from 0.4.0 and Python SDK from 0.3.0 sign them with a 60,000
+compute-unit limit, which is within the limits Covenant pays fees for. Because the
+verifier accepts both memo formats, a payment signed against an older gateway still
+settles after that gateway is upgraded. Earlier SDK versions (JavaScript 0.3.0 and
+older, Python 0.2.0 and older) refuse 32-character memos before signing, so upgrade
+them before or together with the gateway.
+
+If a payment is rejected, do not disable the verifier's simulation check, edit the
+signed transaction or raise the priority-fee cap to push it through. The customer
+can request a new quote and pay that instead.
 
 After a rejected authorization, retain the original client and gateway records.
 Before a separate acceptance attempt, verify the original gateway entry is still
@@ -214,10 +239,13 @@ latches new admissions off while the essential gateway and payment verifier
 continue recovery. Repair configuration and review the latch before clearing it;
 do not reset identities, budgets or journals.
 
-The gateway upgrades journal version 2 to 3 while retaining the exact namespace,
-financial entries and signed records. Version 3 prevents an old binary from
-reinterpreting a tariff quote as a flat-price job. Roll back by disabling new
-admissions on the new binary, preserving settlement and cleanup. Do not deploy a
-version-2-only gateway or restore an old monetary snapshot over the new journal.
+The gateway upgrades journals from versions 2, 3 or 4 to version 5 while retaining
+the exact namespace, financial entries, signed records and saved memo form.
+Version 3 freezes tariffs; version 4 preserves the original short or long payment
+memo. Version 5 adds durable batch execution and stops older single-request
+binaries from reinterpreting that state. Roll back by disabling new admissions
+on the new binary, preserving settlement and cleanup. Do not deploy a gateway
+that reads only versions 2 through 4, or restore an old monetary snapshot over
+the new journal.
 See [pricing and limits](../../docs/compute-inference-tariffs.md) and the
 [release evidence](../../docs/compute-model-pricing-release-evidence.md).

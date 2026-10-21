@@ -100,8 +100,11 @@ verifier. Leave it false until release qualification is complete. The free model
 catalog, discovery manifest and OpenAPI continue to advertise only the accepted
 single-chat product; batch discovery/indexing is a separate rollout step.
 
-This binary migrates gateway journals v2/v3 to v4 without replacing identities,
-prices, balances, budgets, latches or original payment records. An older binary
+This binary migrates gateway journals v2/v3/v4 to v5 without replacing identities,
+prices, balances, budgets, latches or original payment records. It preserves each
+saved quote's memo binding: legacy v2 memos remain long, and v3 memos retain the
+32-character request binding accepted by standard x402 wallets. Fresh batch
+quotes use that same short binding over the ordered batch request. An older binary
 cannot recover the new journal. Roll back by disabling batch admissions on this
 binary, retaining the verifier and volume so admitted work can reconcile. Inspect
 the live journal size and pending work before deployment. Do not restore a stale

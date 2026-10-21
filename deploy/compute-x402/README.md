@@ -103,7 +103,9 @@ and must never be broadcast or substituted into the original purchase.
 3. Confirm the provider can serve the exact configured model within price and
    latency limits. Enable the staked operator and confirm live inference capacity.
 4. Fund the gateway's dedicated buyer and read back its credited balance. Verify
-   the merchant/asset/network/fee payer against the public 402 quote.
+   that the merchant, asset, network and fee payer match the public 402 quote
+   and, when Base is offered, that the Base receiving address and USDC contract
+   do too.
 5. Under the remaining test cap, run the installed AgentKit demo. Retain signed
    request, native job/receipt, exact output, transaction readback and budget
    records. Repeat the original authorization and verify no second purchase.
@@ -235,13 +237,17 @@ latches new admissions off while the essential gateway and payment verifier
 continue recovery. Repair configuration and review the latch before clearing it;
 do not reset identities, budgets or journals.
 
-The gateway upgrades journals from version 2 or 3 to version 4 while retaining
-the exact namespace, financial entries and signed records. Version 3 prevents an
-older binary from treating a tariff quote as a flat-price job, and version 4
-prevents one from rebuilding a 32-character payment memo in the 118-byte format,
-which would leave that payment unable to settle. Roll back by disabling new
-admissions on the new binary, preserving settlement and cleanup. Do not deploy a
-gateway that reads only version 2 or 3, or restore an old monetary snapshot over
-the new journal.
+The gateway upgrades journals at versions 2, 3 and 4 to version 5 and keeps
+their namespace, financial entries and signed records exactly as they were. Each
+version exists so that an older binary refuses the journal instead of misreading
+it. Version 3 stops it from treating a tariff quote as a flat-price job. Version
+4 stops it from rebuilding a 32-character payment memo in the 118-byte format,
+which would leave that payment unable to settle. Version 5 stops it from
+dropping the Base terms of a quote or payment. Once the journal is upgraded, you
+cannot go back to an older binary. To stop taking work, set
+`COVENANT_GATEWAY_ADMISSIONS_ENABLED=false` on the new binary. It then accepts no
+new jobs and finishes settling and cleaning up the ones it has. Do not deploy a
+gateway that reads only versions 2 to 4, or restore an old monetary snapshot
+over the new journal.
 See [pricing and limits](../../docs/compute-inference-tariffs.md) and the
 [release evidence](../../docs/compute-model-pricing-release-evidence.md).

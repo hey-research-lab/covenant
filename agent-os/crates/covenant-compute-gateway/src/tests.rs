@@ -110,7 +110,7 @@ async fn restart_reuses_result_reconciles_and_expires_without_repurchase() {
     )
     .unwrap();
     let request = json!({"prompt":"hi"});
-    let GatewayReply::PaymentRequired(terms) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -277,7 +277,7 @@ async fn unapproved_operator_result_is_a_terminal_seller_loss_without_customer_s
     )
     .unwrap();
     let request = json!({"prompt":"same"});
-    let GatewayReply::PaymentRequired(quote) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms: quote, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -405,7 +405,7 @@ async fn uncertain_execution_retries_the_exact_saved_job_after_restart() {
     )
     .unwrap();
     let request = json!({"prompt":"hi"});
-    let GatewayReply::PaymentRequired(terms) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -603,7 +603,7 @@ async fn pending_work_recovers_original_jobs_and_payments_when_discovery_is_unav
         )
         .unwrap();
         let request = json!({"prompt":"original"});
-        let GatewayReply::PaymentRequired(terms) = gateway
+        let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
             .handle(
                 request.clone(),
                 None,
@@ -795,7 +795,9 @@ async fn waiting_fresh_availability_does_not_block_original_settlement_recovery(
     )
     .unwrap();
     let request = json!({"prompt":"original"});
-    let GatewayReply::PaymentRequired(original) = gateway
+    let GatewayReply::PaymentRequired(Quote {
+        terms: original, ..
+    }) = gateway
         .handle(
             request.clone(),
             None,
@@ -891,14 +893,21 @@ async fn concurrent_fresh_same_id_quotes_preserve_first_terms_and_signed_job() {
         "both fresh lookups run before either quote is persisted"
     );
     executor.release.add_permits(1);
-    let GatewayReply::PaymentRequired(first_terms) = first.await.unwrap() else {
+    let GatewayReply::PaymentRequired(Quote {
+        terms: first_terms, ..
+    }) = first.await.unwrap()
+    else {
         panic!("expected first quote")
     };
     let original = serde_json::to_vec(&gateway.disk.lock().await.journal.entries[&id]).unwrap();
     // The second lookup finishes later and must return the first expiry and job.
     tokio::time::sleep(Duration::from_millis(5)).await;
     executor.release.add_permits(1);
-    let GatewayReply::PaymentRequired(second_terms) = second.await.unwrap() else {
+    let GatewayReply::PaymentRequired(Quote {
+        terms: second_terms,
+        ..
+    }) = second.await.unwrap()
+    else {
         panic!("expected original quote from concurrent lookup")
     };
     assert_eq!(
@@ -946,7 +955,9 @@ async fn fresh_quote_rechecks_reserve_consumed_while_availability_waits() {
     )
     .unwrap();
     let request = json!({"prompt":"original"});
-    let GatewayReply::PaymentRequired(original) = gateway
+    let GatewayReply::PaymentRequired(Quote {
+        terms: original, ..
+    }) = gateway
         .handle(
             request.clone(),
             None,
@@ -1021,7 +1032,7 @@ async fn verified_unpaid_failure_never_settles_and_journal_write_failure_stops_s
     )
     .unwrap();
     let request = json!({"prompt":"hi"});
-    let GatewayReply::PaymentRequired(terms) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -1092,7 +1103,7 @@ async fn idempotency_concurrency_and_background_recovery_preserve_one_purchase()
     let id = Uuid::new_v4();
     let request = json!({"prompt":"same"});
     for _ in 0..2 {
-        let GatewayReply::PaymentRequired(terms) = gateway
+        let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
             .handle(
                 request.clone(),
                 Some(id),
@@ -1807,7 +1818,7 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
     )
     .unwrap();
     let request = json!({"prompt":"frozen"});
-    let GatewayReply::PaymentRequired(first) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms: first, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -1839,7 +1850,9 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
         executor.clone(),
     )
     .unwrap();
-    let GatewayReply::PaymentRequired(replayed) = gateway
+    let GatewayReply::PaymentRequired(Quote {
+        terms: replayed, ..
+    }) = gateway
         .handle(
             request.clone(),
             Some(first.quote_id),
@@ -1866,7 +1879,7 @@ async fn variable_quote_freezes_native_job_and_sale_price_across_restart_and_rep
     };
     assert_eq!(output["job"], job.to_string());
     assert_eq!(executor.prepares.load(Ordering::SeqCst), 1);
-    let GatewayReply::PaymentRequired(second) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms: second, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -1919,7 +1932,7 @@ async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
     )
     .unwrap();
     let request = json!({"prompt":"legacy"});
-    let GatewayReply::PaymentRequired(first) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms: first, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -1965,7 +1978,7 @@ async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
     );
     assert_eq!(disk.used_reserve(), 10);
     assert_eq!(disk.journal.reserve_micro_usdc, 1000);
-    assert_eq!(disk.journal.version, 4);
+    assert_eq!(disk.journal.version, 5);
     // A quote saved before v3 memos keeps the memo its payment was signed over.
     let terms = &disk.journal.entries[&first.quote_id].terms;
     assert_eq!(terms.memo_binding, MemoBinding::V2);
@@ -2175,7 +2188,7 @@ async fn paid_request_waits_for_finality_and_returns_the_result() {
     .unwrap()
     .with_settlement_wait(Duration::from_secs(10));
     let request = json!({"prompt":"wait"});
-    let GatewayReply::PaymentRequired(terms) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -2227,7 +2240,7 @@ async fn background_recovery_never_waits_on_a_pending_settlement() {
     )
     .unwrap();
     let request = json!({"prompt":"pending"});
-    let GatewayReply::PaymentRequired(terms) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -2279,7 +2292,7 @@ async fn unfinished_wait_answers_pending_without_holding_the_journal_or_rewaitin
         .with_settlement_wait(Duration::from_secs(3)),
     );
     let request = json!({"prompt":"slow finality"});
-    let GatewayReply::PaymentRequired(terms) = gateway
+    let GatewayReply::PaymentRequired(Quote { terms, .. }) = gateway
         .handle(
             request.clone(),
             None,
@@ -2291,13 +2304,14 @@ async fn unfinished_wait_answers_pending_without_holding_the_journal_or_rewaitin
     else {
         panic!("expected a quote")
     };
+    let quote_id = terms.quote_id;
     let paid_at = fixture_now(&gateway, 1001).await;
     let waiting = {
         let gateway = gateway.clone();
         let request = request.clone();
         tokio::spawn(async move {
             gateway
-                .handle(request, Some(terms.quote_id), Some("slow-tx"), paid_at)
+                .handle(request, Some(quote_id), Some("slow-tx"), paid_at)
                 .await
         })
     };
@@ -2327,11 +2341,349 @@ async fn unfinished_wait_answers_pending_without_holding_the_journal_or_rewaitin
     let started = std::time::Instant::now();
     assert!(matches!(
         gateway
-            .handle(request, Some(terms.quote_id), Some("slow-tx"), retry_at)
+            .handle(request, Some(quote_id), Some("slow-tx"), retry_at)
             .await
             .unwrap(),
         GatewayReply::Pending { .. }
     ));
     assert!(started.elapsed() < Duration::from_secs(1));
     assert_eq!(rail.settles.load(Ordering::SeqCst), polls + 1);
+}
+
+const BASE_MERCHANT: &str = "0x5fA1d0C0bfFE257a20027C523093F941834f5D66";
+struct BaseRail {
+    ready: std::sync::atomic::AtomicBool,
+    merchant: &'static str,
+    finalized: std::sync::atomic::AtomicBool,
+    verifications: AtomicUsize,
+    settles: AtomicUsize,
+}
+fn base_rail(ready: bool, merchant: &'static str) -> Arc<BaseRail> {
+    Arc::new(BaseRail {
+        ready: std::sync::atomic::AtomicBool::new(ready),
+        merchant,
+        finalized: std::sync::atomic::AtomicBool::new(true),
+        verifications: AtomicUsize::new(0),
+        settles: AtomicUsize::new(0),
+    })
+}
+#[async_trait]
+impl PaymentRail for BaseRail {
+    fn network(&self) -> &str {
+        "eip155:84532"
+    }
+    fn asset(&self) -> &str {
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    }
+    fn pay_to(&self) -> &str {
+        self.merchant
+    }
+    fn token_domain(&self) -> Option<TokenDomain> {
+        Some(TokenDomain {
+            name: "USDC".into(),
+            version: "2".into(),
+        })
+    }
+    async fn check_price(&self, _: u64, _: u64) -> Result<()> {
+        if self.ready.load(Ordering::SeqCst) {
+            Ok(())
+        } else {
+            Err(GatewayError::Unavailable(
+                "Base verifier unavailable".into(),
+            ))
+        }
+    }
+    fn authorization_id(&self, header: &str) -> Result<String> {
+        request_digest(&json!(header))
+    }
+    async fn verify(&self, header: &str, terms: &PaymentTerms) -> Result<VerifiedPayment> {
+        assert_eq!(terms.network, self.network());
+        self.verifications.fetch_add(1, Ordering::SeqCst);
+        Ok(VerifiedPayment {
+            payer: "0xAbCdEf0000000000000000000000000000000001".into(),
+            authorization_id: self.authorization_id(header)?,
+            transaction_id: "reference".into(),
+            encoded_transaction: header.into(),
+        })
+    }
+    async fn settle(&self, _: &VerifiedPayment, terms: &PaymentTerms) -> Result<SettlementStatus> {
+        assert_eq!(terms.network, self.network());
+        self.settles.fetch_add(1, Ordering::SeqCst);
+        if !self.finalized.load(Ordering::SeqCst) {
+            return Ok(SettlementStatus::Pending);
+        }
+        Ok(SettlementStatus::Finalized {
+            transaction_id: format!("0x{}", "ab".repeat(32)),
+        })
+    }
+}
+fn payment_header(accepted: Value) -> String {
+    base64::engine::general_purpose::STANDARD
+        .encode(json!({"x402Version":2,"accepted":accepted}).to_string())
+}
+fn two_rail_gateway(directory: &Path, base_ready: bool) -> (Gateway, Arc<Rail>, Arc<BaseRail>) {
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    let base = base_rail(base_ready, BASE_MERCHANT);
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("two-rails@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(directory, "two-rails", 30, 12, rail.clone(), executor)
+        .unwrap()
+        .with_alternate_rail(base.clone())
+        .unwrap();
+    (gateway, rail, base)
+}
+
+#[tokio::test]
+async fn quote_offers_base_beside_solana_and_settles_on_the_paid_rail() {
+    let directory = tempfile::tempdir().unwrap();
+    let (gateway, rail, base) = two_rail_gateway(directory.path(), true);
+    let request = json!({"prompt":"base"});
+    let GatewayReply::PaymentRequired(quote) = gateway
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected a quote")
+    };
+    let required = quote.requirements();
+    let accepts = required["accepts"].as_array().unwrap();
+    assert_eq!(accepts.len(), 2);
+    assert_eq!(accepts[0]["network"], "test:1");
+    assert_eq!(
+        accepts[1],
+        json!({"scheme":"exact","network":"eip155:84532","asset":"0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            "amount":"12","payTo":"0x5fA1d0C0bfFE257a20027C523093F941834f5D66","maxTimeoutSeconds":300,
+            "extra":{"name":"USDC","version":"2","quoteId":quote.terms.quote_id,
+            "requestSha256":quote.terms.request_sha256,"expiresAtMs":quote.terms.expires_at_ms}})
+    );
+    let header = payment_header(accepts[1].clone());
+    let paid_at = fixture_now(&gateway, 1001).await;
+    let reply = gateway
+        .handle(
+            request.clone(),
+            Some(quote.terms.quote_id),
+            Some(&header),
+            paid_at,
+        )
+        .await
+        .unwrap();
+    let hash = format!("0x{}", "ab".repeat(32));
+    assert!(
+        matches!(&reply, GatewayReply::Complete { transaction_id, network, .. }
+        if transaction_id == &hash && network == "eip155:84532")
+    );
+    assert_eq!(base.verifications.load(Ordering::SeqCst), 1);
+    assert_eq!(base.settles.load(Ordering::SeqCst), 1);
+    assert_eq!(rail.settles.load(Ordering::SeqCst), 0);
+    {
+        let disk = gateway.disk.lock().await;
+        let entry = &disk.journal.entries[&quote.terms.quote_id];
+        assert_eq!(entry.terms.network, "eip155:84532");
+        assert!(entry.alternates.is_empty());
+    }
+    // A retry with the same authorization returns the saved result.
+    let retry_at = fixture_now(&gateway, paid_at + 1).await;
+    assert!(matches!(
+        gateway
+            .handle(request, Some(quote.terms.quote_id), Some(&header), retry_at)
+            .await
+            .unwrap(),
+        GatewayReply::Complete { .. }
+    ));
+    assert_eq!(base.settles.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn primary_rail_still_pays_a_quote_that_also_offered_base() {
+    let directory = tempfile::tempdir().unwrap();
+    let (gateway, rail, base) = two_rail_gateway(directory.path(), true);
+    let request = json!({"prompt":"solana"});
+    let GatewayReply::PaymentRequired(quote) = gateway
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected a quote")
+    };
+    let header = payment_header(quote.terms.accepted());
+    let paid_at = fixture_now(&gateway, 1001).await;
+    assert!(matches!(
+        gateway
+            .handle(request, Some(quote.terms.quote_id), Some(&header), paid_at)
+            .await
+            .unwrap(),
+        GatewayReply::Complete { network, .. } if network == "test:1"
+    ));
+    assert_eq!(rail.settles.load(Ordering::SeqCst), 1);
+    assert_eq!(base.verifications.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn unready_alternate_is_left_out_and_unoffered_network_refused() {
+    let directory = tempfile::tempdir().unwrap();
+    let (gateway, _, base) = two_rail_gateway(directory.path(), false);
+    let GatewayReply::PaymentRequired(quote) = gateway
+        .handle(
+            json!({"prompt":"solana only"}),
+            None,
+            None,
+            fixture_now(&gateway, 1000).await,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected a quote")
+    };
+    assert!(quote.alternates.is_empty());
+    assert_eq!(quote.requirements()["accepts"].as_array().unwrap().len(), 1);
+
+    base.ready.store(true, Ordering::SeqCst);
+    let request = json!({"prompt":"both"});
+    let GatewayReply::PaymentRequired(quote) = gateway
+        .handle(
+            request.clone(),
+            None,
+            None,
+            fixture_now(&gateway, 1001).await,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected a quote")
+    };
+    let mut elsewhere = quote.alternates[0].accepted();
+    elsewhere["network"] = json!("eip155:8453");
+    let paid_at = fixture_now(&gateway, 1002).await;
+    assert!(matches!(
+        gateway
+            .handle(
+                request,
+                Some(quote.terms.quote_id),
+                Some(&payment_header(elsewhere)),
+                paid_at
+            )
+            .await,
+        Err(GatewayError::Payment(_))
+    ));
+    assert_eq!(base.verifications.load(Ordering::SeqCst), 0);
+}
+
+/// The two-rail gateway's journal reopened, optionally with a Base rail.
+fn reopen(directory: &Path, base: Option<Arc<BaseRail>>) -> Gateway {
+    let rail = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    let executor = Arc::new(Execute {
+        identity: LocalIdentity::generate("two-rails@local"),
+        calls: AtomicUsize::new(0),
+    });
+    let gateway = Gateway::open(directory, "two-rails", 30, 12, rail, executor).unwrap();
+    match base {
+        Some(base) => gateway.with_alternate_rail(base).unwrap(),
+        None => gateway,
+    }
+}
+
+#[tokio::test]
+async fn base_must_stay_configured_while_a_base_payment_or_its_result_is_open() {
+    let directory = tempfile::tempdir().unwrap();
+    let request = json!({"prompt":"base"});
+    let base = base_rail(true, BASE_MERCHANT);
+    base.finalized.store(false, Ordering::SeqCst);
+    let (quote_id, header, paid_at) = {
+        let gateway = reopen(directory.path(), Some(base.clone()));
+        let GatewayReply::PaymentRequired(quote) = gateway
+            .handle(
+                request.clone(),
+                None,
+                None,
+                fixture_now(&gateway, 1000).await,
+            )
+            .await
+            .unwrap()
+        else {
+            panic!("expected a quote")
+        };
+        let header = payment_header(quote.alternates[0].accepted());
+        let paid_at = fixture_now(&gateway, 1001).await;
+        assert!(matches!(
+            gateway
+                .handle(
+                    request.clone(),
+                    Some(quote.terms.quote_id),
+                    Some(&header),
+                    paid_at
+                )
+                .await
+                .unwrap(),
+            GatewayReply::Pending { .. }
+        ));
+        (quote.terms.quote_id, header, paid_at)
+    };
+    // While the Base payment settles, the gateway refuses to start without Base
+    // or with another Base merchant.
+    for other in [
+        None,
+        Some(base_rail(
+            true,
+            "0x0000000000000000000000000000000000000009",
+        )),
+    ] {
+        let gateway = reopen(directory.path(), other);
+        assert!(matches!(
+            gateway.check_open_payments(paid_at + 1).await,
+            Err(GatewayError::Unavailable(_))
+        ));
+    }
+    base.finalized.store(true, Ordering::SeqCst);
+    let gateway = reopen(directory.path(), Some(base.clone()));
+    gateway.check_open_payments(paid_at + 1).await.unwrap();
+    let retry_at = fixture_now(&gateway, paid_at + 2).await;
+    assert!(matches!(
+        gateway
+            .handle(request, Some(quote_id), Some(&header), retry_at)
+            .await
+            .unwrap(),
+        GatewayReply::Complete { network, .. } if network == "eip155:84532"
+    ));
+    drop(gateway);
+    // The buyer can fetch the result for five minutes; after that Base may go.
+    let gateway = reopen(directory.path(), None);
+    assert!(gateway.check_open_payments(retry_at + 1).await.is_err());
+    gateway
+        .check_open_payments(retry_at + OUTPUT_RETENTION_MS + 1)
+        .await
+        .unwrap();
+}
+
+#[test]
+fn second_rail_on_a_configured_network_is_refused() {
+    let directory = tempfile::tempdir().unwrap();
+    let (gateway, _, _) = two_rail_gateway(directory.path(), true);
+    assert!(gateway
+        .with_alternate_rail(base_rail(true, BASE_MERCHANT))
+        .is_err());
+    let primary = Arc::new(Rail {
+        settles: AtomicUsize::new(0),
+        finalized: std::sync::atomic::AtomicBool::new(true),
+    });
+    assert!(reopen(directory.path(), None)
+        .with_alternate_rail(primary)
+        .is_err());
 }

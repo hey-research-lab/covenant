@@ -108,7 +108,8 @@ test('authenticated server readiness fails closed while malformed-policy recover
   await new Promise(resolve => rpc.listen(0, '127.0.0.1', resolve));
   let child;
   try {
-    for (const valid of [true, false]) {
+    for (const mode of ['valid', 'broken tariffs', 'Base unreachable']) {
+      const valid = mode !== 'broken tariffs';
       const portProbe = createServer();
       await new Promise(resolve => portProbe.listen(0, '127.0.0.1', resolve));
       const port = portProbe.address().port;
@@ -123,7 +124,12 @@ test('authenticated server readiness fails closed while malformed-policy recover
           COVENANT_GATEWAY_ASSET: RAILS[network].asset, COVENANT_GATEWAY_PAY_TO: address,
           COVENANT_GATEWAY_FEE_PAYER: address, COVENANT_GATEWAY_RESOURCE_URL: 'https://example.com/v1/chat/completions',
           COVENANT_GATEWAY_PRICE_MICRO_USDC: '50000', COVENANT_GATEWAY_TARIFFS_FILE: tariffsFile,
-          COVENANT_GATEWAY_BRIDGE_PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'],
+          COVENANT_GATEWAY_BRIDGE_PORT: String(port),
+          // Nothing listens on port 9, so Base cannot start; Solana must still run.
+          ...(mode === 'Base unreachable' ? { COVENANT_GATEWAY_BASE_PAY_TO: '0x5fA1d0C0bfFE257a20027C523093F941834f5D66',
+            COVENANT_GATEWAY_BASE_NETWORK: 'eip155:84532', COVENANT_GATEWAY_BASE_ASSET: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+            COVENANT_GATEWAY_BASE_RPC: 'https://127.0.0.1:9', COVENANT_GATEWAY_BASE_FACILITATOR_URL: 'https://127.0.0.1:9/facilitator' } : {}) },
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
       child.stderr.resume();
       await new Promise((resolve, reject) => {
@@ -141,9 +147,12 @@ test('authenticated server readiness fails closed while malformed-policy recover
       const body = await response.json();
       if (valid) { assert.equal(body.legacyPriceAtomic, '50000'); assert.deepEqual(body.retailTariffs, [tariffs()[0].retail]); }
       else assert.deepEqual(body, { error: 'payment pricing unavailable' });
+      const evm = await fetch(`${base}/evm/readiness`, { headers });
+      if (mode === 'Base unreachable') assert.deepEqual([evm.status, await evm.json()], [503, { error: 'Base payments unavailable' }]);
+      else assert.equal(evm.status, 404);
       const exited = new Promise(resolve => child.once('exit', resolve)); child.kill('SIGTERM'); await exited; child = undefined;
     }
-    assert.deepEqual(calls, ['getGenesisHash', 'getGenesisHash'], 'only startup identity checks; readiness never uses RPC');
+    assert.deepEqual(calls, ['getGenesisHash', 'getGenesisHash', 'getGenesisHash'], 'only startup identity checks; readiness never uses Solana RPC');
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) {
       const exited = new Promise(resolve => child.once('exit', resolve)); child.kill('SIGKILL'); await exited;

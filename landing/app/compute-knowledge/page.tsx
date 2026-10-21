@@ -20,9 +20,9 @@ export const metadata: Metadata = pageMetadata(
 const documentLink = "underline decoration-line-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-fg-soft";
 
 const steps = [
-  { number: "01", title: "Compile locally.", body: "Extract symbols, document headings and references into a versioned snapshot. Local commands run without a model key or a Compute purchase.", tag: "Rust · Python · JS / TS · Markdown" },
+  { number: "01", title: "Compile locally.", body: "Guided setup compiles supported source, checks your first citation and prints a read-only MCP configuration. Local commands need no model key or Compute purchase.", tag: "Rust · Python · JS / TS · Markdown" },
   { number: "02", title: "Follow the source.", body: "Search names and source text, then inspect the file, line range and exact excerpt behind a result. Read the same evidence through the local viewer or MCP.", tag: "Citations · search · read-only MCP" },
-  { number: "03", title: "Inspect what changed.", body: "Explore resolved and unresolved references. Compare saved snapshots to find added, modified and removed objects, with parser diagnostics kept visible.", tag: "Dependencies · snapshots · diff" },
+  { number: "03", title: "Inspect what changed.", body: "Check whether saved source is current, stale or unavailable. Recompile explicitly, then compare snapshots and inspect resolved and unresolved references.", tag: "Freshness · dependencies · diff" },
 ];
 
 export default function ComputeKnowledgePage() {
@@ -35,7 +35,7 @@ export default function ComputeKnowledgePage() {
             <Image src="/compute-knowledge/field-square-perspective.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 1240px" />
           </div>
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}><span className={styles.dot} />Local + remote · Compute 0.5.1</p>
+            <p className={styles.eyebrow}><span className={styles.dot} />Local + remote · Compute 0.5.2</p>
             <p className={styles.product}>Covenant Compute / Knowledge</p>
             <h1 id="knowledge-title" className={display.className}>Codebase knowledge<br /><span>your agents<br />can inspect.</span></h1>
             <p className={styles.lead}>A code knowledge layer inside Covenant Compute. Give agents and developers a searchable view of a repository, with evidence they can inspect.</p>
@@ -71,22 +71,23 @@ export default function ComputeKnowledgePage() {
             <p className={styles.eyebrow}>Start with a local repository</p>
             <h2 id="local-title" className={display.className}>One snapshot.<br />A shared view.</h2>
             <p className={styles.copy}>Compile once, then inspect the same saved source through the CLI, a browser viewer or a read-only MCP connection. Historical queries stay attached to the snapshot you select.</p>
-            <p className={styles.small}>Install the signed Compute 0.5.1 release, then compile the included example or your own repository. The compile command returns your project ID; the viewer prints its private loopback URL.</p>
-          <p className={styles.small}><a className="btn btn-secondary" href="https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.1">Download Compute 0.5.1 ↗</a><br /><span>Signed release, four native builds. Guides and examples are included.</span></p>
+            <p className={styles.small}>Install the signed Compute 0.5.2 release, then try guided setup with the included example or your own repository. Setup returns your project ID and a ready-to-copy MCP configuration; it does not change your agent settings.</p>
+            <p className={styles.small}>Status and the viewer report whether saved source is current, stale or unavailable. This check does not recompile your snapshot or watch files continuously.</p>
+            <p className={styles.small}><a className="btn btn-secondary" href="https://github.com/open-covenant/covenant/releases/tag/compute-v0.5.2">Download Compute 0.5.2 ↗</a><br /><span>Signed release, four native builds. Guides and examples are included.</span><br /><a className={documentLink} href="https://github.com/open-covenant/covenant/blob/compute-v0.5.2/docs/compute-knowledge.md">Read the setup and freshness guide ↗</a></p>
           </div>
           <div className={styles.terminal}>
-            <div className={styles.terminalBar}><span>LOCAL WORKFLOW</span><span>COMPUTE 0.5.1</span></div>
+            <div className={styles.terminalBar}><span>LOCAL WORKFLOW</span><span>COMPUTE 0.5.2</span></div>
             <pre tabIndex={0} aria-label="Example local knowledge commands"><code>{String.raw`# Install the checksum-pinned release
 curl -fsSL https://opencovenant.org/install/compute.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 
-# Compile the included original example
-covenant-compute knowledge compile \
-  "$HOME/.local/share/covenant-compute/0.5.1/examples/knowledge"
+# Compile the example and verify a first citation
+covenant-compute knowledge setup \
+  "$HOME/.local/share/covenant-compute/0.5.2/examples/knowledge" \
+  --query calculate_total --json
 
-# Use the project ID returned by compile
-covenant-compute knowledge query "calculate_total" \
-  --project <id>
+# Use compile.project.id from setup output
+covenant-compute knowledge status --project <id>
 
 # Open the saved project
 covenant-compute knowledge serve --project <id>
@@ -115,7 +116,7 @@ covenant-compute knowledge mcp --project <id>`}</code></pre>
             <h2 id="availability-title" className={display.className}>Local tools.<br />Remote compilation.</h2>
             <p className={styles.copy}>Compile a pinned public GitHub revision through Covenant Compute, then inspect the verified snapshot locally. Remote input accepts 1–256 selected files and at most 512 KiB of source JSON, including filenames, text and metadata.</p>
             <div className={`${styles.actions} mt-6`}>
-              <a className="btn btn-primary" href="https://github.com/open-covenant/covenant/blob/6483edca0eaa5476d72f84f8da571df4d4dab7b9/docs/compute-knowledge-remote.md">Preview a remote request <span aria-hidden="true">↗</span></a>
+              <a className="btn btn-primary" href="https://github.com/open-covenant/covenant/blob/compute-v0.5.2/docs/compute-knowledge-remote.md">Preview a remote request <span aria-hidden="true">↗</span></a>
               <a className="btn btn-secondary" href="https://github.com/open-covenant/covenant/blob/6483edca0eaa5476d72f84f8da571df4d4dab7b9/docs/evidence/knowledge/dedicated-acceptance-2026-10-21/report.md">Read paid acceptance <span aria-hidden="true">↗</span></a>
             </div>
             <p className={styles.small}>One dedicated operator offers the pinned compiler, with one job in flight at a time. Preview the current quote and capacity before buying. The finalized stake extension sets the admission cutoff at 17 November 2026 at 22:10:13 UTC, with stake unlock on 19 November at the same time. Continued availability depends on current capacity and operator health; no automatic renewal is scheduled. <a className={documentLink} href="https://github.com/open-covenant/covenant/blob/6483edca0eaa5476d72f84f8da571df4d4dab7b9/docs/evidence/knowledge/stake-extension-2026-10-21/report.md">Read stake extension ↗</a></p>
@@ -127,7 +128,7 @@ covenant-compute knowledge mcp --project <id>`}</code></pre>
             <p className={styles.small}>Two earlier paid pilot jobs established receipt, snapshot and interrupted-client recovery evidence. A subsequent job on the dedicated operator passed receipt, artifact/import and settlement checks. Its identical-key settled replay returned the same job without another charge; this later run tested normal completion and settled replay. <a className={documentLink} href="https://github.com/open-covenant/covenant/blob/e5745c920e5ad17b0af16ce20478bd1cce77e0e9/docs/evidence/knowledge/paid-pilot-2026-10-20/report.md">Read the bounded pilot evidence ↗</a></p>
           </div>
           <dl className={styles.statusList}>
-            <div><dt>Local workflow</dt><dd>Available in Compute 0.5.1</dd></div>
+            <div><dt>Local workflow</dt><dd>Available in Compute 0.5.2</dd></div>
             <div><dt>Release package</dt><dd>Signed macOS + Linux builds</dd></div>
             <div><dt>Remote compiler</dt><dd>Limited capacity · one operator</dd></div>
             <div><dt>Measured results</dt><dd>Reproducible fixture reports</dd></div>

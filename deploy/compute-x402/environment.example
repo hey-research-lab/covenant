@@ -4,6 +4,10 @@ COVENANT_X402_DATA=/data
 COVENANT_X402_OPERATOR_ENABLED=false
 COVENANT_GATEWAY_ENABLED=true
 COVENANT_GATEWAY_ADMISSIONS_ENABLED=false
+# Separate opt-in for bounded sequential batches. Keep false until an immutable
+# image and a paid two-child acceptance have passed; use the same value for the
+# gateway and private verifier. Existing batch recovery survives disabling it.
+COVENANT_GATEWAY_BATCH_ENABLED=false
 COVENANT_COMPUTE_COORDINATOR_URL=https://compute-api.opencovenant.org
 COVENANT_COMPUTE_COORDINATOR_PUBKEY=3Z27s9cCPNWYg7y86PhGwHpEMV4crrY5vAwTwzQNbjjh
 COVENANT_GATEWAY_NETWORK=solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp

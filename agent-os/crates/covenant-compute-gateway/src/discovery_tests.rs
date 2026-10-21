@@ -110,6 +110,7 @@ impl Executor for Catalog {
         )
         .unwrap();
         Ok(PreparedExecution {
+            operation: None,
             buyer: self.identity.agent_id().pubkey_base58(),
             coordinator: config.coordinator_url,
             job_envelopes: vec![envelope],
@@ -129,6 +130,7 @@ impl Executor for Catalog {
                 .unwrap(),
         };
         Ok(ExecutionQuote {
+            batch_pricing: None,
             prepared: self.prepare(request)?,
             amount_atomic: amount,
             expires_at_ms: now + 90_000,
@@ -425,6 +427,7 @@ fn x402scan_contract_fixture_uses_the_real_quote_serializer() {
         ["application/json"]["example"];
     assert!(offers(123)[1].matches_request(request));
     let terms = PaymentTerms {
+        batch_pricing: None,
         quote_id: uuid::Uuid::nil(),
         request_sha256: crate::request_digest(request).unwrap(),
         network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp".into(),

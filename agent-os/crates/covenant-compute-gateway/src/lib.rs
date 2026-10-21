@@ -2,6 +2,7 @@
 //! bounded reserve. Only a verified successful result can trigger settlement;
 //! only finalized, read-back settlement releases that result to the customer.
 #![deny(unsafe_code)]
+pub mod batch;
 mod branding;
 pub mod bridge;
 pub mod buyer;
@@ -24,13 +25,43 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs::{File, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     sync::Arc,
 };
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+const MAX_GATEWAY_JOURNAL_BYTES: usize = 64 * 1024 * 1024;
+struct SizeCounter(usize);
+impl Write for SizeCounter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self
+            .0
+            .checked_add(bytes.len())
+            .ok_or_else(|| std::io::Error::other("journal size overflow"))?;
+        if self.0 > MAX_GATEWAY_JOURNAL_BYTES {
+            return Err(std::io::Error::other("gateway journal size limit exceeded"));
+        }
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+fn bounded_journal_read(path: &Path) -> std::io::Result<Vec<u8>> {
+    let file = File::open(path)?;
+    if file.metadata()?.len() > MAX_GATEWAY_JOURNAL_BYTES as u64 {
+        return Err(std::io::Error::other("gateway journal exceeds size limit"));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_GATEWAY_JOURNAL_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_GATEWAY_JOURNAL_BYTES {
+        return Err(std::io::Error::other("gateway journal exceeds size limit"));
+    }
+    Ok(bytes)
+}
 pub type Result<T> = std::result::Result<T, GatewayError>;
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayError {
@@ -59,16 +90,22 @@ pub struct PaymentTerms {
     pub expires_at_ms: u64,
     pub fee_payer: String,
     pub resource_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_pricing: Option<batch::BatchPricingManifest>,
 }
 impl PaymentTerms {
     pub fn memo(&self) -> String {
         format!("covenant.x402.v2:{}:{}", self.quote_id, self.request_sha256)
     }
     pub fn accepted(&self) -> Value {
-        json!({"scheme":"exact","network":self.network,"asset":self.asset,
+        let mut accepted = json!({"scheme":"exact","network":self.network,"asset":self.asset,
             "amount":self.amount_atomic.to_string(),"payTo":self.pay_to,"maxTimeoutSeconds":90,
             "extra":{"feePayer":self.fee_payer,"memo":self.memo(),"quoteId":self.quote_id,
-            "requestSha256":self.request_sha256,"expiresAtMs":self.expires_at_ms}})
+            "requestSha256":self.request_sha256,"expiresAtMs":self.expires_at_ms}});
+        if let Some(manifest) = &self.batch_pricing {
+            accepted["extra"]["batchPricing"] = json!(manifest);
+        }
+        accepted
     }
     pub fn requirements(&self) -> Value {
         json!({"x402Version":2,"resource":{"url":self.resource_url,
@@ -114,6 +151,13 @@ pub trait PaymentRail: Send + Sync {
     async fn check_price(&self, _amount_atomic: u64, _now: u64) -> Result<()> {
         Ok(())
     }
+    async fn check_batch_price(
+        &self,
+        manifest: &batch::BatchPricingManifest,
+        now: u64,
+    ) -> Result<()> {
+        self.check_price(manifest.total()?, now).await
+    }
     /// Must cryptographically bind the payer, merchant, asset, amount and
     /// request memo. Simulation is admission only and never a receipt.
     fn authorization_id(&self, encoded_header: &str) -> Result<String>;
@@ -129,12 +173,15 @@ pub trait PaymentRail: Send + Sync {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PreparedExecution {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<batch::BatchIdentity>,
     pub buyer: String,
     pub coordinator: String,
     pub job_envelopes: Vec<SignedJobEnvelope>,
     pub maximum_cost_micro_usdc: u64,
 }
 pub struct ExecutionQuote {
+    pub batch_pricing: Option<batch::BatchPricingManifest>,
     pub prepared: PreparedExecution,
     pub amount_atomic: u64,
     pub expires_at_ms: u64,
@@ -161,6 +208,7 @@ pub trait Executor: Send + Sync {
     fn prepare(&self, request: &Value) -> Result<PreparedExecution>;
     fn quote(&self, request: &Value, legacy_price: u64, now: u64) -> Result<ExecutionQuote> {
         Ok(ExecutionQuote {
+            batch_pricing: None,
             prepared: self.prepare(request)?,
             amount_atomic: legacy_price,
             expires_at_ms: now.saturating_add(90_000),
@@ -172,6 +220,15 @@ pub trait Executor: Send + Sync {
         self.prepare(request)
     }
     fn validate_admission(&self, _prepared: &PreparedExecution, _now: u64) -> Result<()> {
+        Ok(())
+    }
+    fn batch_supported(&self) -> bool {
+        false
+    }
+    fn validate_batch_budget(&self, _amount: u64, _now: u64) -> Result<()> {
+        Ok(())
+    }
+    fn discard_progress(&self, _batch_id: Option<Uuid>) -> Result<()> {
         Ok(())
     }
     fn models(&self, _now: u64, _legacy_price: u64) -> Vec<Value> {
@@ -252,7 +309,10 @@ struct Disk {
 }
 impl Disk {
     fn require_quote_room(&self) -> Result<()> {
-        if self.journal.entries.len() >= 100_000
+        let mut size = SizeCounter(0);
+        serde_json::to_writer(&mut size, &self.journal)?;
+        if size.0 > MAX_GATEWAY_JOURNAL_BYTES - 16 * 1024 * 1024
+            || self.journal.entries.len() >= 100_000
             || self
                 .journal
                 .entries
@@ -263,6 +323,24 @@ impl Disk {
         {
             return Err(GatewayError::Unavailable(
                 "journal admission limit reached".into(),
+            ));
+        }
+        Ok(())
+    }
+    fn require_output_room(&self, prepared: &PreparedExecution) -> Result<()> {
+        if prepared.operation.is_none() {
+            return Ok(());
+        }
+        let mut size = SizeCounter(0);
+        serde_json::to_writer(&mut size, &self.journal)?;
+        let pending = self.journal.entries.values().filter(|entry| matches!(&entry.phase, Phase::Executing { prepared, .. } if prepared.operation.is_some())).count();
+        if size
+            .0
+            .saturating_add((pending + 1).saturating_mul(10 * 1024 * 1024))
+            > MAX_GATEWAY_JOURNAL_BYTES
+        {
+            return Err(GatewayError::Unavailable(
+                "batch result journal capacity exhausted".into(),
             ));
         }
         Ok(())
@@ -292,10 +370,10 @@ impl Disk {
         let lock = options.open(directory.join("lock"))?;
         lock.try_lock()
             .map_err(|_| GatewayError::Unavailable("gateway journal already open".into()))?;
-        let mut journal = match std::fs::read(directory.join("gateway.json")) {
+        let mut journal = match bounded_journal_read(&directory.join("gateway.json")) {
             Ok(bytes) => serde_json::from_slice::<Journal>(&bytes)?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Journal {
-                version: 3,
+                version: 4,
                 namespace: namespace.clone(),
                 watermark_ms: 0,
                 reserve_micro_usdc: reserve,
@@ -303,7 +381,7 @@ impl Disk {
             },
             Err(e) => return Err(e.into()),
         };
-        if !matches!(journal.version, 2 | 3)
+        if !matches!(journal.version, 2..=4)
             || journal.namespace != namespace
             || reserve < journal.reserve_micro_usdc
             || (reserve > journal.reserve_micro_usdc && !allow_reserve_increase)
@@ -315,7 +393,7 @@ impl Disk {
         // Old binaries must not reinterpret frozen tariff quotes as their flat
         // native offer. Migration retains every existing identity and phase;
         // rollback uses this binary with new admissions disabled.
-        journal.version = 3;
+        journal.version = 4;
         journal.reserve_micro_usdc = reserve;
         let mut disk = Self {
             directory: directory.into(),
@@ -339,8 +417,9 @@ impl Disk {
         result
     }
     fn save_snapshot(&self) -> Result<()> {
+        serde_json::to_writer(&mut SizeCounter(0), &self.journal)?;
         let mut file = tempfile::NamedTempFile::new_in(&self.directory)?;
-        file.write_all(&serde_json::to_vec(&self.journal)?)?;
+        serde_json::to_writer(file.as_file_mut(), &self.journal)?;
         file.as_file().sync_all()?;
         file.persist(self.directory.join("gateway.json"))
             .map_err(|e| e.error)?;
@@ -550,7 +629,14 @@ impl Gateway {
                     "quote cannot cover execution or has expired".into(),
                 ));
             }
-            self.rail.check_price(quote.amount_atomic, now).await?;
+            if let Some(manifest) = &quote.batch_pricing {
+                if manifest.total()? != quote.amount_atomic {
+                    return Err(GatewayError::Invalid("batch retail total mismatch".into()));
+                }
+                self.rail.check_batch_price(manifest, now).await?;
+            } else {
+                self.rail.check_price(quote.amount_atomic, now).await?;
+            }
             disk = self.disk.lock().await;
             let now = after_wait(availability_now, availability_started);
             disk.advance(now)?;
@@ -598,7 +684,12 @@ impl Gateway {
                 asset_decimals: self.rail.asset_decimals(),
                 expires_at_ms: quote.expires_at_ms.min(now.saturating_add(90_000)),
                 fee_payer: self.rail.fee_payer().into(),
-                resource_url: self.rail.resource_url().into(),
+                resource_url: if quote.batch_pricing.is_some() {
+                    batch::resource_url(self.rail.resource_url())?
+                } else {
+                    self.rail.resource_url().into()
+                },
+                batch_pricing: quote.batch_pricing,
             };
             disk.journal.entries.insert(
                 terms.quote_id,
@@ -625,11 +716,15 @@ impl Gateway {
         let mut phase = entry.phase;
         if matches!(phase, Phase::Quoted) {
             self.require_admissions()?;
+            self.executor.validate_request(&request)?;
             let Some(header) = payment_header else {
                 return Ok(GatewayReply::PaymentRequired(entry.terms));
             };
             if now >= entry.terms.expires_at_ms {
                 return Err(GatewayError::Payment("quote expired".into()));
+            }
+            if let Some(prepared) = &entry.quoted_execution {
+                self.executor.validate_admission(prepared, now)?;
             }
             let verification_started = std::time::Instant::now();
             let payment = self.rail.verify(header, &entry.terms).await?;
@@ -670,6 +765,7 @@ impl Gateway {
                     "compute reserve exhausted or quote below execution ceiling".into(),
                 ));
             }
+            disk.require_output_room(&prepared)?;
             phase = Phase::Executing { payment, prepared };
             let saved = disk.journal.entries.get_mut(&quote_id).unwrap();
             saved.phase = phase.clone();
@@ -722,7 +818,7 @@ impl Gateway {
                     }
                     phase = Phase::Settling {
                         payment,
-                        prepared,
+                        prepared: prepared.clone(),
                         output,
                     };
                 }
@@ -742,6 +838,12 @@ impl Gateway {
             }
             disk.journal.entries.get_mut(&quote_id).unwrap().phase = phase.clone();
             disk.save()?;
+            self.executor.discard_progress(
+                terms
+                    .batch_pricing
+                    .as_ref()
+                    .map(|manifest| manifest.batch_id),
+            )?;
         }
         if let Phase::Settling {
             payment,
@@ -749,6 +851,12 @@ impl Gateway {
             output,
         } = phase.clone()
         {
+            self.executor.discard_progress(
+                terms
+                    .batch_pricing
+                    .as_ref()
+                    .map(|manifest| manifest.batch_id),
+            )?;
             // The Settling record was fsynced before any broadcast. Unknown
             // sends stay here; the rail reconciles the same signature first.
             match self.rail.settle(&payment, &terms).await {
@@ -799,6 +907,20 @@ impl Gateway {
         let mut disk = self.disk.lock().await;
         let now = after_wait(now, started);
         disk.advance(now)?;
+        for entry in disk.journal.entries.values().filter(|entry| {
+            matches!(
+                entry.phase,
+                Phase::Settling { .. } | Phase::Complete { .. } | Phase::Failed { .. }
+            )
+        }) {
+            self.executor.discard_progress(
+                entry
+                    .terms
+                    .batch_pricing
+                    .as_ref()
+                    .map(|manifest| manifest.batch_id),
+            )?;
+        }
         let pending = disk
             .journal
             .entries
@@ -854,7 +976,8 @@ pub fn spawn_retention(gateway: Arc<Gateway>) -> tokio::task::JoinHandle<()> {
 pub fn router(gateway: Arc<Gateway>) -> Router {
     Router::new()
         .merge(branding::router())
-        .route("/v1/chat/completions", post(handle_http))
+        .route("/v1/chat/completions", post(handle_single_http))
+        .route("/v1/inference/batches", post(handle_batch_http))
         .route("/.well-known/x402.json", get(discovery::manifest_http))
         .route("/openapi.json", get(discovery::openapi_http))
         .route("/v1/models", get(discovery::models_http))
@@ -871,6 +994,41 @@ fn payment_payload(header: &str) -> Result<Value> {
         .map_err(|_| GatewayError::Payment("invalid payment header encoding".into()))?;
     serde_json::from_slice(&bytes)
         .map_err(|_| GatewayError::Payment("invalid payment payload".into()))
+}
+async fn handle_single_http(
+    state: State<Arc<Gateway>>,
+    headers: HeaderMap,
+    Json(request): Json<Value>,
+) -> Response {
+    if request.get("requests").is_some() || request.get("version").is_some() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"use /v1/inference/batches for batches"})),
+        )
+            .into_response();
+    }
+    handle_http(state, headers, Json(request)).await
+}
+async fn handle_batch_http(
+    state: State<Arc<Gateway>>,
+    headers: HeaderMap,
+    Json(request): Json<Value>,
+) -> Response {
+    if !state.0.executor.batch_supported() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error":"batch execution unavailable"})),
+        )
+            .into_response();
+    }
+    if let Err(error) = batch::parse(&request) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":error.to_string()})),
+        )
+            .into_response();
+    }
+    handle_http(state, headers, Json(request)).await
 }
 async fn handle_http(
     State(gateway): State<Arc<Gateway>>,
@@ -972,3 +1130,6 @@ async fn handle_http(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod batch_tests;

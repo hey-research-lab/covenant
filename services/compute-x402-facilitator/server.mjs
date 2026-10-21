@@ -20,6 +20,7 @@ const config = {
   network: required('COVENANT_GATEWAY_NETWORK'), asset: required('COVENANT_GATEWAY_ASSET'),
   payTo: required('COVENANT_GATEWAY_PAY_TO'), feePayer: required('COVENANT_GATEWAY_FEE_PAYER'),
   resourceUrl: required('COVENANT_GATEWAY_RESOURCE_URL'), priceAtomic: required('COVENANT_GATEWAY_PRICE_MICRO_USDC'), secret,
+  batchEnabled: process.env.COVENANT_GATEWAY_BATCH_ENABLED === 'true',
   ...await readTariffConfig(process.env.COVENANT_GATEWAY_TARIFFS_FILE),
 };
 if (keypair.address !== config.feePayer) throw new Error('fee payer key mismatch');
@@ -47,7 +48,9 @@ const server = createServer(async (req, res) => {
   if (req.method !== 'POST' || !['/verify', '/settle'].includes(req.url)) return reply(404, { error: 'not found' });
   try {
     let size = 0; const chunks = [];
-    for await (const chunk of req) { size += chunk.length; if (size > 32_768) throw new Rejected('request too large'); chunks.push(chunk); }
+    // A 32-child manifest appears in both accepted terms and sealed evidence.
+    // Bound the entire private request while allowing worst-case JSON escaping.
+    for await (const chunk of req) { size += chunk.length; if (size > 131_072) throw new Rejected('request too large'); chunks.push(chunk); }
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     reply(200, await bridge[req.url.slice(1)](body));
   } catch (error) {

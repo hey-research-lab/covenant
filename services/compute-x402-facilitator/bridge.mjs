@@ -4,7 +4,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { getTransactionDecoder, getSignatureFromTransaction, assertIsFullySignedTransaction } from '@solana/kit';
 import { ExactSvmScheme } from '@x402/svm/exact/facilitator';
-import { createPricingPolicy, validPaymentAmount } from './pricing.mjs';
+import { batchPricingTotal, createPricingPolicy, validPaymentAmount } from './pricing.mjs';
 
 export const RAILS = Object.freeze({
   'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': {
@@ -33,6 +33,7 @@ export function createBridge({ signer, config, rpc, now = Date.now, verifier }) 
   const { network, asset, payTo, feePayer, resourceUrl, secret } = config;
   if (!RAILS[network] || asset !== RAILS[network].asset || secret.length < 32) throw new Error('invalid rail configuration');
   const pricing = createPricingPolicy(config);
+  const batchResourceUrl = new URL('/v1/inference/batches', resourceUrl).href;
   // The request-bound memo consumed 43,642 CU in a read-only mainnet simulation.
   // Bound sponsorship: <= 2 signatures, 60k CU and 1000 microlamports/CU.
   // This bounds fees to 10,060 lamports per admitted authorization.
@@ -40,9 +41,12 @@ export function createBridge({ signer, config, rpc, now = Date.now, verifier }) 
   function requirements(terms, fresh) {
     const extra = terms?.extra;
     if (terms?.scheme !== 'exact' || terms.network !== network || terms.asset !== asset || terms.payTo !== payTo || extra?.feePayer !== feePayer || !validPaymentAmount(terms.amount) || terms.maxTimeoutSeconds !== 90) throw new Rejected('payment rail or amount mismatch');
-    if (fresh && !pricing.allows(terms.amount, now())) throw new Rejected('payment amount is not configured for admission');
+    const batch = Object.hasOwn(extra, 'batchPricing');
+    if (batch && batchPricingTotal(extra.batchPricing) !== BigInt(terms.amount)) throw new Rejected('invalid batch pricing binding');
+    if (fresh && !(batch ? pricing.allowsBatch(extra.batchPricing, terms.amount, now()) : pricing.allows(terms.amount, now()))) throw new Rejected('payment amount is not configured for admission');
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(extra.quoteId) || !/^[0-9a-f]{64}$/.test(extra.requestSha256) || extra.memo !== `covenant.x402.v2:${extra.quoteId}:${extra.requestSha256}` || !Number.isSafeInteger(extra.expiresAtMs)) throw new Rejected('invalid quote binding');
     if (fresh && (now() > extra.expiresAtMs || extra.expiresAtMs > now() + 90_000)) throw new Rejected('quote expired');
+    return batch ? batchResourceUrl : resourceUrl;
   }
   function seal(value) { return createHmac('sha256', secret).update(canonical(value)).digest('hex'); }
   async function assertNetwork() {
@@ -58,8 +62,8 @@ export function createBridge({ signer, config, rpc, now = Date.now, verifier }) 
         network, asset, assetDecimals: 6, payTo, feePayer, resourceUrl, ...pricing.snapshot() };
     },
     async verify({ paymentPayload: payload, paymentRequirements: terms, resourceUrl: url }) {
-      requirements(terms, true);
-      if (url !== resourceUrl || payload?.resource?.url !== resourceUrl || payload?.x402Version !== 2 || !isDeepStrictEqual(payload.accepted, terms)) throw new Rejected('payment payload does not match quote');
+      const expectedResource = requirements(terms, true);
+      if (url !== expectedResource || payload?.resource?.url !== expectedResource || payload?.x402Version !== 2 || !isDeepStrictEqual(payload.accepted, terms)) throw new Rejected('payment payload does not match quote');
       await assertNetwork();
       const { bytes } = decode(payload.payload?.transaction);
       const verified = await verifier.verify(payload, terms);

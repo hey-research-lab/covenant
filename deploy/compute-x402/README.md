@@ -5,6 +5,10 @@ contains the Rust gateway, the official x402 verifier, a normal Covenant Compute
 operator and its private inference provider adapter. Only the gateway binds the
 public port. It uses the existing coordinator and staking/settlement rules.
 
+The [batch inference candidate](../../docs/compute-inference-batches.md) is a
+separate opt-in. It uses journal v4, so rollback must retain the capable binary
+and disable batch admissions rather than downgrade the financial journal.
+
 Build `deploy/Dockerfile.compute-x402` from the repository root. The dedicated
 image workflow publishes an immutable `x402-<revision>` tag inside the existing
 public Compute node package. Deploy its resolved digest only after an anonymous

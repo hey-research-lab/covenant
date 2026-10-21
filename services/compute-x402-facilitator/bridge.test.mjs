@@ -5,7 +5,7 @@ import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS, getTransferCheckedInstru
 import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from '@solana-program/compute-budget';
 import { toFacilitatorSvmSigner } from '@x402/svm';
 import { createBridge, RAILS, Rejected } from './bridge.mjs';
-import { createPricingPolicy, readTariffConfig } from './pricing.mjs';
+import { batchPricingTotal, createPricingPolicy, readTariffConfig } from './pricing.mjs';
 import { mkdtemp, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,6 +23,8 @@ async function setup(options = {}) {
   const quoteId = '00000000-0000-4000-8000-000000000001';
   const requestSha256 = 'a'.repeat(64);
   const terms = { scheme: 'exact', network, asset: config.asset, payTo: config.payTo, amount: options.amount ?? '1200', maxTimeoutSeconds: 90, extra: { feePayer: config.feePayer, memo: `covenant.x402.v2:${quoteId}:${requestSha256}`, quoteId, requestSha256, expiresAtMs: 90_000 } };
+  if (options.batchPricing !== undefined) terms.extra.batchPricing = options.batchPricing;
+  const resourceUrl = options.batchPricing === undefined ? config.resourceUrl : new URL('/v1/inference/batches', config.resourceUrl).href;
   const source = (await findAssociatedTokenPda({ mint: config.asset, owner: payer.address, tokenProgram: TOKEN_PROGRAM_ADDRESS }))[0];
   const destination = (await findAssociatedTokenPda({ mint: config.asset, owner: merchant.address, tokenProgram: TOKEN_PROGRAM_ADDRESS }))[0];
   async function payload(overrides = {}) {
@@ -36,7 +38,7 @@ async function setup(options = {}) {
         { programAddress: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr', accounts: [], data: new TextEncoder().encode(overrides.memo ?? terms.extra.memo) },
       ], m));
     const signed = await partiallySignTransactionMessageWithSigners(tx);
-    return { x402Version: 2, resource: { url: config.resourceUrl }, accepted: structuredClone(terms), payload: { transaction: getBase64EncodedWireTransaction(signed) } };
+    return { x402Version: 2, resource: { url: overrides.resourceUrl ?? resourceUrl }, accepted: structuredClone(terms), payload: { transaction: getBase64EncodedWireTransaction(signed) } };
   }
   const signer = toFacilitatorSvmSigner(facilitator);
   let simulations = 0; signer.simulateTransaction = async () => { simulations++; };
@@ -53,8 +55,8 @@ async function setup(options = {}) {
   };
   const reopen = (changes = {}, clock = 1000) => createBridge({ signer, config: { ...config, ...changes }, rpc, now: () => clock });
   const bridge = reopen();
-  const verify = async (overrides = {}) => bridge.verify({ paymentPayload: await payload(overrides), paymentRequirements: terms, resourceUrl: config.resourceUrl });
-  return { bridge, verify, terms, state, payload, config, reopen, simulations: () => simulations, signatures: () => signatures };
+  const verify = async (overrides = {}) => bridge.verify({ paymentPayload: await payload(overrides), paymentRequirements: terms, resourceUrl });
+  return { bridge, verify, terms, state, payload, config, reopen, resourceUrl, simulations: () => simulations, signatures: () => signatures };
 }
 
 function tariffs() {
@@ -63,11 +65,88 @@ function tariffs() {
   return [{ native, retail: { ...native, id: 'covenant-haiku-4.5-retail', base_micro_usdc: 12000, output_cap_micro_usdc_per_million: 9000000 } }];
 }
 
+function batchManifest() {
+  return { version: 1, batch_id: '00000000-0000-4000-8000-000000000002', children: [256, 2048].map((cap, i) => ({
+    job_id: `00000000-0000-4000-8000-00000000000${i + 3}`, model: 'claude-haiku-4.5', max_output_tokens: cap,
+    pricing: 'model_tariff_v1', amount_atomic: 12000 + cap * 9,
+  })) };
+}
+
+test('batch policy authorizes exact ordered child prices, with opt-in and bounded identities', () => {
+  const policy = createPricingPolicy({ priceAtomic: '50000', tariffRows: tariffs(), batchEnabled: true });
+  const manifest = batchManifest();
+  assert.equal(batchPricingTotal(manifest), 44736n);
+  assert.equal(policy.allowsBatch(manifest, '44736', 1000), true);
+  assert.equal(policy.allowsBatch(manifest, '44737', 1000), false);
+  assert.equal(policy.allowsBatch(manifest, '44736', 200000), false);
+  assert.equal(createPricingPolicy({ priceAtomic: '50000', tariffRows: tariffs() }).allowsBatch(manifest, '44736', 1000), false);
+  for (const mutate of [
+    m => { m.version = 2; }, m => { m.batch_id = 'bad'; }, m => { m.batch_id = '00000000-0000-0000-0000-000000000000'; },
+    m => { m.children = []; }, m => { m.children = Array(33).fill(m.children[0]); },
+    m => { m.children[1].job_id = m.children[0].job_id; }, m => { m.children[0].job_id = 'bad'; },
+    m => { m.children[0].max_output_tokens = 0; }, m => { m.children[0].max_output_tokens = 32769; },
+    m => { m.children[0].max_output_tokens = 257; }, m => { m.children[0].model = 'other'; },
+    m => { m.children[0].model = 'any'; }, m => { m.children[0].amount_atomic++; m.children[1].amount_atomic--; },
+    m => { m.children[0].amount_atomic = Number.MAX_SAFE_INTEGER; }, m => { m.children[0].pricing = 'unknown'; },
+    m => { m.children[0].extra = true; }, m => { m.extra = true; },
+  ]) {
+    const changed = structuredClone(manifest); mutate(changed);
+    assert.equal(policy.allowsBatch(changed, '44736', 1000), false);
+  }
+  const legacy = structuredClone(manifest); delete legacy.children[0].pricing; legacy.children[0].amount_atomic = 50000;
+  assert.equal(policy.allowsBatch(legacy, '80432', 1000), true);
+  legacy.children[0].pricing = null;
+  assert.equal(policy.allowsBatch(legacy, '80432', 1000), true);
+  const three = batchManifest();
+  three.children.push({ ...three.children[0], job_id: '00000000-0000-4000-8000-000000000099' });
+  assert.equal(batchPricingTotal(three), 59040n, 'recovery format retains its protocol bound');
+  assert.equal(policy.allowsBatch(three, '59040', 1000), false, 'first release admits at most two children');
+});
+
+test('one official SVM authorization covers the batch sum and survives disabled or rotated admission', async () => {
+  const f = await setup({ config: { priceAtomic: '50000', tariffRows: tariffs(), batchEnabled: true }, batchPricing: batchManifest(), amount: '44736' });
+  assert.equal(f.bridge.readiness().batchEnabled, true);
+  await assert.rejects(f.verify({ resourceUrl: f.config.resourceUrl }), Rejected);
+  assert.equal(f.signatures(), 0); assert.deepEqual(f.state.rpcCalls, []);
+  const payment = await f.verify();
+  assert.equal(f.signatures(), 1); assert.equal(f.simulations(), 1); assert.deepEqual(f.state.sends, []);
+  f.state.signature = payment.transaction_id;
+  for (const changes of [{ batchEnabled: false }, { priceAtomic: '60000', tariffRows: undefined }, { tariffConfigError: true }]) {
+    const recovered = f.reopen(changes, 300000);
+    await assert.rejects(recovered.verify({ paymentPayload: await f.payload(), paymentRequirements: f.terms, resourceUrl: f.resourceUrl }), Rejected);
+    assert.equal((await recovered.settle({ payment, paymentRequirements: f.terms })).status, 'pending');
+  }
+  assert.equal(f.state.sends.length, 3); assert.equal(new Set(f.state.sends).size, 1);
+  f.state.status = { confirmationStatus: 'finalized', err: null };
+  f.state.readback = { meta: { err: null }, transaction: [f.state.sends[0], 'base64'] };
+  assert.deepEqual(await f.reopen({ batchEnabled: false }, 300000).settle({ payment, paymentRequirements: f.terms }), { status: 'finalized', transaction_id: payment.transaction_id });
+  const changed = structuredClone(f.terms); changed.extra.batchPricing.children.reverse();
+  await assert.rejects(f.bridge.settle({ payment, paymentRequirements: changed }), Rejected);
+  assert.equal(f.signatures(), 1, 'recovery never replaces the signed transaction');
+});
+
+test('disabled or malformed batches stop before RPC, simulation, signing and broadcast', async () => {
+  for (const options of [
+    { config: { batchEnabled: false }, batchPricing: batchManifest(), amount: '44736' },
+    { batchPricing: null, amount: '44736' },
+    { batchPricing: batchManifest(), amount: '44737' },
+    { batchPricing: { ...batchManifest(), children: [] }, amount: '50000' },
+  ]) {
+    const f = await setup({ ...options, config: { priceAtomic: '50000', tariffRows: tariffs(), batchEnabled: true, ...options.config } });
+    await assert.rejects(f.verify(), Rejected);
+    assert.equal(f.signatures(), 0); assert.equal(f.simulations(), 0); assert.deepEqual(f.state.rpcCalls, []); assert.deepEqual(f.state.sends, []);
+  }
+  const single = await setup({ config: { batchEnabled: true } });
+  await single.verify();
+  const payload = await single.payload({ resourceUrl: new URL('/v1/inference/batches', single.config.resourceUrl).href });
+  await assert.rejects(single.bridge.verify({ paymentPayload: payload, paymentRequirements: single.terms, resourceUrl: payload.resource.url }), Rejected);
+});
+
 test('readiness binds the loaded rail and complete pricing policy without payment activity', async () => {
   const f = await setup({ config: { priceAtomic: '50000', tariffRows: tariffs() } });
   const expected = { schemaVersion: 1, observedAtMs: 1000, pricingValid: true, scheme: 'exact',
     network: f.config.network, asset: f.config.asset, assetDecimals: 6, payTo: f.config.payTo,
-    feePayer: f.config.feePayer, resourceUrl: f.config.resourceUrl, legacyPriceAtomic: '50000', retailTariffs: [tariffs()[0].retail] };
+    feePayer: f.config.feePayer, resourceUrl: f.config.resourceUrl, legacyPriceAtomic: '50000', retailTariffs: [tariffs()[0].retail], batchEnabled: false };
   assert.deepEqual(f.bridge.readiness(), expected);
   const changed = f.bridge.readiness(); changed.retailTariffs[0].base_micro_usdc++;
   f.config.tariffRows[0].retail.revision++;
@@ -139,6 +218,11 @@ test('authenticated server readiness fails closed while malformed-policy recover
       const body = await response.json();
       if (valid) { assert.equal(body.legacyPriceAtomic, '50000'); assert.deepEqual(body.retailTariffs, [tariffs()[0].retail]); }
       else assert.deepEqual(body, { error: 'payment pricing unavailable' });
+      for (const [size, expected] of [[70000, 'payment rail or amount mismatch'], [131073, 'request too large']]) {
+        const response = await fetch(`${base}/verify`, { method: 'POST', headers, body: JSON.stringify({ padding: 'x'.repeat(size) }) });
+        assert.equal(response.status, 400);
+        assert.equal((await response.json()).error, expected);
+      }
       const exited = new Promise(resolve => child.once('exit', resolve)); child.kill('SIGTERM'); await exited; child = undefined;
     }
     assert.deepEqual(calls, ['getGenesisHash', 'getGenesisHash'], 'only startup identity checks; readiness never uses RPC');

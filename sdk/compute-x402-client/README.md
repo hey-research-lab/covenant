@@ -136,6 +136,42 @@ The client returns `completed` only after verifying:
 
 Customer payment and operator receipt amounts are separate: the former is the gateway's USDC charge, the latter is the Compute job's operator price. An operator receipt does not independently prove model quality or the operator's hardware.
 
+## Batch inference candidate
+
+The source candidate adds `client.purchaseBatch()` at `/v1/inference/batches`. It is not a released or funded-accepted batch client. The existing `purchase()`, AgentKit action and LangChain/LangGraph tool retain their single-request behavior.
+
+```js
+const result = await client.purchaseBatch({
+  requestId: durablePurchaseUuid,
+  version: 1,
+  requests: [
+    {
+      model: 'configured-model',
+      messages: [{ role: 'user', content: 'Classify this first support ticket: ...' }],
+      max_tokens: 128,
+      pricing: 'model_tariff_v1',
+    },
+    {
+      model: 'configured-model',
+      messages: [{ role: 'user', content: 'Classify this second support ticket: ...' }],
+      max_tokens: 256,
+      pricing: 'model_tariff_v1',
+    },
+  ],
+});
+if (result.status === 'completed') {
+  console.log(result.texts); // Request order; complete native evidence in result.result.
+}
+```
+
+This first sequential-operator candidate admits 1–2 independent supported text-chat requests per new purchase. The proof format and recovery of already-signed historical authorizations retain the 32-child bound. Each child may opt into `model_tariff_v1`; omitting it retains that child's legacy fixed-price behavior. Nested batches and unsupported generation parameters are refused. The configured input-byte limit applies to each child's messages, with a 128,000-byte bound on the complete canonical request. The complete batch response is limited to 10 MiB; single responses retain their 4 MiB limit.
+
+The gateway offers one aggregate USDC payment. Its accepted `extra.batchPricing` freezes the batch ID and each ordered job ID, model, output cap, pricing mode and retail amount. The client validates that manifest against the original request and exact aggregate charge before signing. Both the per-payment ceiling and cumulative ceiling apply to the whole batch; single and batch purchases share the same existing journal and cumulative budget.
+
+A completed batch requires every child result, its original native job and operator receipt signatures, its model tariff when requested, and the ordered RFC6962 inclusion proofs. The paid quote's frozen batch and job IDs prevent substituting valid results from another purchase. Native operator tariffs remain separate from retail customer charges. Merkle consistency alone is not a signature or proof of model quality.
+
+A `pending` response, partial result, failed child or uncertain transport outcome does not release the reservation or authorize another payment. Resume the exact original ordered request under its original UUID; the saved quote and authorization are reused even after prices change. This client does not purchase missing children individually or claim automatic refunds. Changing order, model, cap, pricing mode or content requires a separate purchase identity after accounting for any unresolved original purchase.
+
 ## Retry and spending semantics
 
 Opt in to model-specific upfront quotes with `pricing: 'model_tariff_v1'` on a purchase or the application-configured LangChain/LangGraph tool. Omitting it preserves the legacy fixed-price request and signed result. A configured tariff combines a model's base price with the requested `max_tokens` output cap. `maxPaymentMicroUsdc` is a ceiling, not a fixed charge: the exact accepted quote is reserved and returned as `amountMicroUsdc`. This is upfront pricing for the requested cap, not billing or refunds based on tokens actually generated. Model, cap and pricing-mode changes require a new purchase UUID.

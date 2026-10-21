@@ -78,6 +78,7 @@ impl Executor for Execute {
         )
         .unwrap();
         Ok(PreparedExecution {
+            operation: None,
             buyer: self.identity.agent_id().pubkey_base58(),
             coordinator: config.coordinator_url,
             job_envelopes: vec![envelope],
@@ -1767,6 +1768,7 @@ impl Executor for VariableQuoteExecutor {
     }
     fn quote(&self, request: &Value, _: u64, now: u64) -> Result<ExecutionQuote> {
         Ok(ExecutionQuote {
+            batch_pricing: None,
             prepared: self.prepare(request)?,
             amount_atomic: self.retail.load(Ordering::SeqCst),
             expires_at_ms: now + 90_000,
@@ -1959,7 +1961,7 @@ async fn old_journal_quoted_entry_remains_payable_without_repricing_or_reset() {
     );
     assert_eq!(disk.used_reserve(), 10);
     assert_eq!(disk.journal.reserve_micro_usdc, 1000);
-    assert_eq!(disk.journal.version, 3);
+    assert_eq!(disk.journal.version, 4);
 }
 
 #[tokio::test]

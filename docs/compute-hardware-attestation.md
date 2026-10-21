@@ -98,6 +98,14 @@ a finite one-use allowance, and remains disabled pending acceptance review.
 The [lifecycle guide](compute-phala-lease-lifecycle.md) documents configuration,
 buyer commands and original-identity reconciliation.
 
+The separate `phala-cpu-ephemeral-dstack061` executor uses an explicit no-KMS
+profile, a fresh VM/disk per lease, and an outbound signed coordinator relay.
+Node and buyer independently verify the guest, signed workload and exact
+app/instance/host-key binding before access. A provider cannot select this
+profile for a managed-KMS order. Creation is disabled by default and requires
+its own one-use allowance. The deployed coordinator at `6598fe15` exposes this
+opt-in capability; it does not provide standing Phala production capacity.
+
 Workspace restore verifies the current lease and evidence before local restore,
 then rechecks scope and verifies again before upload. Stronger workspace floors
 still reject at the `Open` served ceiling. Valid cryptography is not an override.
@@ -114,17 +122,25 @@ crates and 76 attestation integration tests, with existing opt-in cases left
 ignored, plus formatting, documentation guards and all-target Clippy. Those
 results describe that baseline, not the current lifecycle changes.
 
-Current results include 310 protocol tests, 276 buyer library tests (two
+An earlier integration checkpoint included 310 protocol tests, 276 buyer library tests (two
 existing ignored cases), 45 buyer CLI tests, 17 coordinator hardware tests,
 seven attestation binding tests, 23 node Phala tests, 11 node lease tests and
 four node admission tests passed. The node unit-test filters overlap; these
 are not an additive unique-test total. All 37 collector/client Python tests
 passed without skips, as did the environment inventory and documentation checks.
-Remaining centralized affected-crate suites and lint checks are pending. The
-historical genuine CPU diagnostic is separately documented; the new typed
-transport requires a newly built and qualified guest image.
-There is no accepted paid Phala lease, stronger-floor workspace grant,
-settlement/cleanup run or production attested-rental release for this change.
+Subsequent source/image qualification and live results are recorded in the
+[native acceptance report](compute-native-phala-acceptance.md). Both paid
+attempts verified genuine guest evidence and client uploads but failed their
+provider-deletion deadlines. The October 21 retry, on deployed source
+`6598fe15663ad88fe256ad739ded703d05e1ad43`, confirmed deletion 18.926 seconds
+after its fixed 300-second cutoff. Both failures, full buyer-credit restoration,
+finalized escrow returns and eventual exact-VM deletion remain recorded.
+The local, undeployed poll-only deletion repair passed 52 Phala, 13 lease and
+four admission tests, strict node Clippy and 224 repository guards. It preserves
+the original cleanup cutoff and stops blind DELETE resends after an accepted
+or unknown outcome. These local checks do not qualify a paid release. No third
+attempt is approved; there is no successful paid Phala lease, operator payout,
+stronger-floor workspace grant or production attested-rental release.
 
 The managed KMS has authenticated `os_image_verification=false` and mutable
 off-chain authority. Working account access resolves the credential gap, not

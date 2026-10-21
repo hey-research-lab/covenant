@@ -189,12 +189,16 @@ Production still requires acceptance of that complete paid path on the deployed
 candidate and a bounded operator creation policy. A successful isolated
 acceptance is not an advertised production lease or a change in served trust.
 
-The subsequent [native paid acceptance](compute-native-phala-acceptance.md)
-deployed the coordinator integration and passed independent buyer admission and
-an 81,920-byte client upload. It failed the 60-second deletion-confirmation
-deadline; the original VM was later confirmed absent and the buyer/escrow fully
-refunded. That failed attempt is not a successful paid release. Its one-use
-operator allowance remains consumed and the test operator is stopped.
+The two subsequent [native paid attempts](compute-native-phala-acceptance.md)
+passed independent buyer admission and 81,920-byte client uploads, then failed
+their deletion-confirmation gates. The first exceeded 60 seconds; the
+October 21 retry, after deployment of source `6598fe15`, confirmed absence
+18.926 seconds after its fixed 300-second cutoff. Both original VMs were
+subsequently confirmed absent, buyer credit restored and escrow returns
+finalized. Both failures remain recorded, both one-use allowances are consumed,
+and the operator is stopped with no advertised Phala capacity. The subsequent
+poll-only deletion repair is local and undeployed. No third paid attempt is
+authorized, and successful paid production qualification remains outstanding.
 
 ## Privately retained evidence hashes
 

@@ -175,6 +175,10 @@ impl PhalaCloud {
                 .map(str::to_owned),
             running: value.get("status").and_then(Value::as_str) == Some("running")
                 && value.get("in_progress").and_then(Value::as_bool) == Some(false),
+            deleting: value.get("status").and_then(Value::as_str) == Some("deleting")
+                || (value.get("in_progress").and_then(Value::as_bool) == Some(true)
+                    && value.pointer("/progress/target").and_then(Value::as_str)
+                        == Some("deleted")),
         }))
     }
     async fn checked_rate(&self, plan: &LeasePlan) -> Result<u64, ExecutorError> {
@@ -960,6 +964,54 @@ mod tests {
         ] {
             assert!(decimal_micro_usd(bad).is_err(), "{bad}");
         }
+    }
+    #[tokio::test]
+    async fn machine_preserves_explicit_deletion_progress_without_assuming_absence() {
+        for (status, in_progress, target, deleting) in [
+            ("deleting", true, "deleted", true),
+            ("running", true, "deleted", true),
+            ("running", true, "running", false),
+            ("running", false, "deleted", false),
+        ] {
+            let server = MockServer::start().await;
+            let cloud = cloud(&server);
+            let id = Uuid::new_v4();
+            Mock::given(method("GET"))
+                .and(path(format!("/cvms/{}", id.simple())))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "app_id":"ab".repeat(20),"vm_uuid":id,"name":"owned",
+                    "status":status,"in_progress":in_progress,
+                    "progress":{"target":target}
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+            let machine = cloud.get(id).await.unwrap().unwrap();
+            assert_eq!(machine.vm_uuid, id);
+            assert_eq!(machine.deleting, deleting);
+            assert_eq!(machine.running, status == "running" && !in_progress);
+            assert!(server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .all(|request| request.method == "GET"));
+        }
+    }
+
+    #[tokio::test]
+    async fn delete_204_is_accepted_without_retry_or_claim_of_absence() {
+        let server = MockServer::start().await;
+        let cloud = cloud(&server);
+        let id = Uuid::new_v4();
+        Mock::given(method("DELETE"))
+            .and(path(format!("/cvms/{}", id.simple())))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        cloud.delete(id).await.unwrap();
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
     }
     #[tokio::test]
     async fn rate_above_allowance_refuses_before_provision_or_create_posts() {

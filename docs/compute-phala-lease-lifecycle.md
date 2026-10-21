@@ -10,17 +10,18 @@ served trust ceiling remains **`Open`**. The earlier
 [isolated live acceptance](compute-ephemeral-phala-acceptance.md) qualifies the
 pinned guest; its evidence remains separate from the native paid path.
 
-Coordinator admission and the signed relay were subsequently deployed at source
-`da00ccf7541d94cfb97c2a43dd9dd96f6719f499` for a single bounded native paid
-attempt. Guest/buyer verification and native transfer passed, but provider
-deletion confirmation exceeded the 60-second successful-receipt gate. The
-execution failed, and the original VM was later confirmed deleted. The
-[native acceptance report](compute-native-phala-acceptance.md) records the
-individual outcomes. Paid production qualification remains failed pending a
-cleanup-timing repair and separately approved acceptance. The coordinator
-capability remains enabled; the operator is offline with its one-use allowance
-consumed. Node creation remains disabled by default. No replacement lease or
-allowance is implied by the deployment or by later cleanup confirmation.
+Coordinator admission and the signed relay are deployed at source
+`6598fe15663ad88fe256ad739ded703d05e1ad43`. Both bounded paid attempts passed
+guest/buyer verification and native transfer, but failed provider-deletion
+confirmation: the first exceeded its 60-second gate, and the October 21 retry
+exceeded its fixed 300-second cutoff by 18.926 seconds. Both VMs were later
+confirmed absent, with zero charge/payout and finalized full escrow returns.
+The [native acceptance report](compute-native-phala-acceptance.md) preserves
+each attempt separately. A local poll-only deletion repair is not deployed;
+successful paid production qualification remains outstanding. The coordinator
+capability remains enabled, both one-use allowances are consumed, and the test
+node has been stopped. Node creation remains disabled by default. No third
+attempt, standing capacity or replacement allowance is authorized.
 
 Buyer preparation uses `lease prepare-phala-ephemeral` with the exact HTTPS
 coordinator origin as `--relay-origin`; generation is `phala-ephemeral-{job-id}-1`.
@@ -59,7 +60,7 @@ Buyer close and original signed expiry stop the meter. Close during VM startup
 or evidence collection cancels admission and queues deletion of the original
 resource. A successful ephemeral execution receipt requires durable confirmed
 deletion: HTTP 204 alone is insufficient, and GET must confirm absence.
-The follow-up source reserves up to 300 seconds for provider deletion and a
+The deployed ephemeral envelope reserves up to 300 seconds for provider deletion and a
 separate 60 seconds for result delivery in each new signed ephemeral envelope.
 Guest expiry, access, allowance runtime and price ceiling remain unchanged.
 The first observed close fixes a durable cleanup cutoff, capped by the original
@@ -69,6 +70,15 @@ Deletion must be observed and durably saved within that cutoff. An unresolved
 delete produces a failed execution and refund while durable cleanup continues.
 Cleanup latency cannot extend the paid meter. Receipt settlement, provider
 absence, and final provider USD billing are separately retained evidence.
+
+The local, undeployed deletion repair persists an unknown-outcome marker before
+the first DELETE and acceptance after success, then uses GET-only reconciliation
+for that original UUID. Prior attempts, lost acknowledgements and restarts do
+not authorize another DELETE. An exact-owned provider response already showing
+deletion in progress is also adopted as poll-only. A definite refusal remains
+an unresolved obligation requiring operator reconciliation. No provider progress
+status substitutes for confirmed absence or changes the original cutoff. The
+live retry issued 101 DELETEs; their contribution to the delay is unproven.
 
 ## Managed-KMS diagnostic integration
 

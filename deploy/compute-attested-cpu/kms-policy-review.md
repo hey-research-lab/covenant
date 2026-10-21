@@ -330,11 +330,14 @@ or change the rejected managed-KMS policy. The served trust ceiling remains
 `Open`; native creation is disabled by default and requires an explicit bounded
 operator allowance.
 
-The [subsequent native paid attempt](../../docs/compute-native-phala-acceptance.md)
+The [two subsequent native paid attempts](../../docs/compute-native-phala-acceptance.md)
 used the deployed coordinator admission and signed relay. Independent guest and
-buyer verification and native transfer passed, but provider deletion exceeded
-the 60-second successful-receipt gate. The execution failed; deletion of the
-original VM was later confirmed. This is a failed paid production qualification,
-not a KMS acceptance. Coordinator capability remains enabled, the operator is
-offline, and its one-use allowance remains consumed. A cleanup-timing repair and
-separately approved acceptance are required before production release.
+buyer verification and native transfer passed, but deletion confirmation exceeded
+each fixed gate: 60 seconds for the first attempt and 300 seconds for the
+October 21 retry, whose absence confirmation was 18.926 seconds late. Both VMs
+were later confirmed absent and both escrow returns finalized at zero Compute
+charge. These remain failed paid qualifications, not managed-KMS acceptance.
+Coordinator source `6598fe15` remains deployed; the operator is offline with
+both one-use allowances consumed. The subsequent poll-only deletion repair is
+local and not deployed. No third attempt or standing capacity is authorized;
+successful separately approved paid acceptance is required before release.

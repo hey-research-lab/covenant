@@ -10,16 +10,18 @@ passed full quote verification, strict-host-key SSH and memory/swap checks.
 Fresh instance/key/workspace isolation, real-quote binding negatives, channel
 closure at expiry and provider deletion were verified.
 
-The native coordinator admission and signed relay were deployed at source
-`da00ccf7541d94cfb97c2a43dd9dd96f6719f499` for one bounded paid acceptance.
-Independent guest/buyer verification and native transfer passed, but provider
-deletion was not confirmed within the 60-second successful-receipt gate. The
-execution failed; the original VM was subsequently confirmed deleted. The
-operator is offline and its one-use creation allowance remains consumed.
-Coordinator capability remains enabled, while node creation is disabled by
-default and the paid production qualification remains failed. A cleanup-timing
-repair and separately approved acceptance are required before production
-release. See the [native acceptance result](../../docs/compute-native-phala-acceptance.md).
+The native coordinator admission and signed relay are deployed at source
+`6598fe15663ad88fe256ad739ded703d05e1ad43`. Two bounded paid attempts passed
+independent guest/buyer verification and native transfer, but failed provider
+deletion confirmation: the first exceeded its 60-second gate, and the
+October 21 retry exceeded its fixed 300-second cutoff by 18.926 seconds.
+Both VMs were later confirmed absent, with zero Compute charge/payout and
+finalized full escrow returns. Both one-use allowances are consumed and the
+test node is stopped. Coordinator capability remains enabled; node creation
+is disabled by default and paid production qualification remains failed.
+The subsequent poll-only deletion repair is local and not deployed. No third
+paid attempt or standing production capacity is authorized. See the
+[native acceptance result](../../docs/compute-native-phala-acceptance.md).
 
 See [the isolated live acceptance record](../../docs/compute-ephemeral-phala-acceptance.md),
 [the lease integration guide](../../docs/compute-phala-lease-lifecycle.md),
@@ -324,9 +326,9 @@ capacity; deleting its VM does not replenish it. Preserve the node journal.
 
 The [native lifecycle contract](../../docs/compute-phala-lease-lifecycle.md)
 describes admission, cancellation, relay and teardown behavior. The deployed
-candidate's first paid attempt failed the teardown-confirmation deadline, so
+candidate's two paid attempts failed their teardown-confirmation deadlines, so
 successful paid production qualification remains outstanding. Neither a
-verified channel nor a later confirmed deletion changes that failed receipt.
+verified channel nor a later confirmed deletion changes either failed receipt.
 
 ## Managed-KMS candidate inputs
 

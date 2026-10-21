@@ -261,6 +261,9 @@ pub struct Machine {
     pub compose_hash: String,
     pub instance_id: Option<String>,
     pub running: bool,
+    /// Provider-reported deletion in progress; never proof of absence.
+    #[serde(default)]
+    pub deleting: bool,
 }
 
 /// Mutating methods are invoked only after the corresponding journal intent
@@ -296,6 +299,15 @@ enum Phase {
     ProvisionAbandoned,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DeleteStatus {
+    /// Saved before HTTP. A crash or error cannot authorize another DELETE.
+    OutcomeUnknown,
+    /// DELETE was accepted, or the owned provider resource reports deleting.
+    Accepted,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Row {
@@ -311,6 +323,8 @@ struct Row {
     deleted_confirmed_at_ms: Option<u64>,
     last_observed_ms: u64,
     delete_attempts: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    delete_status: Option<DeleteStatus>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     observed_instance_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -489,6 +503,13 @@ impl Journal {
                         || !row.close_requested
                         || confirmed > row.last_observed_ms
                 })
+                || row.delete_status.is_some_and(|status| {
+                    !row.close_requested
+                        || !matches!(row.phase, Phase::DeletePending | Phase::Deleted)
+                        || row.vm_uuid.is_none()
+                        || row.provision.is_none()
+                        || (status == DeleteStatus::OutcomeUnknown && row.delete_attempts == 0)
+                })
                 || row.plan.expires_at_ms() > row.plan.allowance.valid_until_ms
                 || row
                     .plan
@@ -556,6 +577,19 @@ impl Journal {
             }
             row.last_observed_ms = row.last_observed_ms.max(previous.last_observed_ms);
             row.close_requested |= previous.close_requested;
+            row.delete_attempts = row.delete_attempts.max(previous.delete_attempts);
+            row.delete_status = row.delete_status.max(previous.delete_status);
+            if (previous.delete_status.is_some() || previous.delete_attempts > 0)
+                && row.vm_uuid != previous.vm_uuid
+            {
+                return Err(failed("Phala deletion cannot change the original VM UUID"));
+            }
+            if previous.phase == Phase::Deleted
+                || (previous.phase == Phase::DeletePending
+                    && !matches!(row.phase, Phase::DeletePending | Phase::Deleted))
+            {
+                row.phase = previous.phase;
+            }
             if previous.cleanup_deadline_at_ms.is_some() {
                 row.cleanup_deadline_at_ms = previous.cleanup_deadline_at_ms;
             }
@@ -956,7 +990,7 @@ impl PhalaSessionBackend {
     }
 
     /// Start once before accepting jobs. This task never provisions or creates;
-    /// it only reconciles journal-owned resources and retries their teardown.
+    /// it only reconciles journal-owned resources and their teardown.
     pub fn start_recovery(self: &Arc<Self>) {
         let weak = Arc::downgrade(self);
         tokio::spawn(async move {
@@ -1076,12 +1110,28 @@ impl PhalaSessionBackend {
         validate_ownership(&row, &machine)?;
         row.vm_uuid = Some(machine.vm_uuid);
         row.phase = Phase::DeletePending;
+        if machine.deleting {
+            row.delete_status = Some(DeleteStatus::Accepted);
+        } else if row.delete_status.is_none() && row.delete_attempts > 0 {
+            // Legacy journals did not retain DELETE acknowledgements. An
+            // earlier attempt may already be queued even while GET says running.
+            row.delete_status = Some(DeleteStatus::OutcomeUnknown);
+        }
+        if row.delete_status.is_some() {
+            self.save(row)?;
+            return Err(failed(
+                "provider deletion pending; polling original VM only",
+            ));
+        }
         row.delete_attempts = row
             .delete_attempts
             .checked_add(1)
             .ok_or_else(|| failed("Phala deletion attempt counter overflow"))?;
+        row.delete_status = Some(DeleteStatus::OutcomeUnknown);
         self.save(row.clone())?;
         self.provider.delete(machine.vm_uuid).await?;
+        row.delete_status = Some(DeleteStatus::Accepted);
+        self.save(row.clone())?;
         if self.provider.get(machine.vm_uuid).await?.is_none() {
             row.phase = Phase::Deleted;
             row.deleted_confirmed_at_ms = Some(now_ms());
@@ -1121,6 +1171,7 @@ impl PhalaSessionBackend {
                     deleted_confirmed_at_ms: None,
                     last_observed_ms: now_ms(),
                     delete_attempts: 0,
+                    delete_status: None,
                     observed_instance_id: None,
                     verified_ephemeral: None,
                 };

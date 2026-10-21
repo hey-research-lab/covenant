@@ -356,6 +356,7 @@ impl PhalaProvider for Provider {
             compose_hash: plan.workload_sha256().into(),
             instance_id: (!plan.is_ephemeral()).then(|| "cd".repeat(20)),
             running: true,
+            deleting: false,
         });
         self.creating.notify_one();
         if self.create_hangs.load(Ordering::SeqCst) {
@@ -420,6 +421,7 @@ impl PhalaProvider for Provider {
         let row = snapshot.rows.values().next().unwrap();
         assert_eq!(row.phase, Phase::DeletePending);
         assert!(row.close_requested);
+        assert_eq!(row.delete_status, Some(DeleteStatus::OutcomeUnknown));
         self.delete_count.fetch_add(1, Ordering::SeqCst);
         if self.delete_failure.load(Ordering::SeqCst) {
             return Err(failed("delete transport outcome unknown"));
@@ -439,6 +441,204 @@ fn successful_outcome() -> ExecutionOutcome {
         tokens_out: None,
         finish_reason: None,
     }
+}
+
+#[tokio::test]
+async fn accepted_delete_polls_once_across_stale_save_restart_and_delayed_absence() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let job = ephemeral_job();
+    let cutoff = {
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        backend.open(&job).await.unwrap();
+        let stale = backend.row(job.job_id).unwrap();
+        provider.preserve_after_delete.store(true, Ordering::SeqCst);
+        backend.close(job.job_id).await;
+        let pending = provider.durable(job.job_id);
+        assert_eq!(pending.delete_status, Some(DeleteStatus::Accepted));
+        assert_eq!(pending.delete_attempts, 1);
+        backend.save(stale).unwrap();
+        for _ in 0..3 {
+            assert!(backend.reconcile().await.is_err());
+            let row = provider.durable(job.job_id);
+            assert_eq!(row.phase, Phase::DeletePending);
+            assert_eq!(row.delete_status, Some(DeleteStatus::Accepted));
+            assert_eq!(row.cleanup_deadline_at_ms, pending.cleanup_deadline_at_ms);
+            assert!(!row.deletion_confirmed_in_time(now_ms()));
+        }
+        assert_eq!(provider.delete_count.load(Ordering::SeqCst), 1);
+        pending.cleanup_deadline_at_ms
+    };
+    let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+    assert!(backend.reconcile().await.is_err());
+    assert_eq!(provider.delete_count.load(Ordering::SeqCst), 1);
+    // Asynchronous provider completion is independent of another DELETE.
+    *provider.machine.lock() = None;
+    backend.reconcile().await.unwrap();
+    let row = provider.durable(job.job_id);
+    assert_eq!(row.phase, Phase::Deleted);
+    assert_eq!(row.delete_status, Some(DeleteStatus::Accepted));
+    assert_eq!(row.cleanup_deadline_at_ms, cutoff);
+    assert!(row.deletion_confirmed_in_time(now_ms()));
+    assert_eq!(provider.delete_count.load(Ordering::SeqCst), 1);
+    assert!(
+        backend.admit(&ephemeral_job()).is_err(),
+        "grant stays consumed"
+    );
+}
+
+#[tokio::test]
+async fn unknown_delete_or_crash_before_send_never_retries_running_vm_after_restart() {
+    for crash_before_send in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = Provider::new(directory.path());
+        let job = ephemeral_job();
+        let cutoff = {
+            let backend =
+                verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+            backend.open(&job).await.unwrap();
+            if crash_before_send {
+                let mut row = backend.row(job.job_id).unwrap();
+                row.request_close_at(now_ms());
+                row.phase = Phase::DeletePending;
+                row.delete_attempts = 1;
+                row.delete_status = Some(DeleteStatus::OutcomeUnknown);
+                backend.save(row).unwrap();
+            } else {
+                provider.delete_failure.store(true, Ordering::SeqCst);
+                backend.close(job.job_id).await;
+            }
+            let row = provider.durable(job.job_id);
+            assert_eq!(row.delete_status, Some(DeleteStatus::OutcomeUnknown));
+            row.cleanup_deadline_at_ms
+        };
+        provider.delete_failure.store(false, Ordering::SeqCst);
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        for _ in 0..3 {
+            assert!(provider.machine.lock().as_ref().unwrap().running);
+            assert!(backend.reconcile().await.is_err());
+            let row = provider.durable(job.job_id);
+            assert_eq!(row.delete_status, Some(DeleteStatus::OutcomeUnknown));
+            assert_eq!(row.cleanup_deadline_at_ms, cutoff);
+        }
+        assert_eq!(
+            provider.delete_count.load(Ordering::SeqCst),
+            usize::from(!crash_before_send)
+        );
+        // A later provider deleting observation can confirm acceptance, never absence.
+        provider.machine.lock().as_mut().unwrap().deleting = true;
+        assert!(backend.reconcile().await.is_err());
+        assert_eq!(
+            provider.durable(job.job_id).delete_status,
+            Some(DeleteStatus::Accepted)
+        );
+        *provider.machine.lock() = None;
+        backend.reconcile().await.unwrap();
+        assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+        assert_eq!(
+            provider.delete_count.load(Ordering::SeqCst),
+            usize::from(!crash_before_send)
+        );
+    }
+}
+
+#[tokio::test]
+async fn legacy_attempt_or_owned_provider_deleting_only_polls_without_new_delete() {
+    for (attempts, deleting) in [(3, false), (3, true), (0, true)] {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = Provider::new(directory.path());
+        let job = ephemeral_job();
+        {
+            let backend =
+                verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+            backend.open(&job).await.unwrap();
+            let mut row = backend.row(job.job_id).unwrap();
+            row.request_close_at(now_ms());
+            row.phase = Phase::DeletePending;
+            row.delete_attempts = attempts;
+            row.delete_status = None;
+            backend.save(row).unwrap();
+        }
+        provider.machine.lock().as_mut().unwrap().deleting = deleting;
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        assert!(backend.reconcile().await.is_err());
+        let row = provider.durable(job.job_id);
+        assert_eq!(row.delete_attempts, attempts);
+        assert_eq!(
+            row.delete_status,
+            Some(if deleting {
+                DeleteStatus::Accepted
+            } else {
+                DeleteStatus::OutcomeUnknown
+            })
+        );
+        assert_eq!(provider.delete_count.load(Ordering::SeqCst), 0);
+        *provider.machine.lock() = None;
+        backend.reconcile().await.unwrap();
+        assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
+        assert_eq!(provider.delete_count.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[tokio::test]
+async fn provider_deleting_never_adopts_foreign_uuid_or_app() {
+    for foreign_uuid in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = Provider::new(directory.path());
+        let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+        let job = ephemeral_job();
+        backend.open(&job).await.unwrap();
+        let original_uuid = provider.durable(job.job_id).vm_uuid;
+        {
+            let mut machine = provider.machine.lock();
+            let machine = machine.as_mut().unwrap();
+            machine.deleting = true;
+            if foreign_uuid {
+                machine.vm_uuid = Uuid::new_v4();
+            } else {
+                machine.app_id = "ef".repeat(20);
+            }
+        }
+        backend.request_close(job.job_id);
+        assert!(backend.reconcile().await.is_err());
+        let row = provider.durable(job.job_id);
+        assert_eq!(row.vm_uuid, original_uuid);
+        assert_eq!(row.delete_status, None);
+        assert_eq!(provider.delete_count.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[tokio::test]
+async fn deletion_journal_metadata_requires_original_ownership_and_close_intent() {
+    let directory = tempfile::tempdir().unwrap();
+    let provider = Provider::new(directory.path());
+    let backend = verified_backend(provider.clone(), VerifiedEvidence::new(), directory.path());
+    let job = ephemeral_job();
+    backend.open(&job).await.unwrap();
+    provider.preserve_after_delete.store(true, Ordering::SeqCst);
+    backend.close(job.job_id).await;
+    let original = backend.row(job.job_id).unwrap();
+    let mut journal = backend.journal.lock();
+    let operator = journal.snapshot.operator.clone();
+    journal.validate(&operator).unwrap();
+    for mutation in 0..5 {
+        let mut invalid = original.clone();
+        match mutation {
+            0 => invalid.close_requested = false,
+            1 => invalid.phase = Phase::Ready,
+            2 => invalid.vm_uuid = None,
+            3 => invalid.provision = None,
+            4 => {
+                invalid.delete_attempts = 0;
+                invalid.delete_status = Some(DeleteStatus::OutcomeUnknown);
+            }
+            _ => unreachable!(),
+        }
+        journal.snapshot.rows.insert(job.job_id, invalid);
+        assert!(journal.validate(&operator).is_err());
+    }
+    journal.snapshot.rows.insert(job.job_id, original);
+    journal.validate(&operator).unwrap();
 }
 
 #[tokio::test]
@@ -494,6 +694,7 @@ async fn ephemeral_success_waits_for_confirmed_delete_and_never_recreates() {
         provider
             .preserve_after_delete
             .store(false, Ordering::SeqCst);
+        *provider.machine.lock() = None;
         backend.reconcile().await.unwrap();
         assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
         assert!(
@@ -702,6 +903,7 @@ fn cleanup_cutoff_caps_at_signed_deadline_and_refuses_clock_rollback_or_missing_
         deleted_confirmed_at_ms: None,
         last_observed_ms: 1000,
         delete_attempts: 0,
+        delete_status: None,
         observed_instance_id: None,
         verified_ephemeral: None,
     };
@@ -930,6 +1132,7 @@ async fn ephemeral_lost_create_recovers_same_app_and_cleanup_without_second_crea
     provider
         .preserve_after_delete
         .store(false, Ordering::SeqCst);
+    *provider.machine.lock() = None;
     let backend = ephemeral_backend(provider.clone(), directory.path(), false);
     backend.reconcile().await.unwrap();
     assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
@@ -1058,10 +1261,11 @@ async fn signed_lease_creates_once_and_delete_requires_observed_absence() {
     provider
         .preserve_after_delete
         .store(false, Ordering::SeqCst);
+    *provider.machine.lock() = None;
     backend.reconcile().await.unwrap();
     assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
     assert!(backend.shutdown_status().is_resolved());
-    assert_eq!(provider.delete_count.load(Ordering::SeqCst), 2);
+    assert_eq!(provider.delete_count.load(Ordering::SeqCst), 1);
     assert!(backend.open(&job).await.is_err());
     assert!(
         backend.open(&super::tests::job()).await.is_err(),
@@ -1146,7 +1350,7 @@ async fn owned_uuid_cleanup_survives_workload_and_name_drift() {
 }
 
 #[tokio::test]
-async fn disabled_creation_still_retries_owned_cleanup_after_restart() {
+async fn disabled_creation_still_polls_owned_cleanup_after_restart() {
     let directory = tempfile::tempdir().unwrap();
     let provider = Provider::new(directory.path());
     let job = job();
@@ -1159,6 +1363,7 @@ async fn disabled_creation_still_retries_owned_cleanup_after_restart() {
     provider
         .preserve_after_delete
         .store(false, Ordering::SeqCst);
+    *provider.machine.lock() = None;
     let backend = backend(provider.clone(), directory.path(), false);
     backend.reconcile().await.unwrap();
     assert_eq!(provider.durable(job.job_id).phase, Phase::Deleted);
@@ -1255,6 +1460,7 @@ fn io_failure_poison_prevents_later_mutations() {
         deleted_confirmed_at_ms: None,
         last_observed_ms: now_ms(),
         delete_attempts: 0,
+        delete_status: None,
         observed_instance_id: None,
         verified_ephemeral: None,
     };

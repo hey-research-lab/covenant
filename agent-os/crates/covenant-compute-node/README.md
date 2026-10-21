@@ -531,8 +531,15 @@ second coordinator-issued challenge. The buyer independently verifies that
 evidence before opening its single bounded SSH stream. Recovery of the original journal-owned resource precedes
 fresh admission and does not depend on enabling new creation. Preserve
 `<node-home>/phala-leases` and `<node-home>/phala-evidence`. The account health
-check is read-only; startup does not create a benchmark CVM. A new image and
-the integrated paid lifecycle remain unaccepted. The
+check is read-only; startup does not create a benchmark CVM. Current source
+`6598fe15` passed image qualification. Across two native paid attempts, guest
+admission and client upload passed, but deletion-confirmation deadlines failed. Both
+VMs were later confirmed absent and both Compute escrows fully returned; paid
+lifecycle qualification remains failed. The local follow-up persists the first
+DELETE outcome and reconciles with GET only, including after restart or a lost
+acknowledgement. It preserves the original resource and cleanup cutoff and is
+not deployed. Both one-use allowances are consumed; no third attempt or standing
+capacity is authorized. The
 [lifecycle guide](../../../docs/compute-phala-lease-lifecycle.md) defines the
 allowance, separate KMS decision, exact buyer commands and cleanup proof.
 

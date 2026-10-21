@@ -5,11 +5,12 @@ pins, automatic challenge/evidence collection and a buyer path for independent
 verification, SSH probing and workspace restore. The served trust ceiling
 remains **`Open`**. Managed-KMS creation remains disabled; ephemeral creation
 requires an explicit bounded allowance and remains disabled by default.
-The coordinator integration is deployed at `da00ccf7541d94cfb97c2a43dd9dd96f6719f499`.
-Its first paid native acceptance failed the 60-second deletion-confirmation
-deadline after independent admission and a real client upload passed. The
-original VM was subsequently confirmed deleted, buyer credit was fully
-restored, and the original on-chain escrow refund finalized. See the
+The coordinator integration is deployed at `6598fe15663ad88fe256ad739ded703d05e1ad43`.
+Both paid native attempts passed independent admission and real client upload,
+then failed deletion confirmation: the first exceeded its 60-second gate; the
+October 21 retry exceeded its fixed 300-second cutoff by 18.926 seconds. Both
+original VMs were subsequently confirmed absent, buyer credit was fully
+restored, and both original on-chain escrow refunds finalized. See the
 [native acceptance record](compute-native-phala-acceptance.md). Successful paid
 settlement and general production capacity remain unqualified.
 
@@ -18,8 +19,8 @@ now allocates a fresh VM/disk per lease and connects outbound using an
 independently attested SSH key, without managed KMS. Its bounded live diagnostic
 is distinct from the native paid lease flow. The native integration now verifies
 operator and buyer admission, relays attested SSH, and gates successful receipts
-on confirmed teardown. The failed native attempt does not establish a successful
-paid lease, even though its admission, upload and eventual deletion passed.
+on confirmed teardown. Neither failed native attempt establishes a successful
+paid lease, even though admission, upload and eventual deletion passed.
 
 The [lease lifecycle guide](compute-phala-lease-lifecycle.md) records the exact
 configuration and buyer commands. The [hardware contract](compute-hardware-attestation.md)
@@ -102,11 +103,13 @@ not qualify KMS policy, paid lifecycle integration or a production release.
    and provider USD exposure, exact placement, one new resource, finite
    lifetime and cleanup ownership. Exercise the integrated lease, evidence,
    buyer channel, synthetic workspace transfer, settlement and confirmed
-   provider deletion with the original identities. The first native attempt is
-   recorded as failed and fully refunded. Repair the bounded cleanup/result
-   deadlines, then obtain fresh authorization for one new acceptance; preserve
-   the original failed envelope and consumed allowance. The test operator is
-   stopped and no Phala production capacity is advertised.
+   provider deletion with the original identities. Both native attempts are
+   recorded as failed and fully refunded. The cleanup/result-deadline repair
+   is deployed, but the subsequent poll-only deletion repair remains local and
+   needs release qualification. A new paid test requires fresh authorization;
+   no third attempt is approved. Preserve both failed envelopes and consumed
+   allowances. The test node is stopped and no standing Phala production
+   capacity is enabled.
 4. **Trust-release decision.** Keep `Open` during diagnostics. A stronger
    workspace floor must continue to reject. Any future ceiling increase is a
    separate reviewed code/release change for an accepted profile, not an

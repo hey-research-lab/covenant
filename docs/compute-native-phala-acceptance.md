@@ -1,18 +1,20 @@
-# Native Phala no-KMS acceptance — 2026-10-20 UTC
+# Native Phala no-KMS acceptance — 2026-10-20–21 UTC
 
-**The coordinator integration is deployed, but paid production qualification
-failed.** The original buyer passed independent TDX admission, uploaded a real
-client file through the signed relay, and closed the lease. Phala deletion
-outlasted the node's 60-second successful-receipt deadline. Covenant returned a
-verified execution failure, restored all buyer credit, and continued durable
-cleanup until the original VM was confirmed absent. No replacement lease was
-submitted.
+**The coordinator integration is deployed at `6598fe15`, but both authorized
+paid attempts failed production qualification.** Each buyer admission and real
+client upload passed. The first attempt exceeded its 60-second deletion gate;
+the separately authorized October 21 retry exceeded its fixed 300-second gate
+by 18.926 seconds. Both original VMs were subsequently confirmed absent, and
+both failed receipts charged zero. Buyer Compute credit is fully restored.
+Both on-chain escrow returns finalized. The October 21 record below separates
+that reconciliation from the subsequent local, undeployed poll-only deletion repair.
+No third attempt or standing production capacity is authorized.
 
 This is separate from the earlier [isolated no-KMS acceptance](compute-ephemeral-phala-acceptance.md).
 The served trust ceiling remains `Open`; neither managed-KMS qualification nor
 persistent-secret custody is claimed.
 
-## Candidate and deployment
+## October 20 candidate and deployment
 
 | Item | Verified value |
 | --- | --- |
@@ -44,7 +46,7 @@ mount in the running service. Unsigned relay requests returned 401. These
 checks establish initial persistence configuration, not a completed relay
 restart acceptance.
 
-## Original identities and bounded spend
+## October 20 identities and bounded spend
 
 | Item | Value |
 | --- | --- |
@@ -63,7 +65,7 @@ pre-existing diagnostic VM was not adopted or deleted.
 After the failed lease, finalized reads still showed the full 1,000,000 CVNT in
 the original position and vault, with unchanged lock expiry and no deduction.
 
-## Live result
+## October 20 live result
 
 1. The native node allocated one fresh VM/disk with the no-KMS profile. Operator
    and coordinator evidence agreed on the independently verified TDX app/boot
@@ -96,7 +98,7 @@ and finalized escrow return. A public status read confirmed `offline`,
 The failed attempt is retained in operator reputation as one fault; no stake
 deduction was observed.
 
-## Final financial reconciliation
+## October 20 final financial reconciliation
 
 | Item | Final result |
 | --- | --- |
@@ -119,9 +121,9 @@ a claim that every on-chain account was closed. Restored buyer credit remains
 Compute credit, not a withdrawal to an external buyer wallet. Provider billing,
 transaction fees and the CVNT lock are separate from the zero Compute charge.
 
-## Remaining qualification
+## First repair, deployed for the October 21 retry
 
-The follow-up source provides 300 seconds for deletion and 60 seconds for result
+The first follow-up source provides 300 seconds for deletion and 60 seconds for result
 delivery in new signed ephemeral orders, without extending guest access, signed
 lease expiry or metered runtime. Raising only the cleanup timeout would be
 insufficient for a lease that runs to expiry, because the generic result slack
@@ -136,21 +138,18 @@ timeout, an absence GET returning after the cutoff, restart/legacy state and
 clock boundaries. Coordinator tests deliver success 270 seconds after early
 close and 100 seconds after guest expiry without increasing native or recorded
 on-chain gross; duplicate result pays once, and delivery past the original
-signed deadline refunds and voids instead. These are local regression tests,
-not a second paid acceptance. A separate HTTP regression rejects a new order
+signed deadline refunds and voids instead. These regression tests preceded the
+separately authorized October 21 retry. A separate HTTP regression rejects a new order
 with the old 60-second slack before any hold or debit, while the stored original
-failed envelope still returns its unchanged historical result. The live
-deployment recorded above remains
-`da00ccf7`; the correction has not been deployed by this acceptance record.
+failed envelope still returns its unchanged historical result. That correction
+was subsequently deployed at `6598fe15663ad88fe256ad739ded703d05e1ad43`, as
+recorded below; the October 20 evidence remains unchanged.
 
 The original failed envelope, resource, receipt and reservations remain in the
-record. A new paid acceptance requires fresh authorization and a distinct
-one-use allowance. Successful operator payout and paid settlement qualification
-remain unproven by this attempt. General production activation remains blocked
-until the repaired complete path passes and a standing bounded operator policy
-is explicitly selected.
+record. The retry used a distinct job and one-use allowance after fresh approval;
+it did not reopen the October 20 envelope or replenish its consumed allowance.
 
-## Private evidence hashes
+## October 20 private evidence hashes
 
 Raw quotes, collateral, management responses, signed requests and credentials
 remain private. Selected retained SHA-256 hashes:
@@ -164,3 +163,105 @@ remain private. Selected retained SHA-256 hashes:
 | Independently confirmed provider deletion | `14d5c7ee3b0ddd793a15b8740e1f3fbcfc646de3079c648faf20bb89ce5a81b8` |
 | Failed receipt and finalized escrow reconciliation | `a99c8712d584fcd3589cac0629238d4d569269664927e105cab0d629b54d3790` |
 | Public operator/capacity status | `6a9be1b22397169715adb86a1c4c429d3cdd5d0d3a7c9cd3df5ffbfd616ae2ca` |
+
+## October 21 repair deployment and authorized retry
+
+| Item | Verified value |
+| --- | --- |
+| Coordinator and buyer/node source | `6598fe15663ad88fe256ad739ded703d05e1ad43` |
+| Coordinator image | `ghcr.io/open-covenant/covenant/compute-coordinator-public@sha256:c33f18c4ffb87af8068c67432de7825e8ae6c9f95cc271735cc23304f74eb978` |
+| Node image qualified | `ghcr.io/open-covenant/covenant/compute-node-public@sha256:fe7bf4051967385d1a228e09b05a3c479a09f150b77e4042afdf90e87d811d15` |
+| Render deployment | `dep-dbc655ui0phs73ahbn1g` |
+| Retry job | `ede12c80-7a4b-43ed-9c83-4f16d0c4ad34` |
+| Fresh provider VM | `b6baaa76-9ee1-4db8-85c6-a49dc5f4b254` |
+| Buyer, operator, guest image and profile | Same identities and pins as above; a new guest boot and SSH key |
+| Lease maximum | 900 seconds at 34 micro-USDC/second; 30,600 micro-USDC total |
+| Provider allowance | A separate one-use allowance for this job; $0.05 planning reservation, not an invoice cap |
+
+The exact source passed CI, release and image qualification before the
+image-only deployment. Post-deployment validation confirmed all 85 environment
+values, the service and persistent disk, all 120 existing native jobs and their
+financial facts, and exact relay/hardware snapshots were preserved. The original
+failed/refunded Phala job and older unresolved canary hold remained intact.
+The canary preservation check does not resolve that separate historical hold.
+
+1. The node created one fresh no-KMS VM/disk. Independent operator,
+   coordinator and buyer verification accepted the original signed workload,
+   fresh TDX boot identity and bound SSH key. The native buyer uploaded
+   **81,920 bytes** to `/workspace/native-acceptance.bin` as UID 10001;
+   the client and guest SHA-256 again matched
+   `d980aa7bb22cd97d3d80d5c68cdb9fc4f09bb63c18819cbbb8abb40597025ca6`.
+2. Explicit close completed at **07:03:07.225 UTC** and stopped the meter.
+   The node retained the original cleanup obligation and fixed the cutoff at
+   **07:08:07.890 UTC** (`1792566487890`). Guest access, the signed expiry,
+   price ceiling and result deadline were not extended.
+3. Provider absence was still unconfirmed at the cutoff, so the native result
+   was a verified execution failure. Recovery continued for the same UUID.
+   The journal recorded **101 DELETE attempts** before reaching durable
+   `deleted`, with absence confirmation stamped **07:08:26.816 UTC**
+   (`1792566506816`), **18.926 seconds too late** to qualify success.
+4. A separate authenticated exact-UUID GET returned **404 at
+   07:14:02.187 UTC**. No replacement VM was created, and no node pause or
+   deadline reset was used. Eventual deletion does not revise the failed receipt.
+
+The failed receipt verifies as `no_payout_due`. Native buyer charge, operator
+payout and marketplace fee are all zero; available Compute credit is 30,600
+micro-USDC, with budget pending 0 and settled 0. This is restored Compute
+credit, not an external buyer-wallet withdrawal.
+
+Independent finalized reads confirmed the original terms were voided by
+[2LbBbxx1…](https://explorer.solana.com/tx/2LbBbxx1jCGHUXzhppt79jN26GKoPqSVLcmza5FkxULqGezi992i8MCkzAW9Lcjg4rkUYJQvccVcDdfKh4uz2ZGm).
+The original renter escrow returned exactly **30,600 micro-USDC (0.0306 USDC)**
+in [4SptxeQB…](https://explorer.solana.com/tx/4SptxeQBXYDwUBLE928bFN7xctUdBGHjaM2uW6U7ZQVSnEafwZNn9FkkAhhcB4UotrV61KsTUE9HgxqZBVDaHLKv),
+and the vault is absent. The terms retain their voided/paid flags. The failed
+path's meter remains delegation-owned and unconcluded with retained L1
+`metered_ms=0`; this does not prove the final active rollup state or closure of
+every chain account. The original failed receipt is unchanged. Finalized stake
+position and vault reads still contain the full 1,000,000 CVNT with the original
+2026-10-27 22:48:30 UTC lock expiry and no deduction.
+
+After confirmed VM absence and the finalized audit, the test node stopped
+cleanly. Public status showed `offline`, `live=false`, `matchable=false`, and
+no Phala capacity entry. Both failed attempts remain in reputation as two
+faults; neither accounting history nor reputation was reset.
+
+## Current repair and production boundary
+
+The deployed node retried DELETE while GET still returned the VM. Phala's API
+describes HTTP 204 as deletion initiated, rather than completed. The repeated
+requests may have contributed to delay, but this test does not prove that
+Phala restarted deletion on each request. Provider latency remains a possible
+contributor. See the [provider deletion contract](https://docs.phala.com/api-reference/cvms/delete-cvm).
+
+The local follow-up repair durably records an unknown outcome before the first
+DELETE, records acceptance after success, and then polls GET without reissuing
+DELETE. Existing rows with prior attempts and provider responses already showing
+deletion in progress also become poll-only after exact ownership checks.
+Timeout, lost acknowledgement or restart cannot cause a blind resend; even a
+definite refusal retains the original obligation for operator reconciliation.
+Only an authenticated exact-UUID absence observation can confirm deletion.
+Original ownership, the fixed cleanup cutoff, late-confirmation refusal and
+all financial bounds remain unchanged. The repair passed 52 Phala tests,
+13 shared lease tests, four admission integration tests, strict node Clippy,
+formatting and 224 repository guards. This repair is **local and not deployed**;
+these checks do not establish successful paid acceptance.
+
+Both one-use creation allowances are consumed. There is no standing Phala
+production capacity or authorization for a third paid attempt. Successful
+operator payout and complete paid settlement qualification remain unproven.
+General activation requires the repaired complete path to pass a separately
+approved bounded acceptance and an explicit standing operator policy. The
+served ceiling stays `Open`, and managed-KMS qualification remains rejected.
+
+## October 21 private evidence hashes
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Image-only deployment preservation validation | `7b0666568997a76270be90f3531aac7354c439f4cf355416c1cfd7a4b8bdaa9c` |
+| Verified native client upload | `a633ac3f2e643f765e619a14c21aa5fc231f04636af56d59ece78b70c9c3e056` |
+| Independent exact-UUID deletion confirmation | `f7362d8d290df9cc3f4509b9f98a24dedcc72374e6f6e59017cf75196ac9ecf9` |
+| Native no-payout verification | `9b39f313eca65e26bdfcd1845425e5bba0c3f02f03c56acdc0a9e66e37c29ae0` |
+| Restored native buyer credit | `e6765402476b5604cb8cf70ca1ca8926050572fd40fbd8ea2457ef19bc665b77` |
+| Reconciled buyer budget | `b7c90fcb460505bd452ca6cf18f840f282470ad0c7b70c542ba2b2b9cfe57754` |
+| Independent failed-receipt, finalized escrow and stake audit | `81109004f5e74b3ef85df944aaf29a4782c30c00ec946fa0e7c43a14a7f57da2` |
+| Public post-stop operator/capacity status | `6c678c8f323207d648445fdd34d6b592df10a51d3425274f6232e19e0115baec` |
